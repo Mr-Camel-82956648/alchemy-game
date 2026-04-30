@@ -47,7 +47,7 @@ const Collection = (() => {
 
     function renderGrid() {
         els.grid.innerHTML = '';
-        const cards = GameStorage.getCards().filter(c => c.type !== 'basic');
+        const cards = GameStorage.getCards().filter(c => c.type !== 'basic' && c.type !== 'text');
 
         cards.forEach(card => {
             const item = createCardElement(card);
@@ -137,8 +137,11 @@ const Collection = (() => {
         const thumbnail = GameStorage.generateTextThumbnail(text);
         const newCard = GameStorage.addCard({ name: text, type: 'text', thumbnail });
         els.textModal.style.display = 'none';
-        renderGrid();
-        selectCard(newCard.id);
+        if (activeSlot) {
+            GameStorage.setSlot(activeSlot, newCard.id);
+        }
+        close();
+        setTimeout(() => Alchemy.refreshSlots(), 300);
     }
 
     function onSpellCancel() {

@@ -75,6 +75,8 @@ const Alchemy = (() => {
 
         animateCardsToCenter(() => {
             ForgeAPI.startForge(cardA, cardB);
+            if (cardA && cardA.type === 'text') GameStorage.removeCard(cardA.id);
+            if (cardB && cardB.type === 'text') GameStorage.removeCard(cardB.id);
             showForgePopup();
         });
     }
