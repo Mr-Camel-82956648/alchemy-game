@@ -9,13 +9,21 @@
 | 变量 | 说明 | 示例值 |
 |------|------|--------|
 | `FORGE_USE_REAL_LLM` | 是否启用真实 LLM 生成 | `true` / `false` |
-| `LLM_PROVIDER` | LLM 提供方标识（当前仅支持 gemini_rest） | `gemini_rest` |
+| `LLM_PROVIDER` | 主 LLM provider 标识 | `gemini_rest` / `openai_compat` |
 | `GEMINI_API_KEY` | Gemini API Key | `AIzaSy...` |
 | `LLM_MODEL` | 模型名称 | `gemini-2.0-flash` |
+| `LLM_BASE_URL` | OpenAI-compatible 备用接口地址 | `https://example.com/v1` |
+| `LLM_API_KEY` | OpenAI-compatible 备用接口密钥 | `sk-...` |
+| `OPENAI_COMPAT_MODEL` | OpenAI-compatible 备用模型名 | `gemini-3.1-flash-lite-preview` |
 | `LLM_TIMEOUT_SECONDS` | 单次 HTTP 请求超时（秒） | `30` |
 | `LLM_MAX_RETRIES` | 失败后重试次数 | `1` |
 
 要切换回 mock：将 `FORGE_USE_REAL_LLM` 设为 `false`，无需改代码。
+
+当前最小可用策略：
+- 默认先使用 `LLM_PROVIDER` 指定的主 provider
+- 当主 provider 为 `gemini_rest` 且调用失败时，后端会自动尝试 OpenAI-compatible 备用 provider
+- 只有主、备 provider 都拿不到可用的结构化结果时，才进入词库 fallback
 
 ## Gemini REST 调用方式
 
@@ -26,6 +34,16 @@ POST https://generativelanguage.googleapis.com/v1beta/models/{model}:generateCon
 ```
 
 请求体使用 `systemInstruction` 传入设计原则和输出格式要求，`contents` 传入两个父法阵信息。设置 `responseMimeType: "application/json"` 强制 JSON 输出。
+
+## OpenAI-compatible 备用调用方式
+
+当主 provider 失败且 `.env` 中配置了 `LLM_BASE_URL`、`LLM_API_KEY`、`OPENAI_COMPAT_MODEL` 时，后端会自动调用：
+
+```
+POST {LLM_BASE_URL}/chat/completions
+```
+
+请求体使用标准 `messages` 格式传入同一套 system prompt 和 user prompt，并对返回内容执行相同的 JSON 提取与结构校验。
 
 ## LLM 输出 Schema
 
@@ -116,7 +134,6 @@ LLM 被要求输出以下 JSON 结构：
 
 ## 已知限制（Phase 3）
 
-- 仅支持 Gemini REST，未实现 OpenAI-compatible 通路
 - 任务存储在内存中，后端重启丢失
 - videoUrl 始终为 null
 - 无鉴权、无限流
