@@ -7,7 +7,7 @@
 ```
 alchemy-game/
   frontend/     # 前端：游戏主循环、战斗、法阵展示、炼金合成
-  backend/      # 后端：AI 生成服务（当前为占位，尚未实现）
+  backend/      # 后端：FastAPI 法阵合成 API
   docs/         # 项目文档
 ```
 
@@ -41,17 +41,51 @@ python -m http.server 8080
 
 > **不建议直接双击 `frontend/index.html` 打开。** 浏览器以 `file://` 协议加载时，视频资源和 fetch 请求（如加载 seed_cards.json）会因跨域限制而失败，导致法阵无法正常显示。
 
-### 后端说明
+## 启动后端
 
-当前后端目录 `backend/` 为预留占位，尚未实现。前端合成流程默认使用本地 mock 模式（见 `frontend/js/forgeAPI.js` 中的 `USE_MOCK` 开关），不依赖后端服务即可完整运行。
+前端默认以 `USE_MOCK = false` 连接后端，需要启动后端服务：
+
+```bash
+cd backend
+pip install -r requirements.txt
+uvicorn app.main:app --reload --port 18001
+```
+
+启动后访问 `http://localhost:18001/docs` 可查看自动生成的 API 文档。
+
+> 默认端口为 18001。如果你的机器上该端口被占用或希望使用其他端口（如 8001），同时修改启动命令和 `frontend/js/forgeAPI.js` 中的 `API_BASE` 即可。
+
+如果不启动后端，将 `frontend/js/forgeAPI.js` 中的 `USE_MOCK` 改为 `true` 即可使用本地 mock 模式。
+
+## 前后端模式切换
+
+在 `frontend/js/forgeAPI.js` 中：
+
+- `USE_MOCK = true` — 纯前端本地模拟，不需要后端
+- `USE_MOCK = false` — 前端连接 `http://localhost:18001` 后端 API
+
+## Phase 2 完成状态
+
+前后端最小真实闭环已跑通（2026-04-30 验收通过）：
+
+- 前端炼金合成流程通过 `POST /api/forge` 提交请求，轮询 `GET /api/forge/status/{taskId}` 获取结果
+- 后端使用 FastAPI + 内存任务表，mock 生成逻辑（随机属性 + 5~10 秒延迟）
+- 合成结果写入 localStorage 后，battle.js 和 alchemy.js 正常消费，新卡进入收藏夹
+
+当前限制（后续阶段解决）：
+
+- 后端生成逻辑为随机 mock，尚未接入真实 AI 模型
+- 任务存储在内存中，后端重启后任务丢失
+- 合成结果的 videoUrl 始终为 null
+- 无认证鉴权、无限流
 
 ## 当前阶段目标
 
-1. 保留现有前端玩法
-2. 建立统一法阵/怪物数据结构
-3. 引入极简属性与伤害规则
-4. 新增最小后端 forge 接口（Phase 2+）
-5. 实现前后端通信（Phase 2+）
+1. 保留现有前端玩法（已完成）
+2. 统一法阵/怪物数据结构（已完成）
+3. 极简属性与伤害规则（已完成）
+4. 最小后端 forge 接口（已完成）
+5. 前后端通信闭环（已完成）
 
 ## 设计原则
 
