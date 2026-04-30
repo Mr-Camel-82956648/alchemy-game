@@ -11,6 +11,8 @@ const ForgeAPI = (() => {
     const USE_MOCK = false;
     const API_BASE = 'http://localhost:18001';
 
+    console.log('[ForgeAPI] loaded, USE_MOCK=' + USE_MOCK + ', API_BASE=' + API_BASE);
+
     let _pollTimer = null;
     let _pollCount = 0;
     const MAX_POLLS = 60;
@@ -50,6 +52,7 @@ const ForgeAPI = (() => {
                     status: 'complete'
                 };
                 GameStorage.save(data);
+                console.log('[ForgeAPI] mock result written:', data.pendingGeneration.result.name);
             }
         }, 8000 + Math.random() * 7000);
 
@@ -78,11 +81,11 @@ const ForgeAPI = (() => {
                 data.pendingGeneration.taskId = realTaskId;
                 GameStorage.save(data);
             }
-            console.log('[ForgeAPI] Task created:', realTaskId);
+            console.log('[ForgeAPI] task created:', realTaskId);
             startPolling(realTaskId);
         })
         .catch(err => {
-            console.error('[ForgeAPI] realForge failed, backend may not be running:', err);
+            console.error('[ForgeAPI] POST /api/forge failed:', err);
         });
     }
 
@@ -92,7 +95,7 @@ const ForgeAPI = (() => {
         _pollTimer = setInterval(() => {
             _pollCount++;
             if (_pollCount > MAX_POLLS) {
-                console.warn('[ForgeAPI] Polling timed out after', MAX_POLLS, 'attempts');
+                console.warn('[ForgeAPI] polling timed out');
                 stopPolling();
                 return;
             }
@@ -109,15 +112,15 @@ const ForgeAPI = (() => {
                             storageData.pendingGeneration.status = 'done';
                             storageData.pendingGeneration.result = data.result;
                             GameStorage.save(storageData);
-                            console.log('[ForgeAPI] Forge completed:', data.result.name);
+                            console.log('[ForgeAPI] forge completed:', data.result.name, '(source=' + (data.result.source || '?') + ')');
                         }
                     } else if (data.status === 'failed') {
                         stopPolling();
-                        console.error('[ForgeAPI] Forge task failed:', data.error);
+                        console.error('[ForgeAPI] forge task failed:', data.error);
                     }
                 })
                 .catch(err => {
-                    console.warn('[ForgeAPI] Poll error:', err.message);
+                    console.warn('[ForgeAPI] poll error:', err.message);
                 });
         }, 3000);
     }
