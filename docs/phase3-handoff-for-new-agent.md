@@ -89,6 +89,13 @@ GET  /api/forge/status/{taskId}
 
 详细 schema 见 `docs/forge-schema.md`。
 
+### 状态分层（当前口径）
+
+- **后端任务状态**：`pending` / `completed` / `failed`
+- **ForgeResult.status**：当前固定为 `"partial"`，表示法阵结果已生成但暂无视频资源
+- **前端本地 pending 状态**：`localStorage.pendingGeneration.status` 当前使用 `"done"` 作为前端本地完成标记，不属于后端接口协议
+- **ForgeResult.source**：表示最终结果来源；`llm` 表示最终结果主要来自 LLM 输出并通过规则校验，`fallback` 表示最终结果由 fallback 逻辑生成，或 LLM 结果被判定不可用后被 fallback 替换
+
 ### Forge 完整调用链
 
 ```
@@ -97,7 +104,7 @@ alchemy.js:onStart()
   → ForgeAPI.startForge(cardA, cardB)        — forgeAPI.js
     → realForge() → POST http://localhost:18001/api/forge
     → startPolling() → 每 3s GET /api/forge/status/{id}
-    → 写入 localStorage.pendingGeneration.result
+    → 写入 localStorage.pendingGeneration.status='done' 和 result
 
 [Battle 阶段]
 battle.js:checkForgeStatus() 每 5s 读 pending，达到能量阈值后 onVictory
@@ -135,7 +142,7 @@ routes/forge.py:start_forge → forge_service.create_forge_task
 - 系统 prompt 强调视觉优先 + 极简规则
 - LLM 输出结构化 JSON（name / mainAttr / subAttr / visualDesc / fusionPrompt）
 - 后端规则负责 generation / baseAtk / element / status / source / videoUrl
-- 完整 fallback 机制（LLM 失败 → 随机生成）
+- 完整 fallback 机制（LLM 失败或结果被判定不可用 → fallback 词库生成）
 
 ### Phase 3.1 — 修复
 - "刻写新咒语"text 卡不再污染收藏夹（`collection.js` filter + slot 直接放入）
@@ -169,12 +176,12 @@ routes/forge.py:start_forge → forge_service.create_forge_task
 
 **判断链路正常的特征：**
 - 名称是 4 字优先的全新意象（不含父卡完整名称、不含"·"或"之阵"）
-- 状态返回中 `source: "llm"`（不是 `fallback`）
+- 状态返回中 `source: "llm"`（表示最终结果主要来自 LLM，而不是 `fallback`）
 - 后端终端能看到对应 `[LLM] Validation OK` 和 `[FORGE] LLM SUCCESS` 日志
 
 **典型异常信号：**
-- 名称形如 `烈焰巨龙·飞流直下三千尺之阵` → 几乎肯定是前端走了 mock，没真实调到后端
-- 名称形如 `烈焰雷阵`、`寒霜印` 这种短小但僵硬的拼接 → backend 走了 fallback 词库，意味着 LLM 调用失败，需查后端日志
+- 名称形如 `烈焰巨龙·飞流直下三千尺之阵` → 几乎肯定是前端走了 `USE_MOCK` 本地模拟，没真实调到后端
+- 名称形如 `烈焰雷阵`、`寒霜印` 这种短小但僵硬的词库短名，且 `source=fallback` → backend 走了 fallback 逻辑；可能是 LLM 调用失败，也可能是 LLM 结果被判定不可用后被替换，需查后端日志
 
 ---
 
@@ -346,8 +353,8 @@ ace6c81 Add backend placeholder and update README with local run instructions
 ### 高优先级（聚焦在协议固化与文档收口，不要发散）
 
 1. **Forge schema / source / fallback 语义固化**
-   - 把 `ForgeResult` 的 `source: "llm" | "fallback"` 提升为协议必填字段
-   - 在 `docs/forge-schema.md` 中把 `partial` / `complete` / `legacy` 的 `status` 语义、`videoUrl=null` 时的展示规则写死
+   - 保持 `ForgeResult.source: "llm" | "fallback"` 作为协议必填字段，后续扩展不要破坏其“最终结果来源”语义
+   - 在 `docs/forge-schema.md` 中继续以“任务状态 / ForgeResult.status / 前端本地 pending 状态”三层语义为准，避免混用
    - 前后端校验代码加上对 `source` / `status` 的显式断言
 
 2. **异常路径验证与补齐**

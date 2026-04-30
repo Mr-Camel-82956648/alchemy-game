@@ -4,7 +4,8 @@
  * USE_MOCK = true  → 前端本地模拟，不需要后端
  * USE_MOCK = false → 请求 FastAPI 后端（默认 http://localhost:18001）
  *
- * 两种模式都将结果写入 localStorage（pendingGeneration.status = 'done'），
+ * 两种模式都将结果写入 localStorage（pendingGeneration.status = 'done'）。
+ * 这里的 'done' 是前端本地状态，不等于后端任务状态 pending/completed/failed。
  * battle.js 和 alchemy.js 只读 localStorage，无需关心模式差异。
  */
 const ForgeAPI = (() => {
@@ -49,7 +50,8 @@ const ForgeAPI = (() => {
                     generation: gen,
                     baseAtk: SpellDefs.calcBaseAtk(gen),
                     videoUrl: null,
-                    status: 'complete'
+                    status: 'partial',
+                    source: 'fallback'
                 };
                 GameStorage.save(data);
                 console.log('[ForgeAPI] mock result written:', data.pendingGeneration.result.name);

@@ -25,7 +25,7 @@ class ForgeResult(BaseModel):
     status: str = "partial"
     visualDesc: Optional[str] = None
     fusionPrompt: Optional[str] = None
-    source: Optional[str] = None
+    source: str
 
 
 class ForgeStatusResponse(BaseModel):
