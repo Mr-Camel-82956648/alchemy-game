@@ -32,6 +32,10 @@ archive/
 _archive_docs/
 _archive_claude/
 
+# ===== Environment variables =====
+.env
+.env.*
+
 # ===== Ripgrep / search ignore (not needed in repo) =====
 # .ignore is kept for local ripgrep use, not excluded
 

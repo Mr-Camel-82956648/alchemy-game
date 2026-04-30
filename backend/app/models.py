@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import Optional, List
+from typing import Optional
 
 
 class SpellInput(BaseModel):
@@ -22,7 +22,10 @@ class ForgeResult(BaseModel):
     generation: int
     baseAtk: float
     videoUrl: Optional[str] = None
-    status: str = "complete"
+    status: str = "partial"
+    visualDesc: Optional[str] = None
+    fusionPrompt: Optional[str] = None
+    source: Optional[str] = None
 
 
 class ForgeStatusResponse(BaseModel):

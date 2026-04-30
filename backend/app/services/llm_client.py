@@ -1,0 +1,156 @@
+import os
+import json
+import logging
+import httpx
+
+logger = logging.getLogger("forge.llm")
+
+VALID_ELEMENTS = {"fire", "ice", "thunder", "blight"}
+ELEMENT_ALIASES = {"poison": "blight"}
+
+SYSTEM_PROMPT = """你是"AI法阵·炼金术士"的法阵融合引擎。基于两个父法阵，生成一个融合法阵。
+
+设计原则：
+- 视觉优先：法阵的核心是视觉表现，不是数值
+- 规则极简：不要发明复杂世界观或冗长设定
+- 数值为视觉服务
+- 输出适合 2.5D 俯视角游戏法阵特效的概念基础
+- 主属性基于视觉主导特征判断
+- 融合应体现两个父法阵特征的有机结合
+- 输出简洁、清晰、稳定、可解析
+
+元素只能从以下四个中选择：fire, ice, thunder, blight
+subAttr 必须与 mainAttr 不同。
+
+严格按以下 JSON 格式输出，不要附带任何其他文字：
+{
+  "name": "新法阵名称（简短有力，2-6个汉字）",
+  "mainAttr": "fire 或 ice 或 thunder 或 blight",
+  "subAttr": "fire 或 ice 或 thunder 或 blight（必须与 mainAttr 不同）",
+  "visualDesc": "法阵视觉描述（1-2句，描述俯视角下看到的法阵特效）",
+  "fusionPrompt": "给视频生成模型的英文提示词（1-2句，描述法阵视觉效果）"
+}"""
+
+
+def _build_user_prompt(spell_a_name, spell_a_attr, spell_a_gen,
+                       spell_b_name, spell_b_attr, spell_b_gen):
+    return f"""请融合以下两个父法阵，生成一个新的融合法阵：
+
+父法阵 A：
+- 名称：{spell_a_name}
+- 主属性：{spell_a_attr or '未知'}
+- 世代：{spell_a_gen}
+
+父法阵 B：
+- 名称：{spell_b_name}
+- 主属性：{spell_b_attr or '未知'}
+- 世代：{spell_b_gen}
+
+请输出融合后的新法阵（严格 JSON 格式）。"""
+
+
+def _validate(raw):
+    """校验并规范化 LLM 返回的 JSON，返回 dict 或 None。"""
+    if not isinstance(raw, dict):
+        return None
+
+    name = raw.get("name")
+    main_attr = raw.get("mainAttr")
+    sub_attr = raw.get("subAttr")
+    visual_desc = raw.get("visualDesc", "")
+    fusion_prompt = raw.get("fusionPrompt", "")
+
+    if not name or not main_attr:
+        logger.warning("Missing required fields: name=%s, mainAttr=%s", name, main_attr)
+        return None
+
+    main_attr = ELEMENT_ALIASES.get(main_attr, main_attr)
+    if sub_attr:
+        sub_attr = ELEMENT_ALIASES.get(sub_attr, sub_attr)
+
+    if main_attr not in VALID_ELEMENTS:
+        logger.warning("Invalid mainAttr from LLM: %s", main_attr)
+        return None
+    if sub_attr and sub_attr not in VALID_ELEMENTS:
+        logger.warning("Invalid subAttr from LLM: %s, dropping to None", sub_attr)
+        sub_attr = None
+    if sub_attr == main_attr:
+        sub_attr = None
+
+    return {
+        "name": str(name).strip()[:20],
+        "mainAttr": main_attr,
+        "subAttr": sub_attr,
+        "visualDesc": str(visual_desc).strip()[:200] if visual_desc else "",
+        "fusionPrompt": str(fusion_prompt).strip()[:300] if fusion_prompt else "",
+    }
+
+
+def call_gemini_rest(spell_a_name, spell_a_attr, spell_a_gen,
+                     spell_b_name, spell_b_attr, spell_b_gen):
+    """调用 Gemini REST API 生成融合法阵，返回校验后的 dict 或 None。"""
+    api_key = os.getenv("GEMINI_API_KEY", "")
+    model = os.getenv("LLM_MODEL", "gemini-2.0-flash")
+    timeout = int(os.getenv("LLM_TIMEOUT_SECONDS", "30"))
+    max_retries = int(os.getenv("LLM_MAX_RETRIES", "1"))
+
+    if not api_key:
+        logger.warning("GEMINI_API_KEY not set, cannot call LLM")
+        return None
+
+    url = (
+        f"https://generativelanguage.googleapis.com"
+        f"/v1beta/models/{model}:generateContent?key={api_key}"
+    )
+
+    user_prompt = _build_user_prompt(
+        spell_a_name, spell_a_attr, spell_a_gen,
+        spell_b_name, spell_b_attr, spell_b_gen,
+    )
+
+    payload = {
+        "systemInstruction": {
+            "parts": [{"text": SYSTEM_PROMPT}]
+        },
+        "contents": [{
+            "role": "user",
+            "parts": [{"text": user_prompt}]
+        }],
+        "generationConfig": {
+            "temperature": 0.85,
+            "responseMimeType": "application/json",
+        },
+    }
+
+    total_attempts = 1 + max_retries
+    for attempt in range(total_attempts):
+        try:
+            logger.info(
+                "Gemini REST attempt %d/%d  model=%s",
+                attempt + 1, total_attempts, model,
+            )
+            resp = httpx.post(url, json=payload, timeout=timeout)
+            resp.raise_for_status()
+
+            body = resp.json()
+            text = body["candidates"][0]["content"]["parts"][0]["text"]
+            logger.info("Gemini raw response: %s", text[:300])
+
+            raw = json.loads(text)
+            validated = _validate(raw)
+            if validated:
+                return validated
+
+            logger.warning("Validation failed for LLM output")
+
+        except httpx.HTTPStatusError as e:
+            logger.warning(
+                "Gemini HTTP error (attempt %d): %s — %s",
+                attempt + 1, e.response.status_code, e.response.text[:200],
+            )
+        except (json.JSONDecodeError, KeyError, IndexError) as e:
+            logger.warning("Gemini response parse error (attempt %d): %s", attempt + 1, e)
+        except Exception as e:
+            logger.warning("Gemini call error (attempt %d): %s", attempt + 1, e)
+
+    return None

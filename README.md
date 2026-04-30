@@ -86,6 +86,7 @@ uvicorn app.main:app --reload --port 18001
 3. 极简属性与伤害规则（已完成）
 4. 最小后端 forge 接口（已完成）
 5. 前后端通信闭环（已完成）
+6. 真实 LLM 结构化合成（已完成 — Gemini REST）
 
 ## 设计原则
 
