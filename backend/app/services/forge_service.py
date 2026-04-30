@@ -110,17 +110,10 @@ def _process_forge(task_id: str,
         )
 
         if llm_result:
+            source = "llm"
             if _is_mechanical_name(llm_result["name"], spell_a_name, spell_b_name):
-                old_name = llm_result["name"]
-                llm_result["name"] = _generate_fallback_name(
-                    llm_result["mainAttr"], llm_result.get("subAttr"),
-                )
-                source = "fallback"
-                print(f"[FORGE] [{task_id}] Name cleaned: '{old_name}' → '{llm_result['name']}' (mechanical concat detected)")
-                print(f"[FORGE] [{task_id}] FINAL SOURCE — source=fallback")
-            else:
-                source = "llm"
-                print(f"[FORGE] [{task_id}] LLM SUCCESS — name={llm_result['name']}, source=llm")
+                print(f"[FORGE] [{task_id}] Name warning: '{llm_result['name']}' flagged as mechanical-style, but preserved under llm-first policy")
+            print(f"[FORGE] [{task_id}] LLM SUCCESS — name={llm_result['name']}, source=llm")
         else:
             print(f"[FORGE] [{task_id}] LLM FAILED — falling back to mock")
     else:

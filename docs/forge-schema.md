@@ -83,7 +83,7 @@ LLM 被要求输出以下 JSON 结构：
 ## source 语义
 
 - `source = "llm"`：最终返回给前端的结果主要来自 LLM 输出，并通过后端规则校验
-- `source = "fallback"`：最终结果由 fallback 逻辑生成，或 LLM 结果被判定不可用后由 fallback 替换
+- `source = "fallback"`：仅当后端拿不到可用的结构化 LLM 结果时，才由 fallback 逻辑生成最终结果
 
 ## Fallback 机制
 
@@ -96,7 +96,6 @@ LLM 被要求输出以下 JSON 结构：
 5. JSON 缺少必要字段（name 或 mainAttr）
 6. mainAttr 不在合法元素列表中
 7. 所有重试均失败
-8. LLM 返回的名称被判定为机械拼接，最终名称被 fallback 词库替换
 
 后端 fallback 时：
 - name 由元素前后缀词库随机生成 3-4 字短名
@@ -104,6 +103,8 @@ LLM 被要求输出以下 JSON 结构：
 - visualDesc / fusionPrompt 为 null
 - source 标记为 "fallback"
 - 所有 fallback 情况均有日志输出
+
+说明：命名风格是否理想不再作为 fallback 条件。只要 LLM 成功返回可解析、字段合格的结构化结果，后端就优先采用该结果。
 
 注意：前端 `USE_MOCK=true` 的本地模拟模式为了便于识别，仍会生成 `{父A名}·{父B名}之阵` 这种占位名；这不是后端 `source="fallback"` 的命名规则。
 
