@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<title>图片格式转换 (PNG/JPG ↔ WEBP)</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family: 'Segoe UI', sans-serif; background:#1a1a2e; color:#eee; min-height:100vh; display:flex; flex-direction:column; align-items:center; padding:40px 20px; }
+h1 { font-size:24px; margin-bottom:8px; color:#c8b8ff; }
+.subtitle { color:#888; font-size:13px; margin-bottom:30px; }
+.drop-zone {
+  width:600px; max-width:90vw; min-height:200px; border:2px dashed #555; border-radius:12px;
+  display:flex; flex-direction:column; align-items:center; justify-content:center; gap:10px;
+  cursor:pointer; transition: border-color .2s, background .2s; padding:30px;
+}
+.drop-zone:hover, .drop-zone.dragover { border-color:#9966ff; background:rgba(100,60,200,0.08); }
+.drop-zone input { display:none; }
+.drop-zone p { color:#999; font-size:14px; }
+.drop-zone .icon { font-size:48px; color:#666; }
+.controls { margin:20px 0; display:flex; gap:15px; align-items:center; flex-wrap:wrap; justify-content:center; }
+.controls label { font-size:13px; color:#aaa; }
+.controls select, .controls input[type=range] { background:#2a2a40; color:#ddd; border:1px solid #444; border-radius:6px; padding:4px 8px; }
+.controls input[type=range] { width:120px; }
+.results { width:600px; max-width:90vw; margin-top:20px; display:flex; flex-direction:column; gap:12px; }
+.result-item {
+  background:#22223a; border-radius:8px; padding:14px 18px; display:flex; align-items:center; gap:14px;
+  border:1px solid #333;
+}
+.result-item img { width:60px; height:60px; object-fit:cover; border-radius:6px; background:#111; }
+.result-info { flex:1; }
+.result-info .name { font-size:14px; font-weight:bold; color:#ddd; word-break:break-all; }
+.result-info .meta { font-size:12px; color:#888; margin-top:4px; }
+.result-info .meta span { color:#9f9; }
+.btn { background:#6633cc; color:#fff; border:none; border-radius:6px; padding:8px 16px; cursor:pointer; font-size:13px; transition:background .2s; }
+.btn:hover { background:#7744dd; }
+.btn-sm { padding:5px 12px; font-size:12px; }
+</style>
+</head>
+<body>
+<h1>图片格式转换</h1>
+<p class="subtitle">拖入或选择 PNG / JPG / WEBP 文件，自动转换为目标格式并下载</p>
+
+<div class="drop-zone" id="dropZone">
+  <div class="icon">📁</div>
+  <p>拖放图片到这里，或点击选择文件</p>
+  <p style="font-size:12px;color:#666">支持多选 · PNG / JPG / WEBP</p>
+  <input type="file" id="fileInput" multiple accept=".png,.jpg,.jpeg,.webp,image/png,image/jpeg,image/webp">
+</div>
+
+<div class="controls">
+  <label>目标格式:
+    <select id="targetFormat">
+      <option value="webp">→ WEBP</option>
+      <option value="png">→ PNG</option>
+      <option value="jpeg">→ JPG</option>
+    </select>
+  </label>
+  <label>WEBP 质量: <input type="range" id="quality" min="1" max="100" value="85"> <span id="qualityVal">85</span></label>
+</div>
+
+<div class="results" id="results"></div>
+
+<script>
+const dropZone = document.getElementById('dropZone');
+const fileInput = document.getElementById('fileInput');
+const results = document.getElementById('results');
+const qualitySlider = document.getElementById('quality');
+const qualityVal = document.getElementById('qualityVal');
+
+qualitySlider.addEventListener('input', () => qualityVal.textContent = qualitySlider.value);
+
+dropZone.addEventListener('click', () => fileInput.click());
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault();
+  dropZone.classList.remove('dragover');
+  handleFiles(e.dataTransfer.files);
+});
+fileInput.addEventListener('change', () => handleFiles(fileInput.files));
+
+function handleFiles(files) {
+  for (const file of files) {
+    if (!file.type.match(/image\/(png|jpeg|webp)/)) continue;
+    convertFile(file);
+  }
+}
+
+function convertFile(file) {
+  const format = document.getElementById('targetFormat').value;
+  const quality = parseInt(qualitySlider.value) / 100;
+  const mime = format === 'png' ? 'image/png' : format === 'jpeg' ? 'image/jpeg' : 'image/webp';
+  const ext = format === 'jpeg' ? 'jpg' : format;
+
+  const img = new Image();
+  const url = URL.createObjectURL(file);
+  img.onload = () => {
+    const canvas = document.createElement('canvas');
+    canvas.width = img.naturalWidth;
+    canvas.height = img.naturalHeight;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(img, 0, 0);
+
+    canvas.toBlob(blob => {
+      URL.revokeObjectURL(url);
+      const baseName = file.name.replace(/\.[^.]+$/, '');
+      const outName = `${baseName}.${ext}`;
+      const dlUrl = URL.createObjectURL(blob);
+
+      const ratio = ((blob.size / file.size) * 100).toFixed(1);
+      const item = document.createElement('div');
+      item.className = 'result-item';
+      item.innerHTML = `
+        <img src="${dlUrl}">
+        <div class="result-info">
+          <div class="name">${outName}</div>
+          <div class="meta">
+            ${formatSize(file.size)} → <span>${formatSize(blob.size)}</span> (${ratio}%)
+            · ${img.naturalWidth}×${img.naturalHeight}
+          </div>
+        </div>
+        <a class="btn btn-sm" href="${dlUrl}" download="${outName}">下载</a>
+      `;
+      results.prepend(item);
+    }, mime, format === 'png' ? undefined : quality);
+  };
+  img.src = url;
+}
+
+function formatSize(bytes) {
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+  return (bytes / 1024 / 1024).toFixed(2) + ' MB';
+}
+</script>
+</body>
+</html>

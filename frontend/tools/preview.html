@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>炼金法阵 - 割草战斗原型</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #1e1e1e; color: #eee; margin: 0; padding: 0; overflow: hidden; }
+        #game-container { position: relative; width: 100vw; height: 100vh; }
+        canvas { display: block; width: 100%; height: 100%; background-color: #111; cursor: crosshair; }
+
+        /* 界面通用样式 */
+        .screen { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: none; transition: opacity 0.5s; }
+        .active { display: block; }
+
+        /* 战斗UI */
+        #battle-ui { position: absolute; top: 20px; right: 20px; width: 300px; pointer-events: none; }
+        .bar-container { background: rgba(0,0,0,0.5); border: 2px solid #555; border-radius: 10px; height: 24px; margin-bottom: 10px; overflow: hidden; }
+        #energy-bar { height: 100%; width: 0%; background: linear-gradient(90deg, #ff9800, #ffeb3b); transition: width 0.3s; }
+        #hp-bar { height: 100%; width: 100%; background: #f44336; transition: width 0.3s; }
+
+        /* 操作提示 */
+        #hud-hint { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.6); padding: 10px 20px; border-radius: 20px; font-size: 14px; border: 1px solid #4CAF50; }
+    </style>
+</head>
+<body>
+    <div id="game-container">
+        <!-- 战斗页面 (当前主要测试) -->
+        <div id="battle-page" class="screen active">
+            <canvas id="gameCanvas"></canvas>
+
+            <div id="battle-ui">
+                <div style="font-size: 12px; margin-bottom: 4px;">能量 (法阵充能):</div>
+                <div class="bar-container"><div id="energy-bar"></div></div>
+                <div style="font-size: 12px; margin-bottom: 4px;">HP:</div>
+                <div class="bar-container"><div id="hp-bar"></div></div>
+            </div>
+
+            <div id="hud-hint">WASD 移动 | 鼠标点击释放法阵 | 杀怪充能</div>
+        </div>
+
+        <video id="vfxVideo" muted playsinline style="display:none"></video>
+        <img id="bgBehind" src="../assets/bg/background_behind.webp" style="display:none">
+        <img id="bgFront" src="../assets/bg/background_front.webp" style="display:none">
+        <img id="playerImg" src="../assets/ui/player.webp" style="display:none">
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const video = document.getElementById('vfxVideo');
+        const bgBehind = document.getElementById('bgBehind');
+        const bgFront = document.getElementById('bgFront');
+        const playerImg = document.getElementById('playerImg');
+
+        // 初始化画布尺寸 (锁定原始比例 2560x1440)
+        const WORLD_W = 2560;
+        const WORLD_H = 1440;
+        function resize() {
+            // 保持 16:9 比例拉伸显示，但 Canvas 内部永远是 2560x1440
+            canvas.width = WORLD_W;
+            canvas.height = WORLD_H;
+        }
+        window.addEventListener('resize', resize);
+        resize();
+
+        // 缓冲区：法阵大小 432
+        const EFFECT_SIZE = 432;
+        const procCanvas = document.createElement('canvas'); procCanvas.width = EFFECT_SIZE; procCanvas.height = EFFECT_SIZE;
+        const procCtx = procCanvas.getContext('2d', { willReadFrequently: true });
+        const maskCanvas = document.createElement('canvas'); maskCanvas.width = EFFECT_SIZE; maskCanvas.height = EFFECT_SIZE;
+        const maskCtx = maskCanvas.getContext('2d');
+
+        // 游戏状态 (基于 2560 坐标系)
+        const player = { x: WORLD_W/2, y: WORLD_H/2, speed: 8, hp: 5, maxHp: 5, w: 120, h: 120 };
+        const monsters = [];
+        const keys = {};
+        let energy = 0;
+        let activeEffects = [];
+
+        // 坐标转换：将点击坐标映射到 2560x1440 内部
+        function getMousePos(canvas, evt) {
+            const rect = canvas.getBoundingClientRect();
+            const scaleX = WORLD_W / rect.width;
+            const scaleY = WORLD_H / rect.height;
+            return {
+                x: (evt.clientX - rect.left) * scaleX,
+                y: (evt.clientY - rect.top) * scaleY
+            };
+        }
+
+        canvas.addEventListener('mousedown', e => spawnEffect(e));
+
+        function spawnEffect(e) {
+            if (!video.src || video.src === "") return;
+            const pos = getMousePos(canvas, e);
+            const s = EFFECT_SIZE;
+            const newVideo = document.createElement('video');
+            newVideo.src = video.src;
+            newVideo.muted = true;
+            newVideo.play();
+            activeEffects.push({ x: pos.x, y: pos.y, size: s, video: newVideo, startTime: Date.now() });
+
+            // 范围伤害检查
+            for(let i = monsters.length-1; i >= 0; i--) {
+                const m = monsters[i];
+                const dx = m.x - pos.x;
+                const dy = m.y - pos.y;
+                if (Math.sqrt(dx*dx + dy*dy) < s/2) {
+                    monsters.splice(i, 1);
+                    energy = Math.min(100, energy + 2);
+                    document.getElementById('energy-bar').style.width = energy + '%';
+                }
+            }
+        }
+
+        function createMonster() {
+            if (monsters.length > 20) return;
+            const side = Math.floor(Math.random() * 4);
+            let x, y;
+            if(side === 0) { x = Math.random()*canvas.width; y = -50; }
+            else if(side === 1) { x = canvas.width+50; y = Math.random()*canvas.height; }
+            else if(side === 2) { x = Math.random()*canvas.width; y = canvas.height+50; }
+            else { x = -50; y = Math.random()*canvas.height; }
+
+            monsters.push({
+                img: monsterAssets[Math.floor(Math.random()*monsterAssets.length)],
+                x, y, speed: 1 + Math.random(), w:70
+            });
+        }
+
+        function update() {
+            // 移动玩家
+            if (keys['KeyW'] || keys['ArrowUp']) player.y -= player.speed;
+            if (keys['KeyS'] || keys['ArrowDown']) player.y += player.speed;
+            if (keys['KeyA'] || keys['ArrowLeft']) player.x -= player.speed;
+            if (keys['KeyD'] || keys['ArrowRight']) player.x += player.speed;
+
+            // 移动怪物并检查碰撞
+            monsters.forEach((m, index) => {
+                const dx = player.x - m.x;
+                const dy = player.y - m.y;
+                const dist = Math.sqrt(dx*dx + dy*dy);
+                m.x += (dx/dist) * m.speed;
+                m.y += (dy/dist) * m.speed;
+
+                if (dist < 40) {
+                    player.hp -= 0.01; // 持续扣血
+                    document.getElementById('hp-bar').style.width = (player.hp / player.maxHp * 100) + '%';
+                }
+            });
+
+            // 清理过期特效
+            activeEffects = activeEffects.filter(eff => !eff.video.ended && (Date.now() - eff.startTime < 2000));
+
+            if (Math.random() < 0.03) createMonster();
+        }
+
+        function processFrame(v, size) {
+            procCtx.clearRect(0, 0, size, size);
+            procCtx.drawImage(v, 0, 0, size, size);
+            const frame = procCtx.getImageData(0, 0, size, size);
+            const data = frame.data;
+            for (let i = 0; i < data.length; i += 4) {
+                const avg = (data[i] + data[i+1] + data[i+2]) / 3;
+                if (avg < 40) data[i+3] = avg < 10 ? 0 : data[i+3] * ((avg - 10) / 30);
+            }
+            procCtx.putImageData(frame, 0, 0);
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // 1. 底层背景 (平铺适应大屏幕)
+            if (bgBehind.complete) {
+                const pattern = ctx.createPattern(bgBehind, 'repeat');
+                ctx.fillStyle = pattern;
+                ctx.fillRect(0,0, canvas.width, canvas.height);
+            }
+
+            // 获取所有要渲染的对象进行排序
+            let renderList = [];
+
+            // 加入法阵底层
+            activeEffects.forEach(eff => {
+                processFrame(eff.video, eff.size);
+                renderList.push({ type: 'effect-bottom', x: eff.x, y: eff.y, s: eff.size, sortY: eff.y });
+            });
+
+            // 加入怪物
+            monsters.forEach(m => renderList.push({ type: 'monster', m, sortY: m.y }));
+
+            // 加入玩家
+            renderList.push({ type: 'player', sortY: player.y });
+
+            // Y轴深度排序
+            renderList.sort((a,b) => a.sortY - b.sortY);
+
+            // 绘制
+            renderList.forEach(obj => {
+                if (obj.type === 'effect-bottom') {
+                    ctx.save(); ctx.globalCompositeOperation = 'lighten';
+                    ctx.drawImage(procCanvas, obj.x - obj.s/2, obj.y - obj.s/2, obj.s, obj.s);
+                    ctx.restore();
+                } else if (obj.type === 'monster') {
+                    const m = obj.m;
+                    const ratio = m.img.naturalHeight / m.img.naturalWidth;
+                    ctx.drawImage(m.img, m.x - m.w/2, m.y - m.w * ratio, m.w, m.w * ratio);
+                } else if (obj.type === 'player') {
+                    if (playerImg.complete) {
+                        ctx.drawImage(playerImg, player.x - player.w/2, player.y - player.h, player.w, player.h);
+                    }
+                }
+            });
+
+            // 关键：顶层蒙版遮挡逻辑 (再次遍历特效覆盖所有人)
+            activeEffects.forEach(eff => {
+                maskCtx.clearRect(0, 0, eff.size, eff.size);
+                maskCtx.save();
+                maskCtx.drawImage(procCanvas, 0, 0, eff.size, eff.size);
+                maskCtx.globalCompositeOperation = 'destination-in';
+                const grad = maskCtx.createLinearGradient(0, 0, 0, eff.size);
+                grad.addColorStop(0, 'rgba(0,0,0,1)');
+                grad.addColorStop(1, 'rgba(0,0,0,0)');
+                maskCtx.fillStyle = grad;
+                maskCtx.fillRect(0, 0, eff.size, eff.size);
+                maskCtx.restore();
+
+                ctx.save(); ctx.globalCompositeOperation = 'lighten';
+                ctx.drawImage(maskCanvas, eff.x - eff.size/2, eff.y - eff.size/2, eff.size, eff.size);
+                ctx.restore();
+            });
+
+            if (bgFront.complete) ctx.drawImage(bgFront, 0, 0, canvas.width, canvas.height);
+            requestAnimationFrame(() => { update(); draw(); });
+        }
+
+        // 异步加载首个特效视频
+        fetch('../assets/data/video_list.json').then(r => r.json()).then(videos => {
+            video.src = `../assets/videos/${videos[0]}`;
+            draw();
+        });
+    </script>
+</body>
+</html>

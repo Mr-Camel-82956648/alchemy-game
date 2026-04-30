@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>炼金法阵</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div id="app">
+
+        <!-- ========== 页面A：炼金室 ========== -->
+        <div id="page-alchemy" class="page active">
+            <div class="alchemy-bg">
+                <img id="alchemy-bg-img" src="assets/bg/alchemy-room.webp" alt="炼金室">
+
+                <!-- 卡槽A -->
+                <div id="slot-a" class="card-slot" data-slot="A">
+                    <img class="slot-frame" src="assets/ui/card-frame-02.webp" alt="">
+                    <div class="slot-inner">
+                        <div class="slot-empty">
+                            <span class="slot-plus">选择法阵<br>投入炼金炉</span>
+                        </div>
+                        <div class="slot-filled" style="display:none">
+                            <video class="slot-video" loop muted playsinline style="display:none"></video>
+                            <img class="slot-thumb" src="" alt="">
+                        </div>
+                    </div>
+                    <span class="slot-name"></span>
+                </div>
+
+                <!-- 卡槽B -->
+                <div id="slot-b" class="card-slot" data-slot="B">
+                    <img class="slot-frame" src="assets/ui/card-frame-02.webp" alt="">
+                    <div class="slot-inner">
+                        <div class="slot-empty">
+                            <span class="slot-plus">选择法阵<br>投入炼金炉</span>
+                        </div>
+                        <div class="slot-filled" style="display:none">
+                            <video class="slot-video" loop muted playsinline style="display:none"></video>
+                            <img class="slot-thumb" src="" alt="">
+                        </div>
+                    </div>
+                    <span class="slot-name"></span>
+                </div>
+
+                <!-- 武器库 按钮（左下角） -->
+                <button id="btn-loadout" class="alchemy-icon-btn loadout-btn">
+                    <img src="assets/icon/wuqiku.png" alt="武器库">
+                </button>
+
+                <!-- 合成 按钮（右下角） -->
+                <button id="btn-start" class="alchemy-icon-btn start-btn disabled" disabled>
+                    <img src="assets/icon/hecheng.png" alt="合成">
+                </button>
+
+
+                <!-- 坩埚上浮现的新卡 -->
+                <div id="cauldron-result" class="cauldron-result" style="display:none">
+                    <img class="result-thumb" src="" alt="">
+                    <span class="result-name"></span>
+                </div>
+
+                <!-- 合成前叙事弹窗 -->
+                <div id="forge-popup" class="forge-popup" style="display:none">
+                    <button id="btn-forge-confirm" class="icon-btn forge-confirm-btn">
+                        <img src="assets/icon/queren.png" alt="确认">
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- ========== 页面B：收藏夹（覆盖层） ========== -->
+        <div id="page-collection" class="page overlay">
+            <div class="collection-container">
+                <button id="btn-close-collection" class="icon-btn close-btn">
+                    <img src="assets/icon/fanhui.png" alt="返回">
+                </button>
+                <div class="collection-title">
+                    <img src="assets/icon/wodefazhen.png" alt="我的法阵">
+                </div>
+
+                <div class="collection-layout">
+                    <!-- 左侧：大预览区 -->
+                    <div class="preview-area">
+                        <div id="preview-card" class="preview-card">
+                            <img class="preview-frame" src="assets/ui/card-frame-02.webp" alt="">
+                            <div class="preview-inner">
+                                <div id="preview-empty" class="preview-empty"></div>
+                                <div id="preview-content" class="preview-content" style="display:none">
+                                    <video id="preview-video" class="preview-media" loop autoplay muted playsinline style="display:none"></video>
+                                    <div id="preview-text" class="preview-text-display" style="display:none"></div>
+                                </div>
+                            </div>
+                            <span id="preview-name" class="preview-card-name"></span>
+                        </div>
+                        <div class="preview-info">
+                            <p id="preview-hint" class="preview-hint">点击右侧卡牌预览</p>
+                            <div class="preview-actions" style="display:none" id="preview-actions">
+                                <button id="btn-select-card" class="icon-btn btn-select-icon">
+                                    <img src="assets/icon/queren.png" alt="确认">
+                                </button>
+                                <button id="btn-delete-card" class="icon-btn btn-delete-icon">
+                                    <img src="assets/icon/xiaohui.png" alt="销毁">
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 右侧：卡牌网格 -->
+                    <div class="card-grid-area">
+                        <div id="card-grid" class="card-grid"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 文字输入弹窗 -->
+            <div id="text-input-modal" class="modal" style="display:none">
+                <div class="modal-content text-input-panel">
+                    <p class="modal-title">在石板上刻下咒语——</p>
+                    <input id="spell-input" type="text" class="spell-input" placeholder="输入咒语名称..." maxlength="20">
+                    <div class="modal-actions">
+                        <button id="btn-spell-confirm" class="btn-confirm">确认</button>
+                        <button id="btn-spell-cancel" class="btn-cancel">取消</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ========== 装备法阵（覆盖层） ========== -->
+        <div id="page-loadout" class="page overlay">
+            <div class="loadout-container">
+                <button id="btn-close-loadout" class="icon-btn close-btn">
+                    <img src="assets/icon/fanhui.png" alt="返回">
+                </button>
+                <h2 class="collection-title">装备法阵</h2>
+
+                <!-- 4个装备槽（大卡，带动画） -->
+                <div class="loadout-slots">
+                    <div class="loadout-slot" data-index="0">
+                        <img class="loadout-slot-frame" src="assets/ui/card-frame-02.webp" alt="">
+                        <div class="loadout-slot-inner">
+                            <span class="loadout-slot-key">1</span>
+                            <video class="loadout-slot-video" loop muted playsinline style="display:none"></video>
+                            <img class="loadout-slot-thumb" src="" alt="" style="display:none">
+                        </div>
+                        <span class="loadout-slot-name"></span>
+                    </div>
+                    <div class="loadout-slot" data-index="1">
+                        <img class="loadout-slot-frame" src="assets/ui/card-frame-02.webp" alt="">
+                        <div class="loadout-slot-inner">
+                            <span class="loadout-slot-key">2</span>
+                            <video class="loadout-slot-video" loop muted playsinline style="display:none"></video>
+                            <img class="loadout-slot-thumb" src="" alt="" style="display:none">
+                        </div>
+                        <span class="loadout-slot-name"></span>
+                    </div>
+                    <div class="loadout-slot" data-index="2">
+                        <img class="loadout-slot-frame" src="assets/ui/card-frame-02.webp" alt="">
+                        <div class="loadout-slot-inner">
+                            <span class="loadout-slot-key">3</span>
+                            <video class="loadout-slot-video" loop muted playsinline style="display:none"></video>
+                            <img class="loadout-slot-thumb" src="" alt="" style="display:none">
+                        </div>
+                        <span class="loadout-slot-name"></span>
+                    </div>
+                    <div class="loadout-slot" data-index="3">
+                        <img class="loadout-slot-frame" src="assets/ui/card-frame-02.webp" alt="">
+                        <div class="loadout-slot-inner">
+                            <span class="loadout-slot-key">4</span>
+                            <video class="loadout-slot-video" loop muted playsinline style="display:none"></video>
+                            <img class="loadout-slot-thumb" src="" alt="" style="display:none">
+                        </div>
+                        <span class="loadout-slot-name"></span>
+                    </div>
+                </div>
+
+                <!-- 可选卡牌网格 -->
+                <div class="loadout-grid-area">
+                    <div id="loadout-grid" class="card-grid"></div>
+                </div>
+
+                <div class="loadout-actions">
+                    <button id="btn-loadout-confirm" class="icon-btn btn-confirm">
+                        <img src="assets/icon/queren.png" alt="确认装备">
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- ========== 页面C：割草战斗 ========== -->
+        <div id="page-battle" class="page">
+            <canvas id="battle-canvas"></canvas>
+
+            <div id="victory-overlay" class="battle-overlay" style="display:none">
+                <div class="overlay-panel">
+                    <h2>法阵炼成完毕！</h2>
+                    <p>能量已充满，新法阵即将诞生</p>
+                    <button id="btn-victory-return" class="btn-overlay">返回炼金室</button>
+                </div>
+            </div>
+
+            <div id="defeat-overlay" class="battle-overlay" style="display:none">
+                <div class="overlay-panel defeat">
+                    <h2>能量不足...</h2>
+                    <p>炼金失败，但素材未消耗</p>
+                    <button id="btn-retry" class="btn-overlay">再试一次</button>
+                    <button id="btn-defeat-return" class="btn-overlay secondary">返回炼金室</button>
+                </div>
+            </div>
+
+            <div id="wave-announce" class="wave-announce" style="display:none">
+                <span id="wave-announce-text"></span>
+            </div>
+        </div>
+
+        <!-- ========== 新卡揭示仪式 ========== -->
+        <div id="page-reveal" class="page overlay" style="display:none">
+            <div class="reveal-container">
+                <div class="reveal-vignette"></div>
+                <div class="reveal-light"></div>
+                <div class="reveal-card-wrapper">
+                    <div id="reveal-card" class="reveal-card">
+                        <img class="reveal-frame" src="assets/ui/card-frame-02.webp" alt="">
+                        <div class="reveal-inner">
+                            <img id="reveal-thumb" class="reveal-thumb" src="" alt="">
+                        </div>
+                    </div>
+                </div>
+                <div class="reveal-info">
+                    <h2 id="reveal-title" class="reveal-title">炼成</h2>
+                </div>
+                <div class="reveal-actions">
+                    <button id="btn-reveal-collect" class="reveal-collect-btn">
+                        <img src="assets/icon/jiarusoucang.png" alt="加入收藏">
+                    </button>
+                    <button id="btn-reveal-discard" class="reveal-discard-btn">
+                        <img src="assets/icon/fangqi.png" alt="放弃">
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 新手引导 -->
+        <div id="tutorial-overlay" class="page overlay" style="display:none">
+            <div id="tutorial-narration" class="tutorial-narration" style="display:none">
+                <p id="tutorial-text" class="tutorial-text"></p>
+            </div>
+            <div id="tutorial-bubble" class="tutorial-bubble" style="display:none">
+                <p id="bubble-text"></p>
+            </div>
+        </div>
+
+        <div id="fade-mask" class="fade-mask"></div>
+    </div>
+
+    <!-- 预加载隐藏资源 -->
+    <img id="img-player" src="assets/ui/player.webp" style="display:none">
+
+    <script src="js/storage.js"></script>
+    <script src="js/spellDefs.js"></script>
+    <script src="js/monsterDefs.js"></script>
+    <script src="js/combat.js"></script>
+    <script src="js/forgeAPI.js"></script>
+    <script src="js/collection.js"></script>
+    <script src="js/loadout.js"></script>
+    <script src="js/alchemy.js"></script>
+    <script src="js/battle.js"></script>
+    <script src="js/main.js"></script>
+</body>
+</html>

@@ -1,0 +1,40 @@
+# ===== Python env / cache =====
+venv/
+.venv/
+env/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# ===== Editor / local tool dirs =====
+.cursor/
+.vscode/
+.claude/
+
+# ===== OS files =====
+.DS_Store
+Thumbs.db
+
+# ===== Logs / temp =====
+*.log
+*.tmp
+*.temp
+
+# ===== Archives =====
+*.zip
+*.rar
+*.7z
+
+# ===== Optional local backups / archives =====
+_archive/
+archive/
+_archive_docs/
+_archive_claude/
+
+# ===== Ripgrep / search ignore (not needed in repo) =====
+# .ignore is kept for local ripgrep use, not excluded
+
+# ===== Keep all frontend runtime assets =====
+# Intentionally DO NOT ignore frontend/assets/**
+# because the project must be runnable after pull on another machine.

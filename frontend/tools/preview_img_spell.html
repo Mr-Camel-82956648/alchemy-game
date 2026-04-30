@@ -1,0 +1,509 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>图片大招效果预览 — 旋转 + 2.5D + 粒子</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { background: #111; color: #eee; font-family: 'Segoe UI', sans-serif; overflow: hidden; }
+        canvas { display: block; width: 100vw; height: 100vh; cursor: crosshair; }
+        #controls {
+            position: fixed; top: 16px; right: 16px; z-index: 10;
+            background: rgba(0,0,0,0.75); border: 1px solid #444; border-radius: 8px;
+            padding: 16px; width: 260px; font-size: 13px;
+        }
+        #controls label { display: block; margin-top: 8px; color: #aaa; }
+        #controls input[type=range] { width: 100%; }
+        #controls .val { float: right; color: #ffa; }
+        #hint {
+            position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%);
+            background: rgba(0,0,0,0.6); padding: 8px 20px; border-radius: 20px;
+            font-size: 13px; border: 1px solid #555;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="c"></canvas>
+    <div id="controls">
+        <strong>素材选择</strong>
+        <select id="asset-picker" style="width:100%;margin-top:6px;padding:4px;background:#333;color:#eee;border:1px solid #555;border-radius:4px;font-size:12px"></select>
+        <hr style="border-color:#444;margin-top:10px">
+        <strong style="display:block;margin-top:6px">效果参数</strong>
+        <label>效果尺寸 (px) <span class="val" id="v-size">279</span></label>
+        <input type="range" id="r-size" min="100" max="1200" value="279">
+        <label>Y压缩比 <span class="val" id="v-yscale">0.67</span></label>
+        <input type="range" id="r-yscale" min="10" max="100" value="67">
+        <label>黑色阈值 <span class="val" id="v-thresh">27</span></label>
+        <input type="range" id="r-thresh" min="0" max="200" value="27">
+        <label>存留时长 (ms) <span class="val" id="v-dur">1500</span></label>
+        <input type="range" id="r-dur" min="200" max="8000" value="1500" step="100">
+        <label>旋转圈数 <span class="val" id="v-spins">1</span></label>
+        <input type="range" id="r-spins" min="0" max="60" value="1">
+        <label>羽化宽度 (px) <span class="val" id="v-feather">80</span></label>
+        <input type="range" id="r-feather" min="0" max="400" value="80">
+        <label>粒子密度 <span class="val" id="v-parts">278</span></label>
+        <input type="range" id="r-parts" min="0" max="400" value="278">
+        <label>增亮强度 <span class="val" id="v-boost">1.00</span></label>
+        <input type="range" id="r-boost" min="0" max="100" value="100">
+        <hr style="border-color:#444;margin-top:12px">
+        <strong style="display:block;margin-top:8px">能量穹顶</strong>
+        <label>穹顶高度 <span class="val" id="v-domeh">0.55</span></label>
+        <input type="range" id="r-domeh" min="0" max="200" value="55">
+        <label>穹顶不透明度 <span class="val" id="v-domea">1.00</span></label>
+        <input type="range" id="r-domea" min="0" max="255" value="200">
+        <label>内部退晕 <span class="val" id="v-iglow">0.26</span></label>
+        <input type="range" id="r-iglow" min="0" max="200" value="26">
+        <button id="btn-copy" style="margin-top:12px;width:100%;padding:6px;cursor:pointer;background:#553;border:1px solid #885;color:#ffa;border-radius:4px;font-size:13px">📋 复制当前参数</button>
+        <div id="copy-msg" style="text-align:center;color:#6f6;font-size:12px;margin-top:4px;opacity:0;transition:opacity 0.3s"></div>
+    </div>
+    <div id="hint">点击画面放置法阵 | 拖动右侧参数调节效果</div>
+
+    <script>
+    const canvas = document.getElementById('c');
+    const ctx = canvas.getContext('2d');
+    const W = 2560, H = 1440;
+    canvas.width = W; canvas.height = H;
+
+    let spellImg = new Image();
+    let spellReady = false;
+
+    const bgImg = new Image();
+    bgImg.src = '../assets/bg/background_behind.webp';
+
+    // Asset list (add new files here)
+    const ASSETS = [
+        { name: 'PixVerse_Image_Effect_prompt____90度正俯视视角_(Top-.jpg', label: '90度俯视' },
+        { name: 'PixVerse_Image_Effect_prompt_改为冰凌效果.jpg', label: '冰凌' },
+        { name: 'PixVerse_Image_Effect_prompt_改为刀剑效果，依旧保持圆环结构不变.jpg', label: '刀剑' },
+        { name: 'PixVerse_Image_Effect_prompt_改为熔岩效果.jpg', label: '熔岩' },
+        { name: 'PixVerse_Image_Effect_prompt_改为绿烟毒物骷髅效果，依旧保持圆环.jpg', label: '毒物骷髅' },
+    ];
+
+    const picker = document.getElementById('asset-picker');
+    ASSETS.forEach((item, i) => {
+        const opt = document.createElement('option');
+        opt.value = i;
+        opt.textContent = item.label;
+        opt.dataset.file = item.name;
+        picker.appendChild(opt);
+    });
+
+    picker.onchange = () => {
+        const opt = picker.options[picker.selectedIndex];
+        loadAsset(opt.dataset.file);
+    };
+
+    function loadAsset(filename) {
+        spellReady = false;
+        needsReprocess = true;
+        spellImg = new Image();
+        spellImg.onload = () => { spellReady = true; };
+        spellImg.src = '../assets/spells/' + filename;
+    }
+
+    const effects = [];
+    let effectSize = 432, yScale = 0.67, blackThresh = 40;
+    let duration = 1000, spinCount = 15, featherWidth = 80, particleDensity = 80, boostIntensity = 0.4;
+    let domeHeight = 0.55, domeOpacity = 0.35, innerGlow = 0.3;
+
+    function bindSlider(id, setter) {
+        const el = document.getElementById('r-' + id);
+        el.oninput = () => { setter(el); document.getElementById('v-' + id).textContent = el.dataset.fmt ? (+el.value / 100).toFixed(2) : el.value; };
+    }
+    bindSlider('size', e => effectSize = +e.value);
+    document.getElementById('r-yscale').dataset.fmt = '1';
+    bindSlider('yscale', e => yScale = +e.value / 100);
+    bindSlider('thresh', e => { blackThresh = +e.value; needsReprocess = true; });
+    bindSlider('dur', e => duration = +e.value);
+    bindSlider('spins', e => spinCount = +e.value);
+    bindSlider('feather', e => { featherWidth = +e.value; needsReprocess = true; });
+    bindSlider('parts', e => particleDensity = +e.value);
+    document.getElementById('r-boost').dataset.fmt = '1';
+    bindSlider('boost', e => boostIntensity = +e.value / 100);
+    document.getElementById('r-domeh').dataset.fmt = '1';
+    bindSlider('domeh', e => domeHeight = +e.value / 100);
+    document.getElementById('r-domea').dataset.fmt = '1';
+    bindSlider('domea', e => domeOpacity = +e.value / 100);
+    document.getElementById('r-iglow').dataset.fmt = '1';
+    bindSlider('iglow', e => innerGlow = +e.value / 100);
+
+    const SLIDER_IDS = ['size','yscale','thresh','dur','spins','feather','parts','boost','domeh','domea','iglow'];
+
+    // Restore from localStorage
+    try {
+        const saved = JSON.parse(localStorage.getItem('imgSpellParams'));
+        if (saved) {
+            SLIDER_IDS.forEach(id => {
+                if (saved[id] !== undefined) {
+                    const el = document.getElementById('r-' + id);
+                    el.value = saved[id];
+                    el.dispatchEvent(new Event('input'));
+                }
+            });
+        }
+    } catch(e) {}
+
+    // Copy button
+    document.getElementById('btn-copy').onclick = () => {
+        const params = {};
+        SLIDER_IDS.forEach(id => { params[id] = +document.getElementById('r-' + id).value; });
+        localStorage.setItem('imgSpellParams', JSON.stringify(params));
+        const msg = document.getElementById('copy-msg');
+        msg.textContent = '✓ 已保存到 localStorage（刷新后自动恢复）';
+        msg.style.opacity = 1;
+        setTimeout(() => msg.style.opacity = 0, 2000);
+
+        navigator.clipboard.writeText(JSON.stringify(params, null, 2)).catch(() => {});
+    };
+
+    const SRC = 960;
+    const proc = document.createElement('canvas');
+    proc.width = SRC; proc.height = SRC;
+    const pctx = proc.getContext('2d', { willReadFrequently: true });
+    const glow = document.createElement('canvas');
+    glow.width = SRC; glow.height = SRC;
+    const gctx = glow.getContext('2d');
+
+    let needsReprocess = true;
+    let avgColor = { r: 255, g: 160, b: 40 };
+    let colorPalette = [];
+
+    function processSprite() {
+        const cx = SRC / 2, cy = SRC / 2, outerR = SRC / 2;
+        const fadeStart = outerR - 5;
+        const fadeEnd = outerR - featherWidth;
+
+        pctx.clearRect(0, 0, SRC, SRC);
+        pctx.drawImage(spellImg, 0, 0, SRC, SRC);
+        const frame = pctx.getImageData(0, 0, SRC, SRC);
+        const d = frame.data;
+
+        let tr = 0, tg = 0, tb = 0, cnt = 0;
+        const brightPixels = [];
+
+        for (let py = 0; py < SRC; py++) {
+            for (let px = 0; px < SRC; px++) {
+                const i = (py * SRC + px) * 4;
+                const r = d[i], g = d[i+1], b = d[i+2];
+                const avg = (r + g + b) / 3;
+
+                // Black removal
+                if (avg < blackThresh) {
+                    d[i+3] = avg < (blackThresh * 0.25) ? 0 :
+                        Math.floor(d[i+3] * ((avg - blackThresh * 0.25) / (blackThresh * 0.75)));
+                }
+
+                // Circular feather
+                const dx = px - cx, dy = py - cy;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                if (dist >= fadeStart) d[i+3] = 0;
+                else if (dist > fadeEnd) d[i+3] = Math.floor(d[i+3] * ((fadeStart - dist) / (fadeStart - fadeEnd)));
+
+                // Collect bright visible pixels for color extraction
+                if (avg > 80 && d[i+3] > 50) {
+                    tr += r; tg += g; tb += b; cnt++;
+                    brightPixels.push({ r, g, b });
+                }
+            }
+        }
+        if (cnt > 0) {
+            avgColor = {
+                r: Math.min(255, Math.floor(tr / cnt) + 15),
+                g: Math.min(255, Math.floor(tg / cnt) + 15),
+                b: Math.min(255, Math.floor(tb / cnt) + 15)
+            };
+        }
+
+        // Build color palette from actual image colors
+        colorPalette = [];
+        if (brightPixels.length > 0) {
+            for (let i = 0; i < 200; i++) {
+                const px = brightPixels[Math.floor(Math.random() * brightPixels.length)];
+                colorPalette.push({
+                    r: Math.min(255, px.r + 20),
+                    g: Math.min(255, px.g + 20),
+                    b: Math.min(255, px.b + 20)
+                });
+            }
+        }
+
+        pctx.putImageData(frame, 0, 0);
+
+        gctx.clearRect(0, 0, SRC, SRC);
+        gctx.filter = 'blur(35px) brightness(1.6)';
+        gctx.drawImage(proc, 0, 0);
+        gctx.filter = 'none';
+    }
+
+    canvas.addEventListener('click', e => {
+        const rect = canvas.getBoundingClientRect();
+        effects.push({
+            x: (e.clientX - rect.left) * W / rect.width,
+            y: (e.clientY - rect.top) * H / rect.height,
+            born: performance.now(),
+            particles: [],
+            wisps: []
+        });
+    });
+
+    let lastT = 0;
+    function loop(t) {
+        requestAnimationFrame(loop);
+        const dt = Math.min((t - lastT) / 1000, 0.05);
+        lastT = t;
+
+        if (spellReady && needsReprocess) { processSprite(); needsReprocess = false; }
+
+        ctx.clearRect(0, 0, W, H);
+
+        // Background: stretch to fill canvas
+        if (bgImg.complete) {
+            ctx.drawImage(bgImg, 0, 0, W, H);
+        } else {
+            ctx.fillStyle = '#1a1510';
+            ctx.fillRect(0, 0, W, H);
+        }
+
+        if (!spellReady) return;
+
+        for (let ei = effects.length - 1; ei >= 0; ei--) {
+            const eff = effects[ei];
+            const elapsed = (t - eff.born) / 1000;
+            const dur = duration / 1000;
+            const progress = Math.min(elapsed / dur, 1);
+
+            if (elapsed > dur + 1.2) { effects.splice(ei, 1); continue; }
+
+            // --- Rotation: gentle ease-in-out, spinCount = total half-turns ---
+            const easedRot = progress < 0.5
+                ? 2 * progress * progress
+                : 1 - Math.pow(-2 * progress + 2, 2) / 2;
+            const angle = easedRot * spinCount * Math.PI;
+
+            // --- Scale: start small → grow → shrink at end ---
+            let scale;
+            if (progress < 0.6) {
+                scale = 0.3 + 0.7 * (progress / 0.6);
+            } else if (progress < 0.85) {
+                scale = 1.0 + 0.15 * ((progress - 0.6) / 0.25);
+            } else {
+                scale = 1.15 * (1 - Math.pow((progress - 0.85) / 0.15, 2) * 0.5);
+            }
+
+            // --- Brightness: gradually increase, peak near 80% ---
+            let brightness = 1;
+            if (progress < 0.3) brightness = 0.6 + 0.4 * (progress / 0.3);
+            else if (progress < 0.8) brightness = 1.0 + 0.5 * ((progress - 0.3) / 0.5);
+            else brightness = 1.5;
+
+            // --- Alpha: fade in → hold → fast decay at end ---
+            let alpha = 1;
+            if (progress < 0.08) alpha = progress / 0.08;
+            else if (progress > 0.8) alpha = Math.pow((1 - progress) / 0.2, 1.5);
+
+            const s = effectSize * scale;
+
+            if (alpha > 0.001) {
+                // Glow layer
+                ctx.save();
+                ctx.globalCompositeOperation = 'lighter';
+                ctx.globalAlpha = alpha * 0.25 * brightness;
+                ctx.translate(eff.x, eff.y);
+                ctx.scale(1, yScale);
+                ctx.rotate(angle);
+                ctx.drawImage(glow, -s * 0.55, -s * 0.55, s * 1.1, s * 1.1);
+                ctx.restore();
+
+                // Main spell (with brightness via extra additive pass)
+                ctx.save();
+                ctx.globalCompositeOperation = 'lighten';
+                ctx.globalAlpha = alpha;
+                ctx.translate(eff.x, eff.y);
+                ctx.scale(1, yScale);
+                ctx.rotate(angle);
+                ctx.drawImage(proc, -s / 2, -s / 2, s, s);
+                ctx.restore();
+
+                // Brightness boost pass
+                if (brightness > 1 && boostIntensity > 0) {
+                    ctx.save();
+                    ctx.globalCompositeOperation = 'lighter';
+                    ctx.globalAlpha = alpha * (brightness - 1) * boostIntensity;
+                    ctx.translate(eff.x, eff.y);
+                    ctx.scale(1, yScale);
+                    ctx.rotate(angle);
+                    ctx.drawImage(proc, -s / 2, -s / 2, s, s);
+                    ctx.restore();
+                }
+
+                const halfW = s / 2;
+                const halfH = s * yScale / 2;
+                const domeH = s * domeHeight;
+                const ac = avgColor;
+
+                // --- A. Inner glow: ring-shaped (center transparent, edge colored inward) ---
+                if (innerGlow > 0) {
+                    ctx.save();
+                    ctx.globalCompositeOperation = 'lighter';
+                    ctx.globalAlpha = alpha * innerGlow;
+                    const ig = ctx.createRadialGradient(eff.x, eff.y, 0, eff.x, eff.y, halfW);
+                    ig.addColorStop(0, `rgba(${ac.r},${ac.g},${ac.b},0)`);
+                    ig.addColorStop(0.4, `rgba(${ac.r},${ac.g},${ac.b},0)`);
+                    ig.addColorStop(0.7, `rgba(${ac.r},${ac.g},${ac.b},0.3)`);
+                    ig.addColorStop(0.9, `rgba(${ac.r},${ac.g},${ac.b},0.6)`);
+                    ig.addColorStop(1, `rgba(${ac.r},${ac.g},${ac.b},0.4)`);
+                    ctx.fillStyle = ig;
+                    ctx.beginPath();
+                    ctx.ellipse(eff.x, eff.y, halfW, halfH, 0, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.restore();
+                }
+
+                // --- B. Energy dome: semi-transparent hemisphere ---
+                if (domeOpacity > 0) {
+                    ctx.save();
+                    ctx.globalCompositeOperation = 'lighter';
+                    ctx.globalAlpha = alpha * domeOpacity;
+
+                    // Dome shape: gradient from top (opaque) to bottom (transparent)
+                    ctx.beginPath();
+                    ctx.ellipse(eff.x, eff.y, halfW, domeH, 0, Math.PI, 0);
+                    ctx.closePath();
+                    const dg = ctx.createLinearGradient(eff.x, eff.y - domeH, eff.x, eff.y);
+                    dg.addColorStop(0, `rgba(${ac.r},${ac.g},${ac.b},0.5)`);
+                    dg.addColorStop(0.3, `rgba(${ac.r},${ac.g},${ac.b},0.25)`);
+                    dg.addColorStop(0.7, `rgba(${ac.r},${ac.g},${ac.b},0.08)`);
+                    dg.addColorStop(1, `rgba(${ac.r},${ac.g},${ac.b},0)`);
+                    ctx.fillStyle = dg;
+                    ctx.fill();
+
+                    // Soft edge glow on the dome arc (no hard bottom line)
+                    ctx.beginPath();
+                    ctx.ellipse(eff.x, eff.y, halfW, domeH, 0, Math.PI + 0.15, -0.15);
+                    ctx.strokeStyle = `rgba(${ac.r},${ac.g},${ac.b},0.2)`;
+                    ctx.lineWidth = 2;
+                    ctx.stroke();
+
+                    ctx.restore();
+                }
+            }
+
+            // --- D. Energy wisps: bright particles flowing along dome surface ---
+            if (progress < 0.95 && domeOpacity > 0) {
+                const wispSpawnRate = 3 * scale * dt;
+                const wispCount = Math.floor(wispSpawnRate) + (Math.random() < (wispSpawnRate % 1) ? 1 : 0);
+                const halfW = s / 2;
+                const domeH = s * domeHeight;
+
+                for (let i = 0; i < wispCount; i++) {
+                    const theta = Math.random() * Math.PI;
+                    const col = colorPalette.length > 0
+                        ? colorPalette[Math.floor(Math.random() * colorPalette.length)]
+                        : avgColor;
+                    eff.wisps.push({
+                        theta: theta,
+                        speed: 0.4 + Math.random() * 0.8,
+                        life: 0.8 + Math.random() * 1.0,
+                        age: 0,
+                        size: 2 + Math.random() * 4,
+                        bright: 0.6 + Math.random() * 0.4,
+                        color: col,
+                        side: Math.random() < 0.5 ? -1 : 1
+                    });
+                }
+            }
+
+            // Draw wisps
+            for (let wi = eff.wisps.length - 1; wi >= 0; wi--) {
+                const w = eff.wisps[wi];
+                w.age += dt;
+                if (w.age > w.life) { eff.wisps.splice(wi, 1); continue; }
+
+                w.theta += w.speed * dt;
+                const halfW = s / 2;
+                const domeH = s * domeHeight;
+                const t2 = Math.min(w.theta, Math.PI);
+
+                const wx = eff.x + Math.cos(t2) * halfW * w.side;
+                const wy = eff.y - Math.sin(t2) * domeH;
+
+                const lifeRatio = w.age / w.life;
+                const wAlpha = Math.sin(lifeRatio * Math.PI) * w.bright * alpha;
+                const wSize = w.size * (1 - lifeRatio * 0.3);
+
+                if (wAlpha > 0.01) {
+                    ctx.save();
+                    ctx.globalCompositeOperation = 'lighter';
+                    ctx.globalAlpha = wAlpha;
+                    const c = w.color;
+                    const wg = ctx.createRadialGradient(wx, wy, 0, wx, wy, wSize);
+                    wg.addColorStop(0, `rgba(${Math.min(255,c.r+60)},${Math.min(255,c.g+40)},${Math.min(255,c.b+30)},1)`);
+                    wg.addColorStop(0.4, `rgba(${c.r},${c.g},${c.b},0.5)`);
+                    wg.addColorStop(1, `rgba(${c.r},${c.g},${c.b},0)`);
+                    ctx.fillStyle = wg;
+                    ctx.fillRect(wx - wSize, wy - wSize, wSize * 2, wSize * 2);
+                    ctx.restore();
+                }
+            }
+
+            // --- Particles: continuously spawn fine embers rising from ground ---
+            if (progress < 0.9 && particleDensity > 0) {
+                const spawnRate = particleDensity * scale * dt;
+                const spawnCount = Math.floor(spawnRate) + (Math.random() < (spawnRate % 1) ? 1 : 0);
+                const halfW = s / 2;
+                const halfH = s * yScale / 2;
+
+                for (let i = 0; i < spawnCount; i++) {
+                    const a = Math.random() * Math.PI * 2;
+                    const r = Math.sqrt(Math.random()) * 0.85;
+                    const col = colorPalette.length > 0
+                        ? colorPalette[Math.floor(Math.random() * colorPalette.length)]
+                        : avgColor;
+                    eff.particles.push({
+                        x: eff.x + Math.cos(a) * r * halfW,
+                        y: eff.y + Math.sin(a) * r * halfH,
+                        vy: -(30 + Math.random() * 80),
+                        vx: (Math.random() - 0.5) * 15,
+                        life: 0.4 + Math.random() * 0.5,
+                        age: 0,
+                        size: 0.8 + Math.random() * 1.8,
+                        bright: 0.5 + Math.random() * 0.5,
+                        color: col
+                    });
+                }
+            }
+
+            // Draw particles (world-space, no rotation)
+            for (let pi = eff.particles.length - 1; pi >= 0; pi--) {
+                const p = eff.particles[pi];
+                p.age += dt;
+                if (p.age > p.life) { eff.particles.splice(pi, 1); continue; }
+
+                p.x += p.vx * dt;
+                p.y += p.vy * dt;
+                p.vx *= 0.97;
+
+                const lifeRatio = p.age / p.life;
+                const pAlpha = Math.sin(lifeRatio * Math.PI) * p.bright;
+                const pSize = p.size * (1 + lifeRatio * 0.3);
+
+                ctx.save();
+                ctx.globalCompositeOperation = 'lighter';
+                ctx.globalAlpha = pAlpha;
+                const c = p.color || avgColor;
+                const grad = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, pSize);
+                grad.addColorStop(0, `rgb(${c.r},${c.g},${c.b})`);
+                grad.addColorStop(0.3, `rgba(${c.r},${c.g},${c.b},0.5)`);
+                grad.addColorStop(1, `rgba(${c.r},${c.g},${c.b},0)`);
+                ctx.fillStyle = grad;
+                ctx.fillRect(p.x - pSize, p.y - pSize, pSize * 2, pSize * 2);
+                ctx.restore();
+            }
+        }
+    }
+
+    loadAsset(ASSETS[0].name);
+    requestAnimationFrame(loop);
+    </script>
+</body>
+</html>

@@ -1,0 +1,55 @@
+﻿# ===== Docs / agent context noise =====
+**/_archive/**
+**/_archive_docs/**
+**/archive/**
+**/.claude/**
+**/node_modules/**
+**/__pycache__/**
+**/.DS_Store
+
+# ===== Python virtual env =====
+**/venv/**
+**/.venv/**
+
+# ===== Large binary assets =====
+**/*.mp4
+**/*.mov
+**/*.avi
+**/*.webm
+**/*.png
+**/*.jpg
+**/*.jpeg
+**/*.gif
+**/*.webp
+**/*.psd
+**/*.aseprite
+**/*.fbx
+**/*.blend
+**/*.zip
+**/*.rar
+**/*.7z
+
+# ===== Frontend asset folders (heavy resources) =====
+frontend/assets/videos/**
+frontend/assets/video/**
+frontend/assets/monsters/**
+frontend/assets/player1/**
+frontend/assets/aena/**
+frontend/assets/ui/**
+frontend/assets/spells/**
+frontend/assets/thumbnails/**
+frontend/monster/**
+
+# ===== Tooling / helper folders not needed in first pass =====
+frontend/tools/**
+frontend/scripts/**
+
+# ===== Keep these readable =====
+!frontend/assets/data/
+!frontend/assets/data/**
+!frontend/index.html
+!frontend/js/**
+!frontend/README.md
+!README.md
+!docs/**
+!backend/**

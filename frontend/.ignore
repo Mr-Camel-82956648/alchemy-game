@@ -1,0 +1,48 @@
+# ripgrep ignore - prevent scanning binary assets and virtual environments
+venv/
+.venv/
+env/
+__pycache__/
+node_modules/
+.git/
+
+# Binary image/media files
+*.png
+*.jpg
+*.jpeg
+*.webp
+*.gif
+*.bmp
+*.ico
+*.svg
+*.mp4
+*.webm
+*.mov
+*.avi
+*.mp3
+*.wav
+*.ogg
+*.flac
+
+# Fonts
+*.ttf
+*.woff
+*.woff2
+*.otf
+*.eot
+
+# Archives & compiled
+*.zip
+*.tar
+*.gz
+*.7z
+*.rar
+*.pdf
+*.dll
+*.pyd
+*.so
+*.dylib
+*.exe
+*.pyc
+*.pyo
+*.whl
