@@ -11,23 +11,246 @@ const Battle = (() => {
     const CANVAS_W = 2560;
     const CANVAS_H = 1440;
 
-    // ---- Monster species definitions (animated sprites) ----
-    const MOB_SPECIES = {
-        'stitch-ghoul':      { folder: 'assets/monsters/stitch-ghoul',      frames: 5, scale: 1.0, flipDefault: false },
-        'plague-scavenger':  { folder: 'assets/monsters/plague-scavenger',  frames: 5, scale: 1.0, flipDefault: true }
+    // Raw handoff listing kept only as source reference; runtime uses MOB_SPECIES below.
+    const RAW_FINAL_MONSTER_SOURCES = {
+        'plague-scavenger': {
+            category: 'eclipse',
+            folder: 'plague-scavenger',
+            framePrefix: 'frame_',
+            frames: 5,
+            scale: 0.96,
+            flipDefault: true,
+            roster: 'small'
+        },
+        'slag-ooze': {
+            category: 'eclipse',
+            folder: 'slag-ooze',
+            framePrefix: 'frame_',
+            frames: 6,
+            scale: 1.18,
+            flipDefault: false,
+            roster: 'small'
+        },
+        'stitch-ghoul': {
+            category: 'eclipse',
+            folder: 'stitch-ghoul',
+            framePrefix: 'frame_',
+            frames: 5,
+            scale: 1.0,
+            flipDefault: false,
+            roster: 'small'
+        },
+        'eclipse-wraith': {
+            category: 'eclipse',
+            folder: '蚀4_1_1',
+            framePrefix: '蚀4_1_1_',
+            frames: 6,
+            scale: 1.06,
+            flipDefault: true,
+            roster: 'small'
+        },
+        'ember-sprinter': {
+            category: 'fire',
+            folder: 'ember-sprinter',
+            framePrefix: 'frame_',
+            frames: 5,
+            scale: 0.94,
+            flipDefault: true,
+            roster: 'small'
+        },
+        'furnace-thrall': {
+            category: 'fire',
+            folder: 'furnace-thrall',
+            framePrefix: 'frame_',
+            frames: 6,
+            scale: 1.26,
+            flipDefault: true,
+            roster: 'small'
+        },
+        'cinder-guard': {
+            category: 'fire',
+            folder: '火3_3_1',
+            framePrefix: '火3_3_1_',
+            frames: 6,
+            scale: 1.1,
+            flipDefault: false,
+            roster: 'small'
+        },
+        'bone-cage-brute': {
+            category: 'ice',
+            folder: 'bone-cage-brute',
+            framePrefix: 'frame_',
+            frames: 6,
+            scale: 1.34,
+            flipDefault: false,
+            roster: 'small'
+        },
+        'frost-warden': {
+            category: 'ice',
+            folder: 'frost-warden',
+            framePrefix: 'frame_',
+            frames: 6,
+            scale: 0.98,
+            flipDefault: false,
+            roster: 'small'
+        },
+        'frost-wisp': {
+            category: 'ice',
+            folder: 'frost-wisp',
+            framePrefix: 'frame_',
+            frames: 6,
+            scale: 1.08,
+            flipDefault: true,
+            roster: 'small'
+        },
+        'alchemy-beholder': {
+            category: 'thunder',
+            folder: 'alchemy-beholder',
+            framePrefix: 'frame_',
+            frames: 6,
+            scale: 0.96,
+            flipDefault: false,
+            roster: 'small'
+        },
+        'storm-idol': {
+            category: 'thunder',
+            folder: '电5_5_1',
+            framePrefix: '电5_5_1_',
+            frames: 6,
+            scale: 1.04,
+            flipDefault: true,
+            roster: 'small'
+        },
+        'boss-frostshade-a': {
+            category: 'boss',
+            folder: '冰蚀_1_1',
+            framePrefix: '冰蚀_1_1_',
+            frames: 6,
+            scale: 1.54,
+            flipDefault: true,
+            roster: 'boss'
+        },
+        'boss-frostshade-b': {
+            category: 'boss',
+            folder: '冰蚀_4_1',
+            framePrefix: '冰蚀_4_1_',
+            frames: 6,
+            scale: 1.62,
+            flipDefault: true,
+            roster: 'boss'
+        },
+        'boss-stormshade-a': {
+            category: 'boss',
+            folder: '电蚀_1_1',
+            framePrefix: '电蚀_1_1_',
+            frames: 6,
+            scale: 1.58,
+            flipDefault: false,
+            roster: 'boss'
+        },
+        'boss-stormshade-b': {
+            category: 'boss',
+            folder: '电蚀2_2_1',
+            framePrefix: '点蚀2_2_1_',
+            frames: 6,
+            scale: 1.68,
+            flipDefault: false,
+            roster: 'boss'
+        },
+        'boss-cinderfrost-a': {
+            category: 'boss',
+            folder: '火冰_1_1',
+            framePrefix: '火冰_1_1_',
+            frames: 6,
+            scale: 1.6,
+            flipDefault: true,
+            roster: 'boss'
+        },
+        'boss-cinderfrost-b': {
+            category: 'boss',
+            folder: '火冰_3_1',
+            framePrefix: '火冰_3_1_',
+            frames: 6,
+            scale: 1.68,
+            flipDefault: true,
+            roster: 'boss'
+        },
+        'boss-cinderstorm-a': {
+            category: 'boss',
+            folder: '火电_1_1',
+            framePrefix: '火电_1_1_',
+            frames: 6,
+            scale: 1.58,
+            flipDefault: false,
+            roster: 'boss'
+        },
+        'boss-cinderstorm-b': {
+            category: 'boss',
+            folder: '火电_2_1',
+            framePrefix: '火电_2_1_',
+            frames: 6,
+            scale: 1.68,
+            flipDefault: false,
+            roster: 'boss'
+        }
     };
 
+    const MOB_SPECIES = {
+        'plague-scavenger': { category: 'eclipse', assetBase: 'assets/monsters/eclipse/plague-scavenger', frames: 5, framePrefix: 'frame_', scale: 0.96, flipDefault: true },
+        'slag-ooze':        { category: 'eclipse', assetBase: 'assets/monsters/eclipse/slag-ooze',        frames: 6, framePrefix: 'frame_', scale: 1.18, flipDefault: false },
+        'stitch-ghoul':     { category: 'eclipse', assetBase: 'assets/monsters/eclipse/stitch-ghoul',     frames: 5, framePrefix: 'frame_', scale: 1.0,  flipDefault: false },
+        'eclipse-wraith':   { category: 'eclipse', assetBase: 'assets/monsters/eclipse/eclipse-wraith',   frames: 6, framePrefix: 'frame_', scale: 1.06, flipDefault: true },
+        'ember-sprinter':   { category: 'fire',    assetBase: 'assets/monsters/fire/ember-sprinter',      frames: 5, framePrefix: 'frame_', scale: 0.94, flipDefault: true },
+        'furnace-thrall':   { category: 'fire',    assetBase: 'assets/monsters/fire/furnace-thrall',      frames: 6, framePrefix: 'frame_', scale: 1.26, flipDefault: true },
+        'cinder-guard':     { category: 'fire',    assetBase: 'assets/monsters/fire/cinder-guard',        frames: 6, framePrefix: 'frame_', scale: 1.1,  flipDefault: false },
+        'bone-cage-brute':  { category: 'ice',     assetBase: 'assets/monsters/ice/bone-cage-brute',      frames: 6, framePrefix: 'frame_', scale: 1.34, flipDefault: false },
+        'frost-warden':     { category: 'ice',     assetBase: 'assets/monsters/ice/frost-warden',         frames: 6, framePrefix: 'frame_', scale: 0.98, flipDefault: false },
+        'frost-wisp':       { category: 'ice',     assetBase: 'assets/monsters/ice/frost-wisp',           frames: 6, framePrefix: 'frame_', scale: 1.08, flipDefault: true },
+        'alchemy-beholder': { category: 'thunder', assetBase: 'assets/monsters/thunder/alchemy-beholder', frames: 6, framePrefix: 'frame_', scale: 0.96, flipDefault: false },
+        'storm-idol':       { category: 'thunder', assetBase: 'assets/monsters/thunder/storm-idol',       frames: 6, framePrefix: 'frame_', scale: 1.04, flipDefault: true },
+        'frostshade-alpha':  { category: 'boss', assetBase: 'assets/monsters/boss/frostshade-alpha',  frames: 6, framePrefix: 'frame_', scale: 1.54, flipDefault: true },
+        'frostshade-omega':  { category: 'boss', assetBase: 'assets/monsters/boss/frostshade-omega',  frames: 6, framePrefix: 'frame_', scale: 1.62, flipDefault: true },
+        'stormshade-alpha':  { category: 'boss', assetBase: 'assets/monsters/boss/stormshade-alpha',  frames: 6, framePrefix: 'frame_', scale: 1.58, flipDefault: false },
+        'stormshade-omega':  { category: 'boss', assetBase: 'assets/monsters/boss/stormshade-omega',  frames: 6, framePrefix: 'frame_', scale: 1.68, flipDefault: false },
+        'cinderfrost-alpha': { category: 'boss', assetBase: 'assets/monsters/boss/cinderfrost-alpha', frames: 6, framePrefix: 'frame_', scale: 1.6,  flipDefault: true },
+        'cinderfrost-omega': { category: 'boss', assetBase: 'assets/monsters/boss/cinderfrost-omega', frames: 6, framePrefix: 'frame_', scale: 1.68, flipDefault: true },
+        'cinderstorm-alpha': { category: 'boss', assetBase: 'assets/monsters/boss/cinderstorm-alpha', frames: 6, framePrefix: 'frame_', scale: 1.58, flipDefault: false },
+        'cinderstorm-omega': { category: 'boss', assetBase: 'assets/monsters/boss/cinderstorm-omega', frames: 6, framePrefix: 'frame_', scale: 1.68, flipDefault: false }
+    };
+
+    const SMALL_MONSTER_POOLS = {
+        eclipse: ['plague-scavenger', 'slag-ooze', 'stitch-ghoul', 'eclipse-wraith'],
+        fire: ['ember-sprinter', 'furnace-thrall', 'cinder-guard'],
+        ice: ['bone-cage-brute', 'frost-warden', 'frost-wisp'],
+        thunder: ['alchemy-beholder', 'storm-idol']
+    };
+
+    const BOSS_MONSTER_IDS = [
+        'frostshade-alpha',
+        'frostshade-omega',
+        'stormshade-alpha',
+        'stormshade-omega',
+        'cinderfrost-alpha',
+        'cinderfrost-omega',
+        'cinderstorm-alpha',
+        'cinderstorm-omega'
+    ];
+
     const TIERS = {
-        minion:  { hp: 2,  speedRange: [1.0, 1.8],  scale: 1.0,  barColor: '#4caf50', score: 10,
-                   species: ['stitch-ghoul', 'plague-scavenger'] },
-        elite:   { hp: 6,  speedRange: [1.4, 2.2],  scale: 1.0,  barColor: '#ffc107', score: 30,
-                   species: ['stitch-ghoul', 'plague-scavenger'] },
-        boss:    { hp: 20, speedRange: [0.6, 1.0],  scale: 1.0,  barColor: '#f44336', score: 100,
-                   species: ['stitch-ghoul'] }
+        minion:  { hp: 2,  speedRange: [1.05, 1.72], scale: 1.0, barColor: '#4caf50', score: 10,
+                   species: [].concat(...Object.values(SMALL_MONSTER_POOLS)) },
+        elite:   { hp: 6,  speedRange: [1.1, 1.9],  scale: 1.0, barColor: '#ffc107', score: 30,
+                   species: [].concat(...Object.values(SMALL_MONSTER_POOLS)) },
+        boss:    { hp: 24, speedRange: [0.72, 1.02], scale: 1.0, barColor: '#f44336', score: 140,
+                   species: BOSS_MONSTER_IDS }
     };
 
     const ANIM_FPS_MOB = 6;
     const ANIM_FRAME_MS_MOB = 1000 / ANIM_FPS_MOB;
+    const SOUL_WISP_FRAME_COUNT = 6;
+    const SOUL_WISP_FPS = 4;
+    const SOUL_WISP_FRAME_MS = 1000 / SOUL_WISP_FPS;
+    const SOUL_WISP_ASSET_BASE = 'assets/vfx/soul_wisp';
 
     const CONFIG = {
         playerSpeed: 8,
@@ -43,8 +266,8 @@ const Battle = (() => {
         wavePause: 1500,
         spellMaxCharges: 3,
         spellChargeTime: 4000,
-        battleDuration: 60,
-        soulGoal: 500,
+        battleDuration: 90,
+        soulGoal: 1800,
         spellSizes: [796, 597, 696, 895],
         spellDamages: [3, 2, 4, 2],
         spellColors: ['#ff6600', '#00ccff', '#cc88ff', '#44ff66'],
@@ -103,6 +326,15 @@ const Battle = (() => {
             const img = new Image();
             img.src = `${base}player1_ultimate_skill_run_normalized/player1_ultimate_skill_run_${String(i).padStart(2, '0')}.png`;
             spriteFrames.castUp.push(img);
+        }
+    }
+
+    function preloadSoulWispFrames() {
+        soulWispFrames.length = 0;
+        for (let i = 1; i <= SOUL_WISP_FRAME_COUNT; i++) {
+            const img = new Image();
+            img.src = `${SOUL_WISP_ASSET_BASE}/frame_${String(i).padStart(2, '0')}.webp`;
+            soulWispFrames.push(img);
         }
     }
 
@@ -185,6 +417,8 @@ const Battle = (() => {
     let activeEffects = [];
     let floatingTexts = [];
     let activeSpellIndex = 0;
+    let activeSoulWisps = [];
+    let cruciblePulseAt = 0;
 
     // Game feel systems
     let hitstopEnd = 0;
@@ -214,10 +448,12 @@ const Battle = (() => {
 
     // Wave system
     let waveNumber = 0;
-    let waveState = 'idle'; // 'idle' | 'fighting' | 'pause'
+    let waveState = 'idle';
     let wavePauseStart = 0;
     let spawnQueue = [];
     let battleStartTime = 0;
+    let wavePlan = [];
+    let currentWaveIndex = -1;
 
     // Input
     const keys = {};
@@ -232,6 +468,7 @@ const Battle = (() => {
 
     // Monster sprite frames: { 'stitch-ghoul': [Image, Image, ...], ... }
     const mobFrames = {};
+    const soulWispFrames = [];
 
     // VFX
     let spellVideoSrcs = [];
@@ -261,12 +498,13 @@ const Battle = (() => {
             mobFrames[species] = [];
             for (let i = 1; i <= def.frames; i++) {
                 const img = new Image();
-                img.src = `${def.folder}/frame_${String(i).padStart(2, '0')}.png`;
+                img.src = `${def.assetBase}/${def.framePrefix}${String(i).padStart(2, '0')}.png`;
                 mobFrames[species].push(img);
             }
         });
 
         preloadPlayerSprites();
+        preloadSoulWispFrames();
 
         // Background textures
         const bgFiles = {
@@ -275,7 +513,8 @@ const Battle = (() => {
             skull2: 'assets/aena/skull_02.png',
             light1: 'assets/aena/linear_dodge_add_01.png',
             light2: 'assets/aena/linear_dodge_add_02.png',
-            bloodScreen: 'assets/ui/blood_screen.webp'
+            bloodScreen: 'assets/ui/blood_screen.webp',
+            crucibleUi: 'assets/icon/crucible_UI.png'
         };
         Object.entries(bgFiles).forEach(([key, src]) => {
             const img = new Image();
@@ -571,17 +810,80 @@ const Battle = (() => {
         triggerHitstop(15);
     }
 
-    // ---- VS-like Wave & Horde System ----
+    // ---- Fixed 4-wave pack script ----
     const MAX_MONSTERS = 200;
-    let gameTime = 0;       // seconds since battle start
-    let lastGroupSpawn = 0; // ms timestamp of last group spawn
-    let lastTrickle = 0;    // ms timestamp of last trickle spawn
-    let lastBossWave = 0;   // tracks which boss wave was last spawned
+    let gameTime = 0; // seconds since battle start
+    const WAVE_TEMPLATES = [
+        {
+            number: 1,
+            durationSec: 18,
+            speciesCount: 1,
+            tier: 'minion',
+            packIntervalMs: 2300,
+            kickoffDelaysMs: [0, 760],
+            refillThreshold: 10,
+            softCap: 18,
+            announceLabel: 'WAVE 1'
+        },
+        {
+            number: 2,
+            durationSec: 22,
+            speciesCount: 1,
+            tier: 'minion',
+            packIntervalMs: 2100,
+            kickoffDelaysMs: [0, 420, 980],
+            refillThreshold: 15,
+            softCap: 28,
+            announceLabel: 'WAVE 2'
+        },
+        {
+            number: 3,
+            durationSec: 24,
+            speciesCount: 1,
+            tier: 'minion',
+            packIntervalMs: 1800,
+            kickoffDelaysMs: [0, 320, 820, 1420],
+            refillThreshold: 20,
+            softCap: 36,
+            announceLabel: 'WAVE 3'
+        },
+        {
+            number: 4,
+            durationSec: 26,
+            speciesCount: 1,
+            tier: 'boss',
+            packIntervalMs: 8500,
+            kickoffDelaysMs: [0],
+            refillThreshold: 1,
+            softCap: 3,
+            announceLabel: 'WAVE 4 BOSS'
+        }
+    ];
+    const PACK_ARCHETYPES = {
+        'plague-scavenger': { baseCount: 8, variance: 1, formations: ['line', 'wedge'], distScale: 1.0 },
+        'slag-ooze':        { baseCount: 5, variance: 1, formations: ['wedge', 'cluster'], distScale: 0.98 },
+        'stitch-ghoul':     { baseCount: 7, variance: 1, formations: ['cluster', 'wedge'], distScale: 1.0 },
+        'eclipse-wraith':   { baseCount: 6, variance: 1, formations: ['ringLoose', 'line'], distScale: 1.04 },
+        'ember-sprinter':   { baseCount: 8, variance: 1, formations: ['line', 'wedge'], distScale: 1.0 },
+        'furnace-thrall':   { baseCount: 5, variance: 1, formations: ['wedge', 'line'], distScale: 0.98 },
+        'cinder-guard':     { baseCount: 6, variance: 1, formations: ['cluster', 'wedge'], distScale: 0.98 },
+        'bone-cage-brute':  { baseCount: 4, variance: 1, formations: ['line', 'wedge'], distScale: 0.96 },
+        'frost-warden':     { baseCount: 6, variance: 1, formations: ['cluster', 'line'], distScale: 1.0 },
+        'frost-wisp':       { baseCount: 7, variance: 1, formations: ['ringLoose', 'line'], distScale: 1.03 },
+        'alchemy-beholder': { baseCount: 5, variance: 1, formations: ['ringLoose', 'line'], distScale: 1.05 },
+        'storm-idol':       { baseCount: 6, variance: 1, formations: ['wedge', 'line'], distScale: 1.0 }
+    };
     const RESIST_ABSORB_VISUAL_SCALE_STEPS = [0, 0.3, 0.62, 0.98];
+    const NORMAL_DAMAGE_FALLOFF_STEPS = [
+        { maxRatio: 0.38, multiplier: 1.0 },
+        { maxRatio: 0.74, multiplier: 0.84 },
+        { maxRatio: 1.0, multiplier: 0.62 }
+    ];
     const ULTIMATE_DAMAGE_FALLOFF_STEPS = [
-        { maxRatio: 0.35, multiplier: 1.0 },
-        { maxRatio: 0.7, multiplier: 0.72 },
-        { maxRatio: 1.0, multiplier: 0.45 }
+        { maxRatio: 0.22, multiplier: 1.0 },
+        { maxRatio: 0.5, multiplier: 0.76 },
+        { maxRatio: 0.78, multiplier: 0.48 },
+        { maxRatio: 1.0, multiplier: 0.24 }
     ];
     const MONSTER_HIT_PAUSE_MS = 70;
     const MONSTER_ULTIMATE_HIT_PAUSE_MS = 90;
@@ -589,18 +891,245 @@ const Battle = (() => {
     const MONSTER_ABSORB_PAUSE_MS = 110;
     const MONSTER_ABSORB_FEEDBACK_MS = 280;
     const MONSTER_DEATH_FADE_MS = 560;
+    const EFFECT_HIT_RADIUS_RATIO = 0.44;
+    const MAX_ACTIVE_SOUL_WISPS = 10;
+    const SOUL_WISP_MIN_DURATION_MS = 2240;
+    const SOUL_WISP_MAX_DURATION_MS = 3440;
+    const CRUCIBLE_PULSE_MS = 180;
 
-    function getSpawnPressure() {
-        const t = gameTime;
-        // Ramps over time: more monsters as game progresses
+    function shuffleArray(list) {
+        const copy = [...list];
+        for (let i = copy.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [copy[i], copy[j]] = [copy[j], copy[i]];
+        }
+        return copy;
+    }
+
+    function pickRandom(list) {
+        if (!list || list.length === 0) return null;
+        return list[Math.floor(Math.random() * list.length)];
+    }
+
+    function pickUnusedFromPool(pool, usedSpecies) {
+        const candidates = shuffleArray(pool).filter(species => !usedSpecies.has(species));
+        if (candidates.length > 0) return candidates[0];
+        return pickRandom(pool);
+    }
+
+    function getPackArchetype(species) {
+        return PACK_ARCHETYPES[species] || { baseCount: 6, variance: 1, formations: ['cluster'], distScale: 1 };
+    }
+
+    function buildSquad(species, overrides = {}) {
+        const archetype = getPackArchetype(species);
+        const baseCount = Number(overrides.fixedCount);
+        const scaledCount = Number.isFinite(baseCount)
+            ? baseCount
+            : (archetype.baseCount + Math.floor(Math.random() * (archetype.variance + 1))) * (Number(overrides.countScale) || 1);
+
         return {
-            trickleInterval: Math.max(200, 800 - t * 8),   // ms between trickle spawns
-            groupInterval:   Math.max(3000, 10000 - t * 80),// ms between group bursts
-            groupSize:       Math.min(30, 5 + Math.floor(t / 8)),
-            eliteChance:     Math.min(0.3, t * 0.003),
-            bossInterval:    60,                            // seconds between boss spawns
-            maxOnScreen:     Math.min(MAX_MONSTERS, 40 + Math.floor(t * 0.8))
+            species,
+            tier: overrides.tier || 'minion',
+            count: Math.max(1, Math.round(scaledCount)),
+            pattern: overrides.pattern || pickRandom(archetype.formations) || 'cluster',
+            angleOffset: Number(overrides.angleOffset) || 0,
+            delayMs: Number(overrides.delayMs) || 0,
+            distScale: Number(overrides.distScale) || archetype.distScale || 1
         };
+    }
+
+    function buildPack(squads, cooldownMs) {
+        return {
+            squads,
+            estimatedCount: squads.reduce((sum, squad) => sum + Math.max(0, Number(squad.count) || 0), 0),
+            cooldownMs
+        };
+    }
+
+    function buildWaveOnePackCycle(species) {
+        return [
+            buildPack([buildSquad(species, { pattern: 'line', countScale: 0.92 })], 1850),
+            buildPack([
+                buildSquad(species, { pattern: 'cluster', countScale: 0.68 }),
+                buildSquad(species, { pattern: 'wedge', countScale: 0.42, angleOffset: 0.18, delayMs: 260 })
+            ], 2250),
+            buildPack([
+                buildSquad(species, { pattern: 'line', countScale: 0.58, angleOffset: -0.22 }),
+                buildSquad(species, { pattern: 'line', countScale: 0.58, angleOffset: 0.22, delayMs: 340 })
+            ], 2400)
+        ];
+    }
+
+    function buildWaveTwoPackCycle(species) {
+        return [
+            buildPack([buildSquad(species, { pattern: 'line', countScale: 1.1 })], 1750),
+            buildPack([buildSquad(species, { pattern: 'cluster', countScale: 1.05 })], 1750),
+            buildPack([
+                buildSquad(species, { pattern: 'wedge', countScale: 0.95, angleOffset: -0.18 }),
+                buildSquad(species, { pattern: 'line', countScale: 0.88, angleOffset: 0.22, delayMs: 380 })
+            ], 2200),
+            buildPack([
+                buildSquad(species, { pattern: 'cluster', countScale: 0.8, angleOffset: -0.28 }),
+                buildSquad(species, { pattern: 'wedge', countScale: 0.8, angleOffset: 0.28, delayMs: 320 })
+            ], 2350)
+        ];
+    }
+
+    function buildWaveThreePackCycle(species) {
+        return [
+            buildPack([
+                buildSquad(species, { pattern: 'line', countScale: 1.06 }),
+                buildSquad(species, { pattern: 'wedge', countScale: 0.74, angleOffset: 0.24, delayMs: 320 })
+            ], 1650),
+            buildPack([
+                buildSquad(species, { pattern: 'cluster', countScale: 1.0 }),
+                buildSquad(species, { pattern: 'line', countScale: 0.68, angleOffset: -0.26, delayMs: 260 })
+            ], 1700),
+            buildPack([
+                buildSquad(species, { pattern: 'ringLoose', countScale: 0.9, angleOffset: -0.18 }),
+                buildSquad(species, { pattern: 'wedge', countScale: 0.86, angleOffset: 0.2, delayMs: 280 })
+            ], 1750),
+            buildPack([
+                buildSquad(species, { pattern: 'line', countScale: 0.72, angleOffset: -0.35 }),
+                buildSquad(species, { pattern: 'cluster', countScale: 0.72, angleOffset: 0, delayMs: 240 }),
+                buildSquad(species, { pattern: 'wedge', countScale: 0.72, angleOffset: 0.35, delayMs: 520 })
+            ], 2100)
+        ];
+    }
+
+    function buildBossPackCycle(bossSpecies) {
+        return buildPack([
+            buildSquad(bossSpecies, { tier: 'boss', fixedCount: 1, pattern: 'cluster', distScale: 0.98 })
+        ], 9000);
+    }
+
+    function buildWavePackCycle(template, species) {
+        if (template.tier === 'boss') return [buildBossPackCycle(species[0])];
+        if (template.number === 1) return buildWaveOnePackCycle(species[0]);
+        if (template.number === 2) return buildWaveTwoPackCycle(species[0]);
+        return buildWaveThreePackCycle(species[0]);
+    }
+
+    function buildWavePlan() {
+        const selectedCategories = shuffleArray(Object.keys(SMALL_MONSTER_POOLS)).slice(0, 3);
+        const waveSpecies = selectedCategories.map(category => [pickRandom(SMALL_MONSTER_POOLS[category])]);
+
+        let cursorSec = 0;
+        return WAVE_TEMPLATES.map((template, index) => {
+            const startSec = cursorSec;
+            const endSec = cursorSec + template.durationSec;
+            cursorSec = endSec;
+
+            return {
+                ...template,
+                startSec,
+                endSec,
+                species: template.tier === 'boss'
+                    ? [pickRandom(BOSS_MONSTER_IDS)]
+                    : waveSpecies[index],
+                nextPackAt: 0,
+                packCursor: 0,
+                startedAt: 0,
+                packCycle: []
+            };
+        }).map(wave => ({
+            ...wave,
+            packCycle: buildWavePackCycle(wave, wave.species)
+        }));
+    }
+
+    function getCurrentWaveIndex() {
+        for (let i = 0; i < wavePlan.length; i++) {
+            if (gameTime < wavePlan[i].endSec) return i;
+        }
+        return Math.max(0, wavePlan.length - 1);
+    }
+
+    function getLivingMonsterCount() {
+        return monsters.filter(monster => !monster.isDying).length;
+    }
+
+    function getQueuedSpawnCount() {
+        return spawnQueue.reduce((sum, item) => sum + Math.max(0, Number(item.count) || 0), 0);
+    }
+
+    function enqueuePack(pack, now, baseAngle = null) {
+        const packAngle = baseAngle != null ? baseAngle : Math.random() * Math.PI * 2;
+        pack.squads.forEach(squad => {
+            spawnQueue.push({
+                spawnAt: now + (Number(squad.delayMs) || 0),
+                species: squad.species,
+                tier: squad.tier,
+                count: squad.count,
+                pattern: squad.pattern,
+                angle: packAngle + (Number(squad.angleOffset) || 0),
+                distScale: squad.distScale || 1
+            });
+        });
+    }
+
+    function dispatchNextPack(wave, now, delayMs = 0) {
+        if (!wave.packCycle || wave.packCycle.length === 0) return;
+        const pack = wave.packCycle[wave.packCursor % wave.packCycle.length];
+        wave.packCursor = (wave.packCursor + 1) % wave.packCycle.length;
+        enqueuePack(pack, now + delayMs);
+        wave.nextPackAt = now + delayMs + (pack.cooldownMs || wave.packIntervalMs);
+    }
+
+    function flushSpawnQueue(now) {
+        for (let i = spawnQueue.length - 1; i >= 0; i--) {
+            const queued = spawnQueue[i];
+            if (queued.spawnAt > now) continue;
+            spawnHordeGroup(queued.species, queued.count, queued.tier, {
+                pattern: queued.pattern,
+                baseAngle: queued.angle,
+                distScale: queued.distScale
+            });
+            spawnQueue.splice(i, 1);
+        }
+    }
+
+    function activateWave(index, now) {
+        if (index < 0 || index >= wavePlan.length) return;
+
+        currentWaveIndex = index;
+        const wave = wavePlan[index];
+        wave.startedAt = now;
+        wave.nextPackAt = now + wave.packIntervalMs;
+        wave.packCursor = 0;
+        spawnQueue = [];
+        waveNumber = wave.number;
+        waveState = 'fighting';
+        showWaveAnnouncement(wave.announceLabel);
+        updateWaveDisplay();
+
+        wave.kickoffDelaysMs.forEach(delayMs => dispatchNextPack(wave, now, delayMs));
+    }
+
+    function updateWaveSpawns(now) {
+        if (wavePlan.length === 0) return;
+        flushSpawnQueue(now);
+
+        const targetWaveIndex = getCurrentWaveIndex();
+        if (targetWaveIndex !== currentWaveIndex) {
+            activateWave(targetWaveIndex, now);
+            flushSpawnQueue(now);
+        }
+
+        const wave = wavePlan[currentWaveIndex];
+        if (!wave) return;
+
+        const aliveCount = getLivingMonsterCount();
+        const queuedCount = getQueuedSpawnCount();
+        const shouldDispatch = now >= wave.nextPackAt || aliveCount <= wave.refillThreshold;
+        if (!shouldDispatch) return;
+        if (aliveCount + queuedCount >= Math.min(MAX_MONSTERS, wave.softCap)) {
+            wave.nextPackAt = now + 320;
+            return;
+        }
+
+        dispatchNextPack(wave, now);
     }
 
     function getMonsterAbsorbVisualScaleBonus(monster) {
@@ -620,6 +1149,30 @@ const Battle = (() => {
         monster.w = 202 * monster.scale;
     }
 
+    function getMonsterRewardValue(monster) {
+        const baseScore = Math.max(1, Math.round(Number(monster.baseScore) || Number(monster.score) || 1));
+        const stacks = Math.max(
+            0,
+            Math.min(
+                Combat.RESIST_ABSORB_MAX_STACKS,
+                Math.floor(Number(monster.resistAbsorbStacks) || 0)
+            )
+        );
+        const baseScale = Math.max(0.01, Number(monster.baseScale) || 1);
+        const scaleRatio = Math.max(baseScale, Number(monster.scale) || baseScale) / baseScale;
+        const baseHp = Math.max(1, Number(monster.baseMaxHp) || 1);
+        const hpRatio = Math.max(1, Number(monster.maxHp) || baseHp) / baseHp;
+        const rewardMultiplier = 1
+            + stacks * 0.35
+            + (scaleRatio - 1) * 0.55
+            + (hpRatio - 1) * 0.75;
+        return Math.max(baseScore, Math.round(baseScore * rewardMultiplier));
+    }
+
+    function refreshMonsterReward(monster) {
+        monster.score = getMonsterRewardValue(monster);
+    }
+
     function applyMonsterProfile(monster) {
         const tierDef = TIERS[monster.tier];
         const specDef = MOB_SPECIES[monster.species];
@@ -637,6 +1190,7 @@ const Battle = (() => {
         monster.hp = monster.baseMaxHp;
         monster.baseScale = tierDef.scale * specDef.scale * sizeScale;
         refreshMonsterScale(monster);
+        refreshMonsterReward(monster);
     }
 
     function getGroupSpawnOffset(groupPattern, index, count) {
@@ -769,6 +1323,7 @@ const Battle = (() => {
             monster.maxHp += absorbHp;
             monster.hp = Math.min(monster.maxHp, monster.hp + absorbHp);
             refreshMonsterScale(monster);
+            refreshMonsterReward(monster);
         }
 
         monster.absorbFeedbackStart = now;
@@ -789,36 +1344,41 @@ const Battle = (() => {
         return Math.max(50, monster.w * 0.24);
     }
 
+    function getEffectHitRadius(effect) {
+        return Math.max(40, effect.size * EFFECT_HIT_RADIUS_RATIO);
+    }
+
     function getEffectDamageAtTarget(effect, target) {
         const baseDamage = Number(effect.damage) || 0;
-        if (!effect.isUltimate) return baseDamage;
-
-        const half = Math.max(1, effect.size / 2);
+        const radius = Math.max(1, getEffectHitRadius(effect));
         const dx = target.x - effect.x;
         const dy = target.y - effect.y;
-        const distanceRatio = Math.min(1, Math.sqrt(dx * dx + dy * dy) / half);
+        const distanceRatio = Math.min(1, Math.sqrt(dx * dx + dy * dy) / radius);
+        const falloffSteps = effect.isUltimate ? ULTIMATE_DAMAGE_FALLOFF_STEPS : NORMAL_DAMAGE_FALLOFF_STEPS;
 
-        for (const step of ULTIMATE_DAMAGE_FALLOFF_STEPS) {
+        for (const step of falloffSteps) {
             if (distanceRatio <= step.maxRatio) {
                 return baseDamage * step.multiplier;
             }
         }
 
-        return baseDamage * ULTIMATE_DAMAGE_FALLOFF_STEPS[ULTIMATE_DAMAGE_FALLOFF_STEPS.length - 1].multiplier;
+        return baseDamage * falloffSteps[falloffSteps.length - 1].multiplier;
     }
 
-    function spawnHordeGroup(species, count, tier) {
+    function spawnHordeGroup(species, count, tier, options = null) {
         // Spawn a same-species group with lightweight formation variance.
-        const baseAngle = Math.random() * Math.PI * 2;
-        const baseDist = Math.max(CANVAS_W, CANVAS_H) * 0.6 + 100;
+        const baseAngle = options?.baseAngle != null ? options.baseAngle : Math.random() * Math.PI * 2;
+        const distScale = Number(options?.distScale) > 0 ? Number(options.distScale) : 1;
+        const baseDist = (Math.max(CANVAS_W, CANVAS_H) * 0.6 + 100) * distScale;
         const profile = MonsterDefs.getCombatProfile(species, tier || 'minion');
+        const formation = options?.pattern || profile.groupPattern;
 
         for (let i = 0; i < count; i++) {
-            const offset = getGroupSpawnOffset(profile.groupPattern, i, count);
+            const offset = getGroupSpawnOffset(formation, i, count);
             const angle = baseAngle + offset.angleOffset;
             const dist = baseDist + offset.distOffset;
             spawnMonster(tier || 'minion', angle, dist, species, {
-                groupPattern: profile.groupPattern,
+                groupPattern: formation,
                 groupAnchorAngle: baseAngle,
                 groupIndex: i,
                 groupCount: count
@@ -826,61 +1386,21 @@ const Battle = (() => {
         }
     }
 
-    function startNextWave() {
-        waveNumber++;
-        waveState = 'fighting';
-        spawnQueue = [];
-        lastGroupSpawn = Date.now();
-        lastTrickle = Date.now();
-
-        // Initial burst: two groups from different directions
-        const speciesList = Object.keys(MOB_SPECIES);
-        const s1 = speciesList[Math.floor(Math.random() * speciesList.length)];
-        const s2 = speciesList[Math.floor(Math.random() * speciesList.length)];
-        const burstSize = Math.min(12, 4 + waveNumber * 2);
-        spawnHordeGroup(s1, burstSize, 'minion');
-        spawnHordeGroup(s2, Math.ceil(burstSize * 0.6), 'minion');
-
-        announceWave(waveNumber);
-        updateWaveDisplay();
-    }
-
-    function vsSpawnTick(now) {
-        const pressure = getSpawnPressure();
-        if (monsters.length >= pressure.maxOnScreen) return;
-
-        // Trickle spawns: individual monsters from random directions
-        if (now - lastTrickle >= pressure.trickleInterval) {
-            lastTrickle = now;
-            const tier = Math.random() < pressure.eliteChance ? 'elite' : 'minion';
-            spawnMonster(tier);
-        }
-
-        // Group bursts: dense same-species packs from one direction
-        if (now - lastGroupSpawn >= pressure.groupInterval) {
-            lastGroupSpawn = now;
-            const speciesList = Object.keys(MOB_SPECIES);
-            const species = speciesList[Math.floor(Math.random() * speciesList.length)];
-            const count = Math.min(pressure.groupSize, pressure.maxOnScreen - monsters.length);
-            if (count > 0) {
-                // 20% chance the group is all elites
-                const tier = Math.random() < 0.2 && pressure.eliteChance > 0.05 ? 'elite' : 'minion';
-                spawnHordeGroup(species, count, tier);
-            }
-        }
-
-        // Boss spawn every N seconds
-        const bossWave = Math.floor(gameTime / pressure.bossInterval);
-        if (bossWave > lastBossWave && !monsters.some(m => m.tier === 'boss')) {
-            lastBossWave = bossWave;
-            spawnMonster('boss');
-        }
-    }
-
     function announceWave(n) {
         const el = document.getElementById('wave-announce');
         const text = document.getElementById('wave-announce-text');
         text.textContent = n >= 8 ? `WAVE ${n} — BOSS` : `WAVE ${n}`;
+        el.style.display = 'block';
+        text.style.animation = 'none';
+        void text.offsetWidth;
+        text.style.animation = '';
+        setTimeout(() => { el.style.display = 'none'; }, 2500);
+    }
+
+    function showWaveAnnouncement(label) {
+        const el = document.getElementById('wave-announce');
+        const text = document.getElementById('wave-announce-text');
+        text.textContent = label || `WAVE ${waveNumber}`;
         el.style.display = 'block';
         text.style.animation = 'none';
         void text.offsetWidth;
@@ -908,6 +1428,7 @@ const Battle = (() => {
             scale: 1,
             baseScale: 1,
             resistAbsorbStacks: 0,
+            baseScore: def.score,
             barColor: def.barColor,
             score: def.score,
             w: 202,
@@ -950,26 +1471,28 @@ const Battle = (() => {
         monsters = [];
         energy = 0; killCount = 0; score = 0;
         activeEffects = []; floatingTexts = [];
+        activeSoulWisps = [];
         particles = []; afterimages = []; lightningBolts = [];
         hitstopEnd = 0;
         shake = { intensity: 0, duration: 0, startTime: 0 };
         damageFlash = { alpha: 0, time: 0 };
+        cruciblePulseAt = 0;
         isPaused = false;
         isDashing = false;
         activeSpellIndex = 0;
         spellCharges = [CONFIG.spellMaxCharges, CONFIG.spellMaxCharges, CONFIG.spellMaxCharges, CONFIG.spellMaxCharges];
         spellLastChargeTime = [0, 0, 0, 0];
         waveNumber = 0;
-        waveState = 'pause';
-        wavePauseStart = Date.now();
+        waveState = 'idle';
+        wavePauseStart = 0;
         battleStartTime = Date.now();
         gameTime = 0;
-        lastGroupSpawn = 0;
-        lastTrickle = 0;
-        lastBossWave = 0;
         spawnQueue = [];
+        wavePlan = buildWavePlan();
+        currentWaveIndex = -1;
         lastAmuletDamageTick = 0;
         running = true;
+        activateWave(0, battleStartTime);
 
         // Start amulet aura video
         if (amuletVideo) {
@@ -1014,35 +1537,16 @@ const Battle = (() => {
 
         rechargeSpells(now);
 
-        // VS-style continuous spawning
         gameTime = (now - battleStartTime) / 1000;
 
         if (checkWinCondition()) return;
+        if (updateSoulWisps(now)) return;
 
         // Countdown timer → defeat if time runs out
         const remaining = CONFIG.battleDuration - gameTime;
         if (remaining <= 0) { onDefeat('time_out'); return; }
 
-        if (waveState === 'pause' && now - wavePauseStart > CONFIG.wavePause) {
-            startNextWave();
-        }
-
-        if (waveState === 'fighting') {
-            vsSpawnTick(now);
-
-            // Wave transitions: announce new wave every ~30s of game time
-            const expectedWave = 1 + Math.floor(gameTime / 30);
-            if (expectedWave > waveNumber) {
-                waveNumber = expectedWave;
-                announceWave(waveNumber);
-                updateWaveDisplay();
-
-                // Bonus burst on wave transition
-                const speciesList = Object.keys(MOB_SPECIES);
-                const s = speciesList[Math.floor(Math.random() * speciesList.length)];
-                spawnHordeGroup(s, Math.min(20, 8 + waveNumber * 2), 'minion');
-            }
-        }
+        updateWaveSpawns(now);
 
         // Dash (ease-out: fast start, decelerate)
         if (isDashing) {
@@ -1081,11 +1585,13 @@ const Battle = (() => {
             const age = now - eff.startTime;
             if (!eff.damageApplied && age > 400 && age < 1200) {
                 eff.damageApplied = true;
-                const half = eff.size / 2;
                 let hitCount = 0;
                 monsters.forEach(m => {
                     if (m.isDying) return;
-                    if (Math.abs(m.x - eff.x) < half && Math.abs(m.y - eff.y) < half) {
+                    const hitRadius = getEffectHitRadius(eff);
+                    const hitDx = m.x - eff.x;
+                    const hitDy = m.y - eff.y;
+                    if (hitDx * hitDx + hitDy * hitDy <= hitRadius * hitRadius) {
                         const effectDamage = getEffectDamageAtTarget(eff, m);
                         const hitResult = Combat.calcHitResult(
                             eff.spellData || { mainAttr: eff.mainAttr, baseAtk: null },
@@ -1132,22 +1638,21 @@ const Battle = (() => {
                 m.deathStart = now;
                 m.hitPauseUntil = 0;
                 m.absorbFeedbackStart = 0;
+                spawnSoulWisp(m.x, m.y - 50, m.score, now);
+                floatingTexts.push({
+                    x: m.x,
+                    y: m.y - 42,
+                    text: `+${m.score}`,
+                    color: '#cb9cff',
+                    startTime: now
+                });
             }
 
             if (m.isDying) {
                 if (now - m.deathStart > MONSTER_DEATH_FADE_MS) {
-                    floatingTexts.push({
-                        x: m.x, y: m.y - 40,
-                        text: `+${m.score}`,
-                        color: '#ffd54f',
-                        startTime: now
-                    });
-                    score += m.score;
                     killCount++;
                     energy = Math.min(100, killCount * CONFIG.energyPerKill);
                     updateBars();
-                    updateScoreDisplay();
-                    checkWinCondition();
                     monsters.splice(i, 1);
                 }
                 continue;
@@ -1412,6 +1917,135 @@ const Battle = (() => {
     function w2sx(wx) { return wx - camera.x; }
     function w2sy(wy) { return wy - camera.y; }
 
+    function getBattleHudLayout() {
+        return {
+            hp: { x: 62, y: 52, w: 450, h: 38, r: 12 },
+            crucible: {
+                x: CANVAS_W / 2,
+                y: 106,
+                iconSize: 132,
+                ringRadius: 90,
+                ringWidth: 14
+            },
+            timer: {
+                x: CANVAS_W - 74,
+                y: 96
+            }
+        };
+    }
+
+    function getCrucibleSoulAnchor(layout) {
+        return {
+            x: layout.crucible.x,
+            y: layout.crucible.y + 4
+        };
+    }
+
+    function getSoulWispFrame(now, frameOffset) {
+        if (soulWispFrames.length === 0) return null;
+        const frameIndex = Math.floor(now / SOUL_WISP_FRAME_MS + frameOffset) % soulWispFrames.length;
+        return soulWispFrames[frameIndex];
+    }
+
+    function triggerCruciblePulse(now) {
+        cruciblePulseAt = now;
+    }
+
+    function mergeSoulWispValue(value, now) {
+        if (activeSoulWisps.length === 0) return false;
+
+        let target = activeSoulWisps[0];
+        let minProgress = 1;
+        activeSoulWisps.forEach(wisp => {
+            const progress = clamp01((now - wisp.bornAt) / wisp.duration);
+            if (progress < minProgress) {
+                minProgress = progress;
+                target = wisp;
+            }
+        });
+
+        target.value += value;
+        target.baseSize = Math.min(216, target.baseSize + Math.max(8, Math.sqrt(value) * 2.3));
+        target.renderSize = target.baseSize;
+        target.duration = Math.max(target.duration, SOUL_WISP_MIN_DURATION_MS + 220);
+        return true;
+    }
+
+    function spawnSoulWisp(wx, wy, value, now) {
+        if (!value || value <= 0) return;
+        if (activeSoulWisps.length >= MAX_ACTIVE_SOUL_WISPS && mergeSoulWispValue(value, now)) return;
+
+        const layout = getBattleHudLayout();
+        const target = getCrucibleSoulAnchor(layout);
+        const startX = Math.max(-60, Math.min(CANVAS_W + 60, w2sx(wx)));
+        const startY = Math.max(-60, Math.min(CANVAS_H + 60, w2sy(wy)));
+        const deltaX = target.x - startX;
+        const deltaY = target.y - startY;
+        const distance = Math.hypot(deltaX, deltaY);
+        const dirX = distance > 0 ? deltaX / distance : 0;
+        const dirY = distance > 0 ? deltaY / distance : -1;
+        const duration = Math.max(
+            SOUL_WISP_MIN_DURATION_MS,
+            Math.min(SOUL_WISP_MAX_DURATION_MS, 2080 + distance * 0.88)
+        );
+        const baseSize = Math.max(144, Math.min(208, (70 + Math.sqrt(value) * 2.1) * 2));
+
+        activeSoulWisps.push({
+            value,
+            bornAt: now,
+            duration,
+            startX,
+            startY,
+            targetX: target.x,
+            targetY: target.y,
+            x: startX,
+            y: startY,
+            progress: 0,
+            orthoX: -dirY,
+            orthoY: dirX,
+            baseAlpha: 0.5 + Math.random() * 0.2,
+            alpha: 1,
+            baseSize,
+            renderSize: baseSize,
+            scaleJitter: 0.96 + Math.random() * 0.08,
+            frameOffset: Math.floor(Math.random() * SOUL_WISP_FRAME_COUNT),
+            curveDirection: Math.random() < 0.5 ? -1 : 1,
+            curveAmplitude: Math.min(24, 10 + distance * 0.018),
+            wobbleAmplitude: 3.5 + Math.random() * 2.5,
+            hoverAmplitude: 3 + Math.random() * 2,
+            swayPhase: Math.random() * Math.PI * 2,
+            seed: Math.random() * 1000
+        });
+    }
+
+    function updateSoulWisps(now) {
+        for (let i = activeSoulWisps.length - 1; i >= 0; i--) {
+            const wisp = activeSoulWisps[i];
+            const progress = clamp01((now - wisp.bornAt) / wisp.duration);
+            const baseX = lerp(wisp.startX, wisp.targetX, progress);
+            const baseY = lerp(wisp.startY, wisp.targetY, progress);
+            const bend = Math.sin(progress * Math.PI);
+            const lateralWave = Math.sin(now * 0.0036 + wisp.swayPhase + progress * Math.PI * 1.4);
+            const lateralOffset = wisp.curveDirection * (wisp.curveAmplitude + lateralWave * wisp.wobbleAmplitude) * bend;
+            const hoverOffset = Math.sin(now * 0.0046 + wisp.seed + progress * Math.PI * 0.8) * wisp.hoverAmplitude * bend;
+
+            wisp.progress = progress;
+            wisp.x = baseX + wisp.orthoX * lateralOffset;
+            wisp.y = baseY + wisp.orthoY * lateralOffset + hoverOffset - (1 - progress) * 8;
+            wisp.renderSize = lerp(wisp.baseSize * wisp.scaleJitter * 1.02, wisp.baseSize * wisp.scaleJitter * 0.96, progress);
+            wisp.alpha = wisp.baseAlpha;
+
+            if (progress >= 1) {
+                score += wisp.value;
+                triggerCruciblePulse(now);
+                updateScoreDisplay();
+                activeSoulWisps.splice(i, 1);
+                if (checkWinCondition()) return true;
+            }
+        }
+        return false;
+    }
+
     // ---- Drawing ----
     function draw() {
         const now = Date.now();
@@ -1572,6 +2206,9 @@ const Battle = (() => {
 
         // Layer 6: Damage flash screen
         if (damageFlash.alpha > 0) drawDamageFlash(now);
+
+        // Layer 7: Soul wisps (screen space, under HUD)
+        drawSoulWisps(now);
 
         // HUD (screen space, not affected by shake or camera)
         if (isPaused) {
@@ -2112,16 +2749,45 @@ const Battle = (() => {
         }
     }
 
+    function drawSoulWisp(wisp, now) {
+        const frame = getSoulWispFrame(now, wisp.frameOffset);
+        if (!frame || !frame.complete || !frame.naturalWidth) return;
+
+        const size = wisp.renderSize;
+        const frameW = frame.naturalWidth || 600;
+        const frameH = frame.naturalHeight || 600;
+        const angleToTarget = Math.atan2(wisp.targetY - wisp.y, wisp.targetX - wisp.x) + Math.PI / 2;
+        const angle = angleToTarget * 0.16 + Math.sin(now * 0.003 + wisp.swayPhase) * 0.03;
+        const floatScale = 1 + Math.sin(now * 0.004 + wisp.seed) * 0.02;
+
+        ctx.save();
+        ctx.translate(wisp.x, wisp.y);
+        ctx.rotate(angle);
+        ctx.scale(floatScale, floatScale);
+        ctx.globalAlpha = wisp.alpha;
+        ctx.globalCompositeOperation = 'lighten';
+        ctx.drawImage(frame, 0, 0, frameW, frameH, -size / 2, -size / 2, size, size);
+        ctx.globalCompositeOperation = 'source-over';
+        ctx.restore();
+    }
+
+    function drawSoulWisps(now) {
+        activeSoulWisps.forEach(wisp => drawSoulWisp(wisp, now));
+    }
+
     // ---- Canvas HUD ----
     function drawCanvasHUD(now) {
         ctx.save();
-        const S = 2.4;
-        const barW = Math.round(260 * S), barH = Math.round(18 * S), barR = Math.round(6 * S);
-        const hudY = 30;
-
-        // === Top-left: HP bar (no number text) ===
-        const hpX = 40;
+        const S = 2.2;
+        const layout = getBattleHudLayout();
         const hpRatio = Math.max(0, player.hp / CONFIG.playerHP);
+        const hpX = layout.hp.x;
+        const hudY = layout.hp.y;
+        const barW = layout.hp.w;
+        const barH = layout.hp.h;
+        const barR = layout.hp.r;
+
+        // === Top-left: HP ===
         ctx.fillStyle = 'rgba(0,0,0,0.5)';
         roundRect(ctx, hpX, hudY, barW, barH, barR); ctx.fill();
         ctx.fillStyle = hpRatio > 0.3 ? '#cc2222' : '#ff4444';
@@ -2136,61 +2802,77 @@ const Battle = (() => {
         ctx.strokeStyle = 'rgba(180,140,100,0.35)';
         ctx.lineWidth = Math.round(1.5 * S);
         roundRect(ctx, hpX, hudY, barW, barH, barR); ctx.stroke();
-        // HP label inside bar
         ctx.fillStyle = 'rgba(255,255,255,0.6)';
-        ctx.font = `bold ${Math.round(10 * S)}px "Consolas", monospace`;
+        ctx.font = `bold ${Math.round(12 * S)}px "Consolas", monospace`;
         ctx.textAlign = 'left';
-        ctx.fillText('HP', hpX + Math.round(8 * S), hudY + Math.round(13 * S));
+        ctx.fillText('HP', hpX + Math.round(10 * S), hudY + Math.round(16 * S));
 
-        // === Top-center: Countdown timer ===
-        const centerX = CANVAS_W / 2;
+        // === Top-center: Crucible + soul ring ===
+        const crucible = layout.crucible;
+        const soulRatio = Math.min(1, score / CONFIG.soulGoal);
+        const pulseAge = now - cruciblePulseAt;
+        const pulseActive = pulseAge >= 0 && pulseAge < CRUCIBLE_PULSE_MS;
+        const pulseT = pulseActive ? pulseAge / CRUCIBLE_PULSE_MS : 1;
+        const pulseScale = pulseActive ? 1 + Math.sin(pulseT * Math.PI) * 0.06 : 1;
+        const ringGlow = pulseActive ? 0.16 + Math.sin(pulseT * Math.PI) * 0.14 : 0.08;
+
+        ctx.save();
+        ctx.translate(crucible.x, crucible.y);
+        ctx.scale(pulseScale, pulseScale);
+        ctx.beginPath();
+        ctx.arc(0, 0, crucible.ringRadius + 18, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(10,7,16,0.46)';
+        ctx.fill();
+
+        ctx.lineWidth = crucible.ringWidth;
+        ctx.strokeStyle = 'rgba(62,38,86,0.65)';
+        ctx.beginPath();
+        ctx.arc(0, 0, crucible.ringRadius, -Math.PI / 2, Math.PI * 1.5);
+        ctx.stroke();
+
+        ctx.save();
+        ctx.shadowColor = `rgba(168,104,255,${ringGlow.toFixed(3)})`;
+        ctx.shadowBlur = 16;
+        ctx.strokeStyle = '#c27dff';
+        ctx.beginPath();
+        ctx.arc(0, 0, crucible.ringRadius, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * soulRatio);
+        ctx.stroke();
+        ctx.restore();
+
+        if (bgAssets.crucibleUi && bgAssets.crucibleUi.complete && bgAssets.crucibleUi.naturalWidth) {
+            const iconSize = crucible.iconSize;
+            ctx.drawImage(bgAssets.crucibleUi, -iconSize / 2, -iconSize / 2, iconSize, iconSize);
+        } else {
+            ctx.beginPath();
+            ctx.arc(0, 0, crucible.iconSize * 0.34, 0, Math.PI * 2);
+            ctx.fillStyle = 'rgba(36,24,18,0.92)';
+            ctx.fill();
+        }
+        ctx.restore();
+
+        ctx.textAlign = 'center';
+        ctx.fillStyle = 'rgba(223,198,255,0.76)';
+        ctx.font = `bold ${Math.round(10 * S)}px "Consolas", monospace`;
+        ctx.fillText('SOUL CRUCIBLE', crucible.x, crucible.y + crucible.ringRadius + Math.round(22 * S));
+
+        // === Top-right: Countdown ===
         const remaining = Math.max(0, CONFIG.battleDuration - gameTime);
         const tMin = Math.floor(remaining / 60);
         const tSec = Math.floor(remaining % 60);
         const timeStr = `${String(tMin).padStart(2, '0')}:${String(tSec).padStart(2, '0')}`;
         const urgent = remaining < 10;
 
-        ctx.textAlign = 'center';
-        ctx.font = `bold ${Math.round(36 * S)}px "Consolas", monospace`;
+        ctx.textAlign = 'right';
+        ctx.font = `bold ${Math.round(30 * S)}px "Consolas", monospace`;
         ctx.fillStyle = urgent ? `rgba(255,${80 + Math.floor(Math.sin(now * 0.01) * 60)},60,0.95)` : 'rgba(220,210,190,0.85)';
         ctx.shadowColor = urgent ? 'rgba(255,0,0,0.5)' : 'rgba(0,0,0,0.6)';
         ctx.shadowBlur = Math.round(6 * S);
-        ctx.fillText(timeStr, centerX, Math.round(42 * S));
+        ctx.fillText(timeStr, layout.timer.x, layout.timer.y);
         ctx.shadowBlur = 0;
 
-        ctx.font = `${Math.round(14 * S)}px "Consolas", monospace`;
+        ctx.font = `${Math.round(11 * S)}px "Consolas", monospace`;
         ctx.fillStyle = 'rgba(180,170,150,0.65)';
-        ctx.fillText(`WAVE ${waveNumber}`, centerX, Math.round(42 * S) + Math.round(28 * S));
-
-        // === Top-right: Soul bar (purple, symmetrical to HP) ===
-        const soulX = CANVAS_W - 40 - barW;
-        const soulRatio = Math.min(1, score / CONFIG.soulGoal);
-        ctx.fillStyle = 'rgba(0,0,0,0.5)';
-        roundRect(ctx, soulX, hudY, barW, barH, barR); ctx.fill();
-        const soulGrad = ctx.createLinearGradient(soulX, 0, soulX + barW, 0);
-        soulGrad.addColorStop(0, '#6622aa');
-        soulGrad.addColorStop(1, '#aa44ff');
-        ctx.fillStyle = soulGrad;
-        roundRect(ctx, soulX, hudY, barW * soulRatio, barH, barR); ctx.fill();
-        if (soulRatio >= 1) {
-            ctx.save();
-            ctx.globalAlpha = 0.2 + Math.sin(now * 0.006) * 0.15;
-            ctx.fillStyle = '#dd88ff';
-            roundRect(ctx, soulX, hudY, barW, barH, barR); ctx.fill();
-            ctx.restore();
-        }
-        ctx.strokeStyle = 'rgba(140,100,180,0.35)';
-        ctx.lineWidth = Math.round(1.5 * S);
-        roundRect(ctx, soulX, hudY, barW, barH, barR); ctx.stroke();
-        // Soul label + count inside bar
-        ctx.fillStyle = 'rgba(255,255,255,0.6)';
-        ctx.font = `bold ${Math.round(10 * S)}px "Consolas", monospace`;
-        ctx.textAlign = 'right';
-        ctx.fillText('SOUL', soulX + barW - Math.round(8 * S), hudY + Math.round(13 * S));
-        ctx.textAlign = 'center';
-        ctx.font = `bold ${Math.round(10 * S)}px "Consolas", monospace`;
-        ctx.fillStyle = 'rgba(220,200,240,0.6)';
-        ctx.fillText(`${score} / ${CONFIG.soulGoal}`, soulX + barW / 2, hudY + Math.round(13.5 * S));
+        ctx.fillText(`WAVE ${waveNumber}`, layout.timer.x, layout.timer.y + Math.round(20 * S));
 
         // === Bottom-center: Circular spell cooldown slots ===
         const slotR = Math.round(38 * S);
