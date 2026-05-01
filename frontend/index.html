@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>炼金法阵</title>
-    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="css/style.css?v=phase4-results-fix3">
 </head>
 <body>
     <div id="app">
@@ -192,15 +192,17 @@
         <div id="page-battle" class="page">
             <canvas id="battle-canvas"></canvas>
 
-            <div id="victory-overlay" class="battle-overlay" style="display:none">
-                <div class="overlay-panel">
+            <div id="victory-overlay" class="battle-result-screen success-screen" style="display:none">
+                <div class="battle-result-vignette"></div>
+                <div class="battle-result-copy">
                     <h2>法阵炼成完毕！</h2>
                     <p>能量已充满，新法阵即将诞生</p>
                     <button id="btn-victory-return" class="btn-overlay">返回炼金室</button>
                 </div>
             </div>
 
-            <div id="defeat-overlay" class="battle-overlay" style="display:none">
+            <div id="defeat-overlay" class="battle-result-screen defeat-screen defeat-time-out" style="display:none">
+                <div class="battle-result-vignette"></div>
                 <div class="overlay-panel defeat">
                     <h2>能量不足...</h2>
                     <p>炼金失败，但素材未消耗</p>
@@ -265,7 +267,7 @@
     <script src="js/collection.js?v=phase3"></script>
     <script src="js/loadout.js?v=phase3"></script>
     <script src="js/alchemy.js?v=phase3"></script>
-    <script src="js/battle.js?v=phase3"></script>
+    <script src="js/battle.js?v=phase4-results-fix1"></script>
     <script src="js/main.js?v=phase3"></script>
 </body>
 </html>

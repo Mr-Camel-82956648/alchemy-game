@@ -390,6 +390,25 @@ const Battle = (() => {
         }
     }
 
+    function buildEffectSpellData(index) {
+        const cardData = spellCardData[index];
+        if (cardData) {
+            return {
+                generation: cardData.generation,
+                baseAtk: cardData.baseAtk,
+                mainAttr: cardData.mainAttr || null,
+                subAttr: cardData.subAttr || null
+            };
+        }
+
+        return {
+            generation: 1,
+            baseAtk: null,
+            mainAttr: null,
+            subAttr: null
+        };
+    }
+
     function castSpell(index, wx, wy) {
         if (spellCharges[index] <= 0) return;
         spellCharges[index]--;
@@ -426,8 +445,8 @@ const Battle = (() => {
                 video.play().catch(() => {});
             }
 
-            const cardData = spellCardData[index];
-            const mainAttr = cardData?.mainAttr || null;
+            const spellData = buildEffectSpellData(index);
+            const mainAttr = spellData.mainAttr;
             activeEffects.push({
                 x: wx, y: wy,
                 size: CONFIG.spellSizes[index] * sizeJitter,
@@ -435,6 +454,7 @@ const Battle = (() => {
                 glowColor: mainAttr ? SpellDefs.getElementGlow(mainAttr) : CONFIG.spellGlows[index],
                 damage: CONFIG.spellDamages[index],
                 mainAttr: mainAttr,
+                spellData: spellData,
                 video, startTime: Date.now(),
                 damageApplied: false
             });
@@ -476,6 +496,10 @@ const Battle = (() => {
             video.play().catch(() => {});
         }
 
+        const spellData = buildEffectSpellData(activeSpellIndex);
+        const mainAttr = spellData.mainAttr;
+        const effectColor = mainAttr ? SpellDefs.getElementColor(mainAttr) : '#ffcc00';
+        const effectGlow = mainAttr ? SpellDefs.getElementGlow(mainAttr) : 'rgba(255,200,0,0.4)';
         const px = player.x, py = player.y;
         const maxSubSize = Math.max(...CONFIG.spellSizes);
         const lightningColor = '#b366ff';
@@ -522,8 +546,10 @@ const Battle = (() => {
                     if (!running) return;
                     activeEffects.push({
                         x: ex, y: ey, size: s,
-                        color: '#ffcc00', glowColor: 'rgba(255,200,0,0.4)',
+                        color: effectColor, glowColor: effectGlow,
                         damage: CONFIG.ultimateDamage * (i === 0 ? 1 : 0.5),
+                        mainAttr: mainAttr,
+                        spellData: spellData,
                         video, startTime: Date.now(),
                         damageApplied: false, isUltimate: true
                     });
@@ -551,6 +577,18 @@ const Battle = (() => {
     let lastGroupSpawn = 0; // ms timestamp of last group spawn
     let lastTrickle = 0;    // ms timestamp of last trickle spawn
     let lastBossWave = 0;   // tracks which boss wave was last spawned
+    const RESIST_ABSORB_VISUAL_SCALE_STEPS = [0, 0.3, 0.62, 0.98];
+    const ULTIMATE_DAMAGE_FALLOFF_STEPS = [
+        { maxRatio: 0.35, multiplier: 1.0 },
+        { maxRatio: 0.7, multiplier: 0.72 },
+        { maxRatio: 1.0, multiplier: 0.45 }
+    ];
+    const MONSTER_HIT_PAUSE_MS = 70;
+    const MONSTER_ULTIMATE_HIT_PAUSE_MS = 90;
+    const MONSTER_HIT_FLASH_MS = 110;
+    const MONSTER_ABSORB_PAUSE_MS = 110;
+    const MONSTER_ABSORB_FEEDBACK_MS = 280;
+    const MONSTER_DEATH_FADE_MS = 560;
 
     function getSpawnPressure() {
         const t = gameTime;
@@ -565,27 +603,226 @@ const Battle = (() => {
         };
     }
 
+    function getMonsterAbsorbVisualScaleBonus(monster) {
+        const stacks = Math.max(
+            0,
+            Math.min(
+                Combat.RESIST_ABSORB_MAX_STACKS,
+                Math.floor(Number(monster.resistAbsorbStacks) || 0)
+            )
+        );
+        return RESIST_ABSORB_VISUAL_SCALE_STEPS[stacks] || 0;
+    }
+
+    function refreshMonsterScale(monster) {
+        const absorbScaleBonus = getMonsterAbsorbVisualScaleBonus(monster);
+        monster.scale = (Number(monster.baseScale) || 1) + absorbScaleBonus;
+        monster.w = 202 * monster.scale;
+    }
+
+    function applyMonsterProfile(monster) {
+        const tierDef = TIERS[monster.tier];
+        const specDef = MOB_SPECIES[monster.species];
+        const profile = MonsterDefs.getCombatProfile(monster.species, monster.tier);
+        const hpScale = Number(profile.hpScale) > 0 ? Number(profile.hpScale) : 1;
+        const sizeScale = Number(profile.sizeScale) > 0 ? Number(profile.sizeScale) : 1;
+        const speedScale = Number(profile.speedScale) > 0 ? Number(profile.speedScale) : 1;
+
+        monster.immuneAttrs = [...(profile.immuneAttrs || [])];
+        monster.movePattern = profile.movePattern || 'direct';
+        monster.groupPattern = profile.groupPattern || 'cluster';
+        monster.speed = (Number(monster.baseSpeed) || tierDef.speedRange[0]) * speedScale;
+        monster.baseMaxHp = Math.max(1, Math.round(tierDef.hp * hpScale));
+        monster.maxHp = monster.baseMaxHp;
+        monster.hp = monster.baseMaxHp;
+        monster.baseScale = tierDef.scale * specDef.scale * sizeScale;
+        refreshMonsterScale(monster);
+    }
+
+    function getGroupSpawnOffset(groupPattern, index, count) {
+        const centered = count > 1 ? (index / (count - 1)) - 0.5 : 0;
+        switch (groupPattern) {
+            case 'line':
+                return {
+                    angleOffset: centered * 0.8,
+                    distOffset: (Math.random() - 0.5) * 80
+                };
+            case 'wedge':
+                return {
+                    angleOffset: centered * 0.55,
+                    distOffset: Math.abs(centered) * 220 - 20
+                };
+            case 'ringLoose':
+                return {
+                    angleOffset: centered * 1.2,
+                    distOffset: 120 + (Math.random() - 0.5) * 140
+                };
+            case 'cluster':
+            default:
+                return {
+                    angleOffset: centered * 0.3 + (Math.random() - 0.5) * 0.18,
+                    distOffset: (Math.random() - 0.5) * 160
+                };
+        }
+    }
+
+    function getMonsterVelocity(monster, dx, dy, distance, now) {
+        if (distance <= 0) return { vx: 0, vy: 0 };
+
+        const nx = dx / distance;
+        const ny = dy / distance;
+        const baseSpeed = monster.speed;
+        const perpX = -ny;
+        const perpY = nx;
+
+        switch (monster.movePattern) {
+            case 'sway': {
+                const sway = Math.sin((now - monster.spawnTime) * 0.006 + monster.bobOffset) * 0.55;
+                return {
+                    vx: nx * baseSpeed + perpX * baseSpeed * sway,
+                    vy: ny * baseSpeed + perpY * baseSpeed * sway
+                };
+            }
+            case 'arc': {
+                const arcDir = monster.arcDirection || 1;
+                const orbitWeight = distance > 180 ? 0.85 : 0.35;
+                return {
+                    vx: nx * baseSpeed * 0.8 + perpX * arcDir * baseSpeed * orbitWeight,
+                    vy: ny * baseSpeed * 0.8 + perpY * arcDir * baseSpeed * orbitWeight
+                };
+            }
+            case 'burst': {
+                const cycle = 900;
+                const cycleTime = (now - monster.spawnTime + Math.floor(monster.bobOffset * 120)) % cycle;
+                const burstActive = cycleTime >= 430 && cycleTime <= 620;
+                const burstScale = burstActive ? 1.9 : 0.3;
+                return {
+                    vx: nx * baseSpeed * burstScale,
+                    vy: ny * baseSpeed * burstScale
+                };
+            }
+            case 'direct':
+            default:
+                return {
+                    vx: nx * baseSpeed,
+                    vy: ny * baseSpeed
+                };
+        }
+    }
+
+    function clamp01(value) {
+        return Math.max(0, Math.min(1, value));
+    }
+
+    function lerp(a, b, t) {
+        return a + (b - a) * t;
+    }
+
+    function easeOutCubic(t) {
+        const clamped = clamp01(t);
+        return 1 - Math.pow(1 - clamped, 3);
+    }
+
+    function applyMonsterHitFeedback(monster, now, isUltimate) {
+        const pauseMs = isUltimate ? MONSTER_ULTIMATE_HIT_PAUSE_MS : MONSTER_HIT_PAUSE_MS;
+        monster.hitPauseUntil = Math.max(Number(monster.hitPauseUntil) || 0, now + pauseMs);
+        monster.flashEnd = Math.max(Number(monster.flashEnd) || 0, now + MONSTER_HIT_FLASH_MS);
+    }
+
+    function getMonsterAbsorbFeedback(monster, now) {
+        const start = Number(monster.absorbFeedbackStart) || 0;
+        if (!start) return null;
+
+        const elapsed = now - start;
+        if (elapsed < 0 || elapsed > MONSTER_ABSORB_FEEDBACK_MS) return null;
+
+        const t = elapsed / MONSTER_ABSORB_FEEDBACK_MS;
+        const fromWidth = Math.max(1, Number(monster.absorbFromWidth) || Number(monster.w) || 1);
+        const targetWidth = Math.max(1, Number(monster.w) || fromWidth);
+
+        let width = targetWidth;
+        if (t < 0.32) {
+            width = lerp(fromWidth, fromWidth * 0.92, easeOutCubic(t / 0.32));
+        } else if (t < 0.72) {
+            width = lerp(fromWidth * 0.92, targetWidth * 1.04, easeOutCubic((t - 0.32) / 0.4));
+        } else {
+            width = lerp(targetWidth * 1.04, targetWidth, easeOutCubic((t - 0.72) / 0.28));
+        }
+
+        const ringT = clamp01(t / 0.58);
+        return {
+            width,
+            glow: 1 - clamp01((t - 0.12) / 0.88),
+            ringRadius: lerp(targetWidth * 0.68, targetWidth * 0.22, easeOutCubic(ringT)),
+            ringAlpha: 0.28 * (1 - ringT),
+            color: monster.absorbFeedbackColor || '#999999'
+        };
+    }
+
+    function applyResistanceAbsorb(monster, hitResult, now, color) {
+        const previousWidth = getMonsterAbsorbFeedback(monster, now)?.width || monster.w;
+        const currentStacks = Number(monster.resistAbsorbStacks) || 0;
+        const maxStacks = Number(hitResult.maxAbsorbStacks) || 0;
+        if (currentStacks < maxStacks) {
+            const absorbHp = (Number(monster.baseMaxHp) || 0) * (Number(hitResult.absorbHpRatio) || 0);
+            monster.resistAbsorbStacks = currentStacks + 1;
+            monster.maxHp += absorbHp;
+            monster.hp = Math.min(monster.maxHp, monster.hp + absorbHp);
+            refreshMonsterScale(monster);
+        }
+
+        monster.absorbFeedbackStart = now;
+        monster.absorbFeedbackColor = color || '#999999';
+        monster.absorbFromWidth = previousWidth;
+        monster.hitPauseUntil = Math.max(Number(monster.hitPauseUntil) || 0, now + MONSTER_ABSORB_PAUSE_MS);
+        monster.flashEnd = Math.max(Number(monster.flashEnd) || 0, now + 160);
+        floatingTexts.push({
+            x: monster.x,
+            y: monster.y - 60,
+            text: '吸收',
+            color: color || '#999999',
+            startTime: now
+        });
+    }
+
+    function getMonsterContactRadius(monster) {
+        return Math.max(50, monster.w * 0.24);
+    }
+
+    function getEffectDamageAtTarget(effect, target) {
+        const baseDamage = Number(effect.damage) || 0;
+        if (!effect.isUltimate) return baseDamage;
+
+        const half = Math.max(1, effect.size / 2);
+        const dx = target.x - effect.x;
+        const dy = target.y - effect.y;
+        const distanceRatio = Math.min(1, Math.sqrt(dx * dx + dy * dy) / half);
+
+        for (const step of ULTIMATE_DAMAGE_FALLOFF_STEPS) {
+            if (distanceRatio <= step.maxRatio) {
+                return baseDamage * step.multiplier;
+            }
+        }
+
+        return baseDamage * ULTIMATE_DAMAGE_FALLOFF_STEPS[ULTIMATE_DAMAGE_FALLOFF_STEPS.length - 1].multiplier;
+    }
+
     function spawnHordeGroup(species, count, tier) {
-        // Spawn a dense group from one direction (arc ~60°)
+        // Spawn a same-species group with lightweight formation variance.
         const baseAngle = Math.random() * Math.PI * 2;
-        const arcSpread = Math.PI / 3;
         const baseDist = Math.max(CANVAS_W, CANVAS_H) * 0.6 + 100;
+        const profile = MonsterDefs.getCombatProfile(species, tier || 'minion');
 
         for (let i = 0; i < count; i++) {
-            const angle = baseAngle + (Math.random() - 0.5) * arcSpread;
-            const dist = baseDist + (Math.random() - 0.5) * 200;
-            spawnMonster(tier || 'minion', angle, dist);
-            // Force species for visual cohesion within a group
-            const m = monsters[monsters.length - 1];
-            if (species) {
-                m.species = species;
-                m.immuneAttrs = MonsterDefs.getImmuneAttrs(species, m.tier);
-                const specDef = MOB_SPECIES[species];
-                const tierDef = TIERS[m.tier];
-                m.scale = tierDef.scale * specDef.scale;
-                m.w = 202 * m.scale;
-                m.animFrame = Math.floor(Math.random() * specDef.frames);
-            }
+            const offset = getGroupSpawnOffset(profile.groupPattern, i, count);
+            const angle = baseAngle + offset.angleOffset;
+            const dist = baseDist + offset.distOffset;
+            spawnMonster(tier || 'minion', angle, dist, species, {
+                groupPattern: profile.groupPattern,
+                groupAnchorAngle: baseAngle,
+                groupIndex: i,
+                groupCount: count
+            });
         }
     }
 
@@ -651,27 +888,29 @@ const Battle = (() => {
         setTimeout(() => { el.style.display = 'none'; }, 2500);
     }
 
-    function spawnMonster(tier, angleOverride, distOverride) {
+    function spawnMonster(tier, angleOverride, distOverride, speciesOverride, groupMeta) {
         const def = TIERS[tier];
         const angle = angleOverride != null ? angleOverride : Math.random() * Math.PI * 2;
         const spawnDist = distOverride || (Math.max(CANVAS_W, CANVAS_H) * 0.6 + 100);
         const x = player.x + Math.cos(angle) * spawnDist;
         const y = player.y + Math.sin(angle) * spawnDist * 0.6;
 
-        const species = def.species[Math.floor(Math.random() * def.species.length)];
+        const species = speciesOverride || def.species[Math.floor(Math.random() * def.species.length)];
         const specDef = MOB_SPECIES[species];
-        const combinedScale = def.scale * specDef.scale;
-
-        monsters.push({
+        const monster = {
             x, y, tier, species,
-            speed: def.speedRange[0] + Math.random() * (def.speedRange[1] - def.speedRange[0]),
+            baseSpeed: def.speedRange[0] + Math.random() * (def.speedRange[1] - def.speedRange[0]),
+            speed: 0,
             hp: def.hp,
             maxHp: def.hp,
-            immuneAttrs: MonsterDefs.getImmuneAttrs(species, tier),
-            scale: combinedScale,
+            baseMaxHp: def.hp,
+            immuneAttrs: [],
+            scale: 1,
+            baseScale: 1,
+            resistAbsorbStacks: 0,
             barColor: def.barColor,
             score: def.score,
-            w: 202 * combinedScale,
+            w: 202,
             bobOffset: Math.random() * Math.PI * 2,
             animFrame: Math.floor(Math.random() * specDef.frames),
             lastFrameTime: Date.now(),
@@ -679,8 +918,23 @@ const Battle = (() => {
             deathTime: 0,
             knockbackVX: 0,
             knockbackVY: 0,
-            flashEnd: 0
-        });
+            flashEnd: 0,
+            hitPauseUntil: 0,
+            absorbFeedbackStart: 0,
+            absorbFeedbackColor: null,
+            absorbFromWidth: 0,
+            spawnTime: Date.now(),
+            spawnAngle: angle,
+            arcDirection: Math.random() < 0.5 ? -1 : 1,
+            groupPattern: groupMeta?.groupPattern || 'cluster',
+            groupAnchorAngle: groupMeta?.groupAnchorAngle ?? angle,
+            groupIndex: groupMeta?.groupIndex ?? 0,
+            groupCount: groupMeta?.groupCount ?? 1,
+            movePattern: 'direct'
+        };
+
+        applyMonsterProfile(monster);
+        monsters.push(monster);
     }
 
     // ---- Game loop ----
@@ -763,12 +1017,11 @@ const Battle = (() => {
         // VS-style continuous spawning
         gameTime = (now - battleStartTime) / 1000;
 
+        if (checkWinCondition()) return;
+
         // Countdown timer → defeat if time runs out
         const remaining = CONFIG.battleDuration - gameTime;
-        if (remaining <= 0) { player.hp = 0; onDefeat(); return; }
-
-        // Soul goal → victory if enough souls collected
-        if (score >= CONFIG.soulGoal) { onVictory(); return; }
+        if (remaining <= 0) { onDefeat('time_out'); return; }
 
         if (waveState === 'pause' && now - wavePauseStart > CONFIG.wavePause) {
             startNextWave();
@@ -833,23 +1086,24 @@ const Battle = (() => {
                 monsters.forEach(m => {
                     if (m.isDying) return;
                     if (Math.abs(m.x - eff.x) < half && Math.abs(m.y - eff.y) < half) {
-                        const dmg = Combat.calcDamage(
-                            { mainAttr: eff.mainAttr },
+                        const effectDamage = getEffectDamageAtTarget(eff, m);
+                        const hitResult = Combat.calcHitResult(
+                            eff.spellData || { mainAttr: eff.mainAttr, baseAtk: null },
                             { immuneAttrs: m.immuneAttrs || [] },
-                            eff.damage
+                            effectDamage
                         );
-                        if (dmg <= 0) {
-                            if (eff.mainAttr) {
-                                floatingTexts.push({
-                                    x: m.x, y: m.y - 60,
-                                    text: '免疫',
-                                    color: '#999999',
-                                    startTime: now
-                                });
-                            }
+                        if (hitResult.absorbed) {
+                            applyResistanceAbsorb(
+                                m,
+                                hitResult,
+                                now,
+                                eff.mainAttr ? SpellDefs.getElementColor(eff.mainAttr) : '#999999'
+                            );
                             return;
                         }
-                        m.hp -= dmg;
+                        if (hitResult.damage <= 0) return;
+
+                        m.hp -= hitResult.damage;
                         hitCount++;
 
                         const dx = m.x - eff.x;
@@ -859,9 +1113,7 @@ const Battle = (() => {
                         m.knockbackVX = (dx / dist) * kbForce;
                         m.knockbackVY = (dy / dist) * kbForce;
 
-                        m.flashEnd = now + 250;
-
-                        spawnParticles(m.x, m.y, eff.color, 6, 5);
+                        applyMonsterHitFeedback(m, now, eff.isUltimate);
                     }
                 });
                 if (hitCount > 0) {
@@ -878,14 +1130,12 @@ const Battle = (() => {
             if (m.hp <= 0 && !m.isDying) {
                 m.isDying = true;
                 m.deathStart = now;
+                m.hitPauseUntil = 0;
+                m.absorbFeedbackStart = 0;
             }
 
             if (m.isDying) {
-                if (now - m.deathStart > 600) {
-                    const deathColor = m.barColor || '#ff8844';
-                    spawnParticles(m.x, m.y - 20, deathColor, 15, 6);
-                    spawnParticles(m.x, m.y - 20, '#ffffff', 5, 3);
-
+                if (now - m.deathStart > MONSTER_DEATH_FADE_MS) {
                     floatingTexts.push({
                         x: m.x, y: m.y - 40,
                         text: `+${m.score}`,
@@ -903,8 +1153,11 @@ const Battle = (() => {
                 continue;
             }
 
+            const absorbAnimating = !!m.absorbFeedbackStart && now - m.absorbFeedbackStart < MONSTER_ABSORB_FEEDBACK_MS;
+            const isHitPaused = now < (Number(m.hitPauseUntil) || 0);
+
             // Apply knockback
-            if (Math.abs(m.knockbackVX) > 0.1 || Math.abs(m.knockbackVY) > 0.1) {
+            if (!isHitPaused && (Math.abs(m.knockbackVX) > 0.1 || Math.abs(m.knockbackVY) > 0.1)) {
                 m.x += m.knockbackVX;
                 m.y += m.knockbackVY;
                 m.knockbackVX *= 0.85;
@@ -914,20 +1167,21 @@ const Battle = (() => {
             const dx = player.x - m.x;
             const dy = player.y - m.y;
             const d = Math.sqrt(dx * dx + dy * dy);
-            if (d > 0) {
-                m.x += (dx / d) * m.speed;
-                m.y += (dy / d) * m.speed;
+            if (!isHitPaused && d > 0) {
+                const velocity = getMonsterVelocity(m, dx, dy, d, now);
+                m.x += velocity.vx;
+                m.y += velocity.vy;
                 m.facingLeft = dx < 0;
             }
 
             // Animate sprite frames
-            if (now - m.lastFrameTime >= ANIM_FRAME_MS_MOB) {
+            if (!isHitPaused && !absorbAnimating && now - m.lastFrameTime >= ANIM_FRAME_MS_MOB) {
                 const spec = MOB_SPECIES[m.species];
                 m.animFrame = (m.animFrame + 1) % spec.frames;
                 m.lastFrameTime = now;
             }
 
-            if (d < 50 && !isDashing) {
+            if (d < getMonsterContactRadius(m) && !isDashing) {
                 player.hp -= 0.015;
                 damageFlash.alpha = Math.min(1, damageFlash.alpha + 0.15);
                 damageFlash.time = now;
@@ -1010,7 +1264,7 @@ const Battle = (() => {
         if (damageFlash.alpha > 0) damageFlash.alpha *= 0.92;
         if (damageFlash.alpha < 0.01) damageFlash.alpha = 0;
 
-        if (player.hp <= 0) { player.hp = 0; updateBars(); onDefeat(); }
+        if (player.hp <= 0) { player.hp = 0; updateBars(); onDefeat('hp_out'); return; }
     }
 
     // ---- Background helpers ----
@@ -1594,8 +1848,48 @@ const Battle = (() => {
         ctx.restore();
     }
 
+    function drawMonsterSpriteTopSegment(img, sx, sy, w, bob, facingLeft, filter, visibleRatio, yLift) {
+        const clippedRatio = clamp01(visibleRatio);
+        if (clippedRatio <= 0) return;
+
+        const ratio = img.naturalHeight / img.naturalWidth;
+        const drawW = w;
+        const drawH = w * ratio;
+        const clippedH = drawH * clippedRatio;
+        if (clippedH <= 0.5) return;
+
+        const srcH = img.naturalHeight * clippedRatio;
+        const topY = sy - drawH + bob - (yLift || 0);
+
+        ctx.save();
+        if (filter) ctx.filter = filter;
+        if (facingLeft) {
+            ctx.translate(sx, topY);
+            ctx.scale(-1, 1);
+            ctx.drawImage(img, 0, 0, img.naturalWidth, srcH, -drawW / 2, 0, drawW, clippedH);
+        } else {
+            ctx.drawImage(img, 0, 0, img.naturalWidth, srcH, sx - drawW / 2, topY, drawW, clippedH);
+        }
+        ctx.restore();
+    }
+
+    function drawImpactRing(x, y, radius, color, alpha, lineWidth) {
+        if (alpha <= 0 || radius <= 0) return;
+
+        ctx.save();
+        ctx.globalAlpha = alpha;
+        ctx.strokeStyle = color;
+        ctx.lineWidth = lineWidth;
+        ctx.shadowColor = color;
+        ctx.shadowBlur = 8;
+        ctx.beginPath();
+        ctx.arc(x, y, radius, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.restore();
+    }
+
     function drawMonster(m, now) {
-        const bob = Math.sin(now * 0.004 + m.bobOffset) * 3;
+        const baseBob = Math.sin(now * 0.004 + m.bobOffset) * 3;
         const isFlashing = now < m.flashEnd;
         const isDying = m.isDying;
         const sx = w2sx(m.x), sy = w2sy(m.y);
@@ -1605,38 +1899,65 @@ const Battle = (() => {
 
         // Use middle frame for flash/death effects so they look stable
         const flashFrame = Math.floor((specDef?.frames || 1) / 2);
+        const absorbFeedback = getMonsterAbsorbFeedback(m, now);
+        const isTemporarilyStill = isDying || !!absorbFeedback || now < (Number(m.hitPauseUntil) || 0);
+        const bob = isTemporarilyStill ? 0 : baseBob;
+        const renderWidth = absorbFeedback ? absorbFeedback.width : m.w;
 
         if (isDying) {
-            const deathProgress = Math.min(1, (now - m.deathStart) / 600);
-            const flicker = Math.sin(deathProgress * Math.PI * 8) > 0;
+            const deathProgress = Math.min(1, (now - m.deathStart) / MONSTER_DEATH_FADE_MS);
             const img = getMonsterFrame(m, flashFrame);
             if (!img) return;
-            const scale = 1 + deathProgress * 0.3;
+            const yLift = deathProgress * 18;
+            const fadeFilter = 'saturate(0.72) brightness(1.04)';
+
             ctx.save();
-            ctx.globalAlpha = 1 - deathProgress;
-            const filter = flicker
-                ? 'brightness(0.6) sepia(1) saturate(6) hue-rotate(-20deg)'
-                : 'brightness(1.8) sepia(0.6) saturate(4) hue-rotate(-10deg)';
-            drawMonsterSprite(img, sx, sy, m.w * scale, bob, facing, filter);
+            ctx.globalAlpha = 0.18 * (1 - deathProgress);
+            drawMonsterSprite(img, sx, sy, m.w, -yLift * 0.35, facing, fadeFilter);
+            ctx.restore();
+
+            ctx.save();
+            ctx.globalAlpha = Math.max(0, 1 - deathProgress * 0.72);
+            drawMonsterSpriteTopSegment(img, sx, sy, m.w, 0, facing, fadeFilter, 1 - deathProgress, yLift);
             ctx.restore();
             return;
         }
 
         // Silhouette shadow
-        const shadowImg = isFlashing ? getMonsterFrame(m, flashFrame) : getMonsterFrame(m);
-        if (shadowImg) drawSilhouetteShadow(shadowImg, sx, sy, m.w, bob, facing, 0.25);
+        const useStableFrame = isFlashing || !!absorbFeedback || now < (Number(m.hitPauseUntil) || 0);
+        const shadowImg = useStableFrame ? getMonsterFrame(m, flashFrame) : getMonsterFrame(m);
+        if (shadowImg) drawSilhouetteShadow(shadowImg, sx, sy, renderWidth, bob, facing, 0.25);
 
-        const img = isFlashing ? getMonsterFrame(m, flashFrame) : getMonsterFrame(m);
+        const img = useStableFrame ? getMonsterFrame(m, flashFrame) : getMonsterFrame(m);
         if (img) {
-            if (isFlashing) {
-                const flashPhase = Math.sin(now * 0.03) > 0;
-                drawMonsterSprite(img, sx, sy, m.w + 8, bob, facing, 'brightness(0.15)');
-                const filter = flashPhase
-                    ? 'brightness(0.6) sepia(1) saturate(6) hue-rotate(-20deg)'
-                    : 'brightness(1.4) sepia(0.8) saturate(3) hue-rotate(-10deg)';
-                drawMonsterSprite(img, sx, sy, m.w, bob, facing, filter);
+            if (absorbFeedback && absorbFeedback.ringAlpha > 0) {
+                const ratio = img.naturalHeight / img.naturalWidth;
+                const centerY = sy - renderWidth * ratio * 0.56;
+                drawImpactRing(
+                    sx,
+                    centerY,
+                    absorbFeedback.ringRadius,
+                    absorbFeedback.color,
+                    absorbFeedback.ringAlpha,
+                    Math.max(2, renderWidth * 0.028)
+                );
+            }
+
+            if (absorbFeedback) {
+                const glowFilter = `brightness(${(1.04 + absorbFeedback.glow * 0.12).toFixed(3)}) saturate(${(1.04 + absorbFeedback.glow * 0.18).toFixed(3)})`;
+                drawMonsterSprite(img, sx, sy, renderWidth, bob, facing, glowFilter);
             } else {
-                drawMonsterSprite(img, sx, sy, m.w, bob, facing, null);
+                drawMonsterSprite(img, sx, sy, renderWidth, bob, facing, null);
+            }
+
+            if (isFlashing) {
+                const flashAlpha = Math.max(0, Math.min(0.24, ((m.flashEnd - now) / MONSTER_HIT_FLASH_MS) * 0.24));
+                if (flashAlpha > 0) {
+                    ctx.save();
+                    ctx.globalAlpha = flashAlpha;
+                    drawMonsterSprite(img, sx, sy, renderWidth, bob, facing, 'brightness(1.8) saturate(0.8)');
+                    ctx.restore();
+                }
             }
         } else {
             ctx.fillStyle = isFlashing ? '#f33' : '#a33';
@@ -1644,10 +1965,10 @@ const Battle = (() => {
         }
 
         if (m.hp < m.maxHp && !isDying) {
-            const barW = m.w * 0.8;
+            const barW = renderWidth * 0.8;
             const barH = 5;
             const barX = sx - barW / 2;
-            const barY = sy - m.w * 0.8 - 10 + bob;
+            const barY = sy - renderWidth * 0.8 - 10 + bob;
 
             ctx.fillStyle = 'rgba(0,0,0,0.5)';
             ctx.fillRect(barX - 1, barY - 1, barW + 2, barH + 2);
@@ -2042,28 +2363,83 @@ const Battle = (() => {
     function updateWaveDisplay() {}
 
     // ---- Win/Lose ----
-    function checkForgeStatus() {
+    function hasBattleVictoryCondition() {
         const pending = GameStorage.getPending();
-        if (!pending) return;
-        if (pending.status === 'done' && energy >= 99) {
-            energy = 100; updateBars(); onVictory();
-        }
+        return !!(
+            player.hp > 0 &&
+            score >= CONFIG.soulGoal &&
+            pending &&
+            pending.status === 'done'
+        );
+    }
+
+    function checkForgeStatus() {
+        if (hasBattleVictoryCondition()) onVictory();
     }
 
     function checkWinCondition() {
-        if (energy >= 100) {
-            const pending = GameStorage.getPending();
-            if (pending && pending.status === 'done') { onVictory(); }
-            else if (pending && pending.status === 'generating') { energy = 99; updateBars(); }
+        if (hasBattleVictoryCondition()) {
+            onVictory();
+            return true;
         }
+        return false;
     }
 
-    function onVictory() { stop(); document.getElementById('victory-overlay').style.display = 'flex'; }
-    function onDefeat() { stop(); document.getElementById('defeat-overlay').style.display = 'flex'; }
+    function showBattleResultOverlay(overlay) {
+        const victoryOverlay = document.getElementById('victory-overlay');
+        const defeatOverlay = document.getElementById('defeat-overlay');
+        if (victoryOverlay) victoryOverlay.style.display = 'none';
+        if (defeatOverlay) defeatOverlay.style.display = 'none';
+        if (!overlay) return;
+        overlay.style.pointerEvents = 'auto';
+        overlay.style.display = 'flex';
+    }
 
-    function onVictoryReturn() { App.switchPage('alchemy'); Alchemy.onReturnFromBattle(); }
-    function onRetry() { document.getElementById('defeat-overlay').style.display = 'none'; start(); }
-    function onDefeatReturn() { GameStorage.clearPending(); App.switchPage('alchemy'); Alchemy.refreshSlots(); }
+    function onVictory() {
+        stop();
+        const overlay = document.getElementById('victory-overlay');
+        const title = overlay.querySelector('h2');
+        const text = overlay.querySelector('p');
+        if (title) title.textContent = '炼成完成';
+        if (text) text.textContent = '千魂融炉，炉火长明。';
+        showBattleResultOverlay(overlay);
+    }
+
+    function onDefeat(reason) {
+        stop();
+        const overlay = document.getElementById('defeat-overlay');
+        const title = overlay.querySelector('h2');
+        const text = overlay.querySelector('p');
+        overlay.classList.remove('defeat-hp-out', 'defeat-time-out');
+
+        if (reason === 'hp_out') {
+            overlay.classList.add('defeat-hp-out');
+            if (title) title.textContent = '血肉崩解';
+            if (text) text.textContent = '你倒在亡灵围攻之下，本次炼金中断。';
+        } else {
+            overlay.classList.add('defeat-time-out');
+            if (title) title.textContent = '时限已至';
+            if (text) text.textContent = '魂数未满，炉火熄灭，本次炼金失败。';
+        }
+
+        showBattleResultOverlay(overlay);
+    }
+
+    function onVictoryReturn() {
+        showBattleResultOverlay(null);
+        App.switchPage('alchemy');
+        Alchemy.onReturnFromBattle();
+    }
+    function onRetry() {
+        showBattleResultOverlay(null);
+        start();
+    }
+    function onDefeatReturn() {
+        showBattleResultOverlay(null);
+        GameStorage.clearPending();
+        App.switchPage('alchemy');
+        Alchemy.refreshSlots();
+    }
 
     // ---- Game feel helpers ----
     function triggerHitstop(ms) {

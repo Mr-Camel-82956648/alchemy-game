@@ -148,12 +148,93 @@ const Collection = (() => {
         els.textModal.style.display = 'none';
     }
 
+    function normalizeDisplayCard(card) {
+        if (typeof SpellDefs !== 'undefined' && SpellDefs.normalizeCard) {
+            return SpellDefs.normalizeCard(card);
+        }
+        return card;
+    }
+
+    function formatGeneration(generation) {
+        const gen = Math.max(1, Number(generation) || 1);
+        return `Gen${String(gen).padStart(2, '0')}`;
+    }
+
+    function createAttrBadge(attr) {
+        const normalized = SpellDefs.normalizeElement ? SpellDefs.normalizeElement(attr) : attr;
+        if (!normalized) return null;
+
+        const badge = document.createElement('span');
+        badge.textContent = SpellDefs.getElementLabel ? SpellDefs.getElementLabel(normalized) : String(normalized).charAt(0).toUpperCase();
+        badge.title = normalized;
+        badge.style.cssText = `
+            width: 22px;
+            height: 22px;
+            border-radius: 999px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font: 700 12px/1 "Noto Serif SC", serif;
+            color: #fff7db;
+            background: ${SpellDefs.getElementColor ? SpellDefs.getElementColor(normalized) : '#666'};
+            box-shadow: 0 0 8px rgba(0,0,0,0.45);
+            border: 1px solid rgba(255,255,255,0.28);
+        `;
+        return badge;
+    }
+
+    function decorateCardItem(item, rawCard) {
+        const card = normalizeDisplayCard(rawCard);
+
+        const genBadge = document.createElement('div');
+        genBadge.textContent = formatGeneration(card.generation);
+        genBadge.style.cssText = `
+            position: absolute;
+            top: 9%;
+            left: 13%;
+            z-index: 4;
+            padding: 2px 6px;
+            border-radius: 999px;
+            background: rgba(18, 14, 10, 0.82);
+            border: 1px solid rgba(214, 196, 160, 0.45);
+            color: #f1e2b8;
+            font: 700 11px/1 "Consolas", monospace;
+            letter-spacing: 0.5px;
+            pointer-events: none;
+        `;
+        item.appendChild(genBadge);
+
+        const attrs = document.createElement('div');
+        attrs.style.cssText = `
+            position: absolute;
+            top: 9%;
+            right: 13%;
+            z-index: 4;
+            display: flex;
+            gap: 4px;
+            pointer-events: none;
+        `;
+
+        const mainBadge = createAttrBadge(card.mainAttr);
+        if (mainBadge) attrs.appendChild(mainBadge);
+
+        const subBadge = createAttrBadge(card.subAttr);
+        if (subBadge) {
+            subBadge.style.opacity = '0.82';
+            subBadge.style.transform = 'scale(0.9)';
+            attrs.appendChild(subBadge);
+        }
+
+        if (attrs.childNodes.length > 0) item.appendChild(attrs);
+    }
+
     return { init, open, close, createCardElement };
 
     /**
      * 创建一个卡牌 DOM 元素（共用于收藏夹和装备页）
      */
     function createCardElement(card) {
+        const displayCard = normalizeDisplayCard(card);
         const item = document.createElement('div');
         item.className = 'card-item';
         item.dataset.id = card.id;
@@ -172,13 +253,13 @@ const Collection = (() => {
             const img = document.createElement('img');
             img.className = 'card-item-thumb';
             img.src = thumbSrc;
-            img.alt = card.name;
+            img.alt = displayCard.name;
             inner.appendChild(img);
         } else {
             const placeholder = document.createElement('div');
             placeholder.className = 'card-item-thumb';
             placeholder.style.cssText = 'background:#3a3530;display:flex;align-items:center;justify-content:center;font-size:14px;color:#776;';
-            placeholder.textContent = card.type === 'text' ? card.name : '?';
+            placeholder.textContent = card.type === 'text' ? displayCard.name : '?';
             inner.appendChild(placeholder);
         }
 
@@ -186,8 +267,9 @@ const Collection = (() => {
 
         const name = document.createElement('div');
         name.className = 'card-item-name';
-        name.textContent = card.name;
+        name.textContent = displayCard.name;
         item.appendChild(name);
+        decorateCardItem(item, displayCard);
 
         return item;
     }

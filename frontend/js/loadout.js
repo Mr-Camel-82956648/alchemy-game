@@ -47,10 +47,135 @@ const Loadout = (() => {
         els.slots.forEach((s, i) => s.classList.toggle('active', i === index));
     }
 
+    function normalizeDisplayCard(card) {
+        if (typeof SpellDefs !== 'undefined' && SpellDefs.normalizeCard) {
+            return SpellDefs.normalizeCard(card);
+        }
+        return card;
+    }
+
+    function formatGeneration(generation) {
+        const gen = Math.max(1, Number(generation) || 1);
+        return `Gen${String(gen).padStart(2, '0')}`;
+    }
+
+    function createAttrBadge(attr, compact) {
+        const normalized = SpellDefs.normalizeElement ? SpellDefs.normalizeElement(attr) : attr;
+        if (!normalized) return null;
+
+        const badge = document.createElement('span');
+        badge.textContent = SpellDefs.getElementLabel ? SpellDefs.getElementLabel(normalized) : String(normalized).charAt(0).toUpperCase();
+        badge.title = normalized;
+        badge.style.cssText = `
+            width: ${compact ? 20 : 22}px;
+            height: ${compact ? 20 : 22}px;
+            border-radius: 999px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font: 700 ${compact ? 11 : 12}px/1 "Noto Serif SC", serif;
+            color: #fff7db;
+            background: ${SpellDefs.getElementColor ? SpellDefs.getElementColor(normalized) : '#666'};
+            box-shadow: 0 0 8px rgba(0,0,0,0.45);
+            border: 1px solid rgba(255,255,255,0.28);
+        `;
+        return badge;
+    }
+
+    function applyLoadoutSlotMeta(slotEl, rawCard) {
+        slotEl.querySelectorAll('.loadout-slot-meta').forEach(el => el.remove());
+        if (!rawCard) return;
+
+        const card = normalizeDisplayCard(rawCard);
+        const meta = document.createElement('div');
+        meta.className = 'loadout-slot-meta';
+        meta.style.cssText = `
+            position: absolute;
+            top: 7%;
+            left: 12%;
+            right: 12%;
+            z-index: 4;
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            pointer-events: none;
+        `;
+
+        const genBadge = document.createElement('div');
+        genBadge.textContent = formatGeneration(card.generation);
+        genBadge.style.cssText = `
+            padding: 3px 7px;
+            border-radius: 999px;
+            background: rgba(18, 14, 10, 0.82);
+            border: 1px solid rgba(214, 196, 160, 0.45);
+            color: #f1e2b8;
+            font: 700 12px/1 "Consolas", monospace;
+            letter-spacing: 0.5px;
+        `;
+        meta.appendChild(genBadge);
+
+        const attrs = document.createElement('div');
+        attrs.style.cssText = 'display:flex;gap:4px;';
+        const mainBadge = createAttrBadge(card.mainAttr, false);
+        if (mainBadge) attrs.appendChild(mainBadge);
+        const subBadge = createAttrBadge(card.subAttr, false);
+        if (subBadge) {
+            subBadge.style.opacity = '0.82';
+            subBadge.style.transform = 'scale(0.9)';
+            attrs.appendChild(subBadge);
+        }
+        meta.appendChild(attrs);
+
+        slotEl.appendChild(meta);
+    }
+
+    function decorateGridItem(item, rawCard) {
+        const card = normalizeDisplayCard(rawCard);
+
+        const genBadge = document.createElement('div');
+        genBadge.textContent = formatGeneration(card.generation);
+        genBadge.style.cssText = `
+            position: absolute;
+            top: 9%;
+            left: 13%;
+            z-index: 4;
+            padding: 2px 6px;
+            border-radius: 999px;
+            background: rgba(18, 14, 10, 0.82);
+            border: 1px solid rgba(214, 196, 160, 0.45);
+            color: #f1e2b8;
+            font: 700 11px/1 "Consolas", monospace;
+            letter-spacing: 0.5px;
+            pointer-events: none;
+        `;
+        item.appendChild(genBadge);
+
+        const attrs = document.createElement('div');
+        attrs.style.cssText = `
+            position: absolute;
+            top: 9%;
+            right: 13%;
+            z-index: 4;
+            display: flex;
+            gap: 4px;
+            pointer-events: none;
+        `;
+        const mainBadge = createAttrBadge(card.mainAttr, true);
+        if (mainBadge) attrs.appendChild(mainBadge);
+        const subBadge = createAttrBadge(card.subAttr, true);
+        if (subBadge) {
+            subBadge.style.opacity = '0.82';
+            subBadge.style.transform = 'scale(0.9)';
+            attrs.appendChild(subBadge);
+        }
+        if (attrs.childNodes.length > 0) item.appendChild(attrs);
+    }
+
     function renderSlots() {
         const loadout = GameStorage.getLoadout();
         els.slots.forEach((slotEl, i) => {
             const card = loadout[i];
+            const displayCard = card ? normalizeDisplayCard(card) : null;
             const inner = slotEl.querySelector('.loadout-slot-inner');
             const keyEl = inner.querySelector('.loadout-slot-key');
             const thumbEl = inner.querySelector('.loadout-slot-thumb');
@@ -75,12 +200,14 @@ const Loadout = (() => {
                         thumbEl.style.display = 'none';
                     }
                 }
-                nameEl.textContent = card.name;
+                nameEl.textContent = displayCard.name;
+                applyLoadoutSlotMeta(slotEl, displayCard);
             } else {
                 if (videoEl) { videoEl.style.display = 'none'; videoEl.src = ''; }
                 thumbEl.style.display = 'none';
                 keyEl.style.display = 'block';
                 nameEl.textContent = '';
+                applyLoadoutSlotMeta(slotEl, null);
             }
         });
     }
@@ -97,6 +224,7 @@ const Loadout = (() => {
     }
 
     function createLoadoutGridItem(card) {
+        const displayCard = normalizeDisplayCard(card);
         const item = document.createElement('div');
         item.className = 'card-item';
         item.dataset.id = card.id;
@@ -115,7 +243,7 @@ const Loadout = (() => {
             const img = document.createElement('img');
             img.className = 'card-item-thumb';
             img.src = thumbSrc;
-            img.alt = card.name;
+            img.alt = displayCard.name;
             inner.appendChild(img);
         } else {
             const placeholder = document.createElement('div');
@@ -129,8 +257,9 @@ const Loadout = (() => {
 
         const name = document.createElement('div');
         name.className = 'card-item-name';
-        name.textContent = card.name;
+        name.textContent = displayCard.name;
         item.appendChild(name);
+        decorateGridItem(item, displayCard);
 
         return item;
     }
