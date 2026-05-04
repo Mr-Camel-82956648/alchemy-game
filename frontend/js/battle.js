@@ -458,6 +458,7 @@ const Battle = (() => {
     let wavePlan = [];
     let currentWaveIndex = -1;
     let nextMonsterGroupId = 1;
+    let playerAdvance = { lastX: 0, lastY: 0, dirX: 0, dirY: 0, speed: 0 };
 
     // Input
     const keys = {};
@@ -1069,17 +1070,115 @@ const Battle = (() => {
         return spawnQueue.reduce((sum, item) => sum + Math.max(0, Number(item.count) || 0), 0);
     }
 
-    function enqueuePack(pack, now, baseAngle = null) {
-        const packAngle = baseAngle != null ? baseAngle : Math.random() * Math.PI * 2;
+    function normalizeAngle(angle) {
+        const fullTurn = Math.PI * 2;
+        let value = angle % fullTurn;
+        if (value <= -Math.PI) value += fullTurn;
+        if (value > Math.PI) value -= fullTurn;
+        return value;
+    }
+
+    function getAngleDelta(a, b) {
+        return Math.abs(normalizeAngle(a - b));
+    }
+
+    function updatePlayerAdvanceState() {
+        const dx = player.x - playerAdvance.lastX;
+        const dy = player.y - playerAdvance.lastY;
+        const frameSpeed = Math.hypot(dx, dy);
+
+        playerAdvance.lastX = player.x;
+        playerAdvance.lastY = player.y;
+
+        if (frameSpeed > 0.001) {
+            const nx = dx / frameSpeed;
+            const ny = dy / frameSpeed;
+            const blend = frameSpeed > CONFIG.playerSpeed * 1.4 ? 0.34 : 0.22;
+            playerAdvance.dirX = lerp(playerAdvance.dirX, nx, blend);
+            playerAdvance.dirY = lerp(playerAdvance.dirY, ny, blend);
+        } else {
+            playerAdvance.dirX *= 0.84;
+            playerAdvance.dirY *= 0.84;
+        }
+
+        playerAdvance.speed = lerp(playerAdvance.speed, frameSpeed, frameSpeed > 0.001 ? 0.3 : 0.12);
+        const dirLength = Math.hypot(playerAdvance.dirX, playerAdvance.dirY);
+        if (dirLength > 0.001) {
+            playerAdvance.dirX /= dirLength;
+            playerAdvance.dirY /= dirLength;
+        }
+    }
+
+    function getPlayerAdvanceHeading() {
+        const dirLength = Math.hypot(playerAdvance.dirX, playerAdvance.dirY);
+        if (dirLength < 0.35) return null;
+        if (playerAdvance.speed < CONFIG.playerSpeed * 0.32) return null;
+        return Math.atan2(playerAdvance.dirY, playerAdvance.dirX);
+    }
+
+    function getDirectionalPressure(centerAngle, halfAngle, now) {
+        const spawnRadius = Math.max(CANVAS_W, CANVAS_H) * 0.6 + 100;
+        let pressure = 0;
+
+        monsters.forEach(monster => {
+            if (monster.isDying) return;
+            const dx = monster.x - player.x;
+            const dy = monster.y - player.y;
+            const angle = Math.atan2(dy, dx);
+            if (getAngleDelta(angle, centerAngle) > halfAngle) return;
+            const distance = Math.hypot(dx, dy);
+            const distanceWeight = Math.max(0.22, 1.16 - distance / Math.max(1, spawnRadius * 1.15));
+            pressure += distanceWeight;
+        });
+
+        spawnQueue.forEach(item => {
+            if (getAngleDelta(Number(item.angle) || 0, centerAngle) > halfAngle) return;
+            const spawnDelay = Math.max(0, (Number(item.spawnAt) || 0) - now);
+            const queueWeight = Math.max(0.18, 0.72 - spawnDelay / 1800);
+            pressure += Math.max(1, Number(item.count) || 1) * queueWeight * 0.34;
+        });
+
+        return pressure;
+    }
+
+    function getPackSpawnDirectives(now) {
+        const heading = getPlayerAdvanceHeading();
+        if (heading == null) {
+            return { baseAngle: null, leadMs: 0, distScaleMultiplier: 1, cooldownScale: 1 };
+        }
+
+        const frontPressure = getDirectionalPressure(heading, 0.72, now);
+        const leftPressure = getDirectionalPressure(heading - Math.PI * 0.5, 0.62, now);
+        const rightPressure = getDirectionalPressure(heading + Math.PI * 0.5, 0.62, now);
+        const forwardPressureTarget = 3.2 + Math.min(2.2, playerAdvance.speed * 0.16);
+        const frontGap = forwardPressureTarget - frontPressure;
+        const isForwardOpen = frontGap > 0.45 || frontPressure + 0.85 < Math.min(leftPressure, rightPressure);
+        if (!isForwardOpen) {
+            return { baseAngle: null, leadMs: 0, distScaleMultiplier: 1, cooldownScale: 1 };
+        }
+
+        const strongBias = frontGap > 1.4 || frontPressure < 1.8;
+        return {
+            baseAngle: heading + (Math.random() - 0.5) * (strongBias ? 0.58 : 0.9),
+            leadMs: strongBias ? 140 : 80,
+            distScaleMultiplier: strongBias ? 0.9 : 0.95,
+            cooldownScale: strongBias ? 0.8 : 0.9
+        };
+    }
+
+    function enqueuePack(pack, now, directives = null) {
+        const packAngle = directives?.baseAngle != null ? directives.baseAngle : Math.random() * Math.PI * 2;
+        const leadMs = Math.max(0, Number(directives?.leadMs) || 0);
+        const distScaleMultiplier = Math.max(0.86, Number(directives?.distScaleMultiplier) || 1);
         pack.squads.forEach(squad => {
             spawnQueue.push({
-                spawnAt: now + (Number(squad.delayMs) || 0),
+                spawnAt: Math.max(now, now + (Number(squad.delayMs) || 0) - leadMs),
                 species: squad.species,
                 tier: squad.tier,
                 count: squad.count,
                 pattern: squad.pattern,
                 angle: packAngle + (Number(squad.angleOffset) || 0),
-                distScale: squad.distScale || 1
+                distScale: (squad.distScale || 1) * distScaleMultiplier
             });
         });
     }
@@ -1088,8 +1187,12 @@ const Battle = (() => {
         if (!wave.packCycle || wave.packCycle.length === 0) return;
         const pack = wave.packCycle[wave.packCursor % wave.packCycle.length];
         wave.packCursor = (wave.packCursor + 1) % wave.packCycle.length;
-        enqueuePack(pack, now + delayMs);
-        wave.nextPackAt = now + delayMs + Math.max(180, (pack.cooldownMs || wave.packIntervalMs) * cooldownScale);
+        const directives = getPackSpawnDirectives(now + delayMs);
+        enqueuePack(pack, now + delayMs, directives);
+        wave.nextPackAt = now + delayMs + Math.max(
+            180,
+            (pack.cooldownMs || wave.packIntervalMs) * cooldownScale * (Number(directives?.cooldownScale) || 1)
+        );
     }
 
     function flushSpawnQueue(now) {
@@ -1551,6 +1654,7 @@ const Battle = (() => {
 
         player.x = 0;
         player.y = 0;
+        playerAdvance = { lastX: 0, lastY: 0, dirX: 0, dirY: 0, speed: 0 };
         player.hp = CONFIG.playerHP;
         monsters = [];
         energy = 0; killCount = 0; score = 0;
@@ -1631,8 +1735,6 @@ const Battle = (() => {
         const remaining = CONFIG.battleDuration - gameTime;
         if (remaining <= 0) { onDefeat('time_out'); return; }
 
-        updateWaveSpawns(now);
-
         // Dash (ease-out: fast start, decelerate)
         if (isDashing) {
             const dashAge = now - dashStart;
@@ -1662,6 +1764,8 @@ const Battle = (() => {
         // Update camera to center on player
         camera.x = player.x - CANVAS_W / 2;
         camera.y = player.y - CANVAS_H / 2;
+        updatePlayerAdvanceState();
+        updateWaveSpawns(now);
 
         updatePlayerAnim(now);
 
