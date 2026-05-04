@@ -898,6 +898,9 @@ const Battle = (() => {
     const MONSTER_ABSORB_PAUSE_MS = 110;
     const MONSTER_ABSORB_FEEDBACK_MS = 280;
     const MONSTER_DEATH_FADE_MS = 560;
+    const MONSTER_DEATH_FLASH_HOLD_MS = 120;
+    const MONSTER_DEATH_SOUL_WISP_DELAY_MS = 110;
+    const MONSTER_DEATH_SCORE_DELAY_MS = 230;
     const EFFECT_HIT_RADIUS_RATIO = 0.44;
     const MAX_ACTIVE_SOUL_WISPS = 10;
     const SOUL_WISP_MIN_DURATION_MS = 2240;
@@ -1426,8 +1429,11 @@ const Battle = (() => {
         monster.isDying = true;
         monster.deathStart = now;
         monster.deathRewardsTriggered = false;
+        monster.deathScoreShown = false;
         monster.hitPauseUntil = 0;
         monster.absorbFeedbackStart = 0;
+        monster.flashEnd = Math.max(Number(monster.flashEnd) || 0, now + MONSTER_DEATH_FLASH_HOLD_MS);
+        monster.hitSilhouetteEnd = Math.max(Number(monster.hitSilhouetteEnd) || 0, now + MONSTER_DEATH_FLASH_HOLD_MS + 30);
     }
 
     function spawnHordeGroup(species, count, tier, options = null) {
@@ -1516,6 +1522,7 @@ const Battle = (() => {
             absorbFeedbackStart: 0,
             absorbFeedbackColor: null,
             absorbFromWidth: 0,
+            deathScoreShown: false,
             spawnTime: Date.now(),
             spawnAngle: angle,
             arcDirection: Math.random() < 0.5 ? -1 : 1,
@@ -1709,8 +1716,13 @@ const Battle = (() => {
             if (m.hp <= 0 && !m.isDying) beginMonsterDeath(m, now);
 
             if (m.isDying) {
-                if (!m.deathRewardsTriggered) {
+                const deathElapsed = now - m.deathStart;
+                if (!m.deathRewardsTriggered && deathElapsed >= MONSTER_DEATH_SOUL_WISP_DELAY_MS) {
                     m.deathRewardsTriggered = true;
+                    spawnSoulWisp(m.x, m.y - 50, m.score, now);
+                }
+                if (!m.deathScoreShown && deathElapsed >= MONSTER_DEATH_SCORE_DELAY_MS) {
+                    m.deathScoreShown = true;
                     floatingTexts.push({
                         x: m.x,
                         y: m.y - 42,
@@ -1718,9 +1730,8 @@ const Battle = (() => {
                         color: '#cb9cff',
                         startTime: now
                     });
-                    spawnSoulWisp(m.x, m.y - 50, m.score, now);
                 }
-                if (now - m.deathStart > MONSTER_DEATH_FADE_MS) {
+                if (deathElapsed > MONSTER_DEATH_FADE_MS) {
                     killCount++;
                     energy = Math.min(100, killCount * CONFIG.energyPerKill);
                     updateBars();
@@ -2665,6 +2676,7 @@ const Battle = (() => {
         const baseBob = Math.sin(now * 0.004 + m.bobOffset) * 3;
         const isFlashing = now < m.flashEnd;
         const isDying = m.isDying;
+        const deathElapsed = isDying ? Math.max(0, now - (Number(m.deathStart) || now)) : 0;
         const sx = w2sx(m.x), sy = w2sy(m.y);
 
         const specDef = MOB_SPECIES[m.species];
@@ -2676,15 +2688,19 @@ const Battle = (() => {
         const isTemporarilyStill = isDying || !!absorbFeedback || now < (Number(m.hitPauseUntil) || 0);
         const bob = isTemporarilyStill ? 0 : baseBob;
         const renderWidth = absorbFeedback ? absorbFeedback.width : m.w;
-
-        if (isDying) {
-            return;
-        }
+        const deathDissolveT = isDying
+            ? clamp01((deathElapsed - MONSTER_DEATH_FLASH_HOLD_MS) / Math.max(1, MONSTER_DEATH_FADE_MS - MONSTER_DEATH_FLASH_HOLD_MS))
+            : 0;
+        const deathVisibleRatio = isDying ? Math.max(0, 1 - deathDissolveT) : 1;
+        const deathAlpha = isDying ? Math.max(0, 1 - deathDissolveT) : 1;
+        const deathLift = isDying ? deathDissolveT * Math.max(12, renderWidth * 0.1) : 0;
 
         // Silhouette shadow
-        const useStableFrame = isFlashing || !!absorbFeedback || now < (Number(m.hitPauseUntil) || 0);
+        const useStableFrame = isFlashing || isDying || !!absorbFeedback || now < (Number(m.hitPauseUntil) || 0);
         const shadowImg = useStableFrame ? getMonsterFrame(m, flashFrame) : getMonsterFrame(m);
-        if (shadowImg) drawSilhouetteShadow(shadowImg, sx, sy, renderWidth, bob, facing, 0.25);
+        if (shadowImg && (!isDying || deathElapsed <= MONSTER_DEATH_FLASH_HOLD_MS)) {
+            drawSilhouetteShadow(shadowImg, sx, sy, renderWidth, bob, facing, 0.25);
+        }
 
         const img = useStableFrame ? getMonsterFrame(m, flashFrame) : getMonsterFrame(m);
         if (img) {
@@ -2704,16 +2720,36 @@ const Battle = (() => {
             if (absorbFeedback) {
                 const glowFilter = `brightness(${(1.04 + absorbFeedback.glow * 0.12).toFixed(3)}) saturate(${(1.04 + absorbFeedback.glow * 0.18).toFixed(3)})`;
                 drawMonsterSprite(img, sx, sy, renderWidth, bob, facing, glowFilter);
+            } else if (isDying && deathElapsed > MONSTER_DEATH_FLASH_HOLD_MS) {
+                ctx.save();
+                ctx.globalAlpha = deathAlpha;
+                drawMonsterSpriteTopSegment(img, sx, sy, renderWidth, bob, facing, null, deathVisibleRatio, deathLift);
+                ctx.restore();
             } else {
                 drawMonsterSprite(img, sx, sy, renderWidth, bob, facing, null);
             }
 
             if (isFlashing) {
-                const flashAlpha = Math.max(0, Math.min(0.24, ((m.flashEnd - now) / MONSTER_HIT_FLASH_MS) * 0.24));
+                const flashDuration = isDying ? MONSTER_DEATH_FLASH_HOLD_MS : MONSTER_HIT_FLASH_MS;
+                const flashAlpha = Math.max(0, Math.min(0.28, ((m.flashEnd - now) / flashDuration) * 0.28));
                 if (flashAlpha > 0) {
                     ctx.save();
                     ctx.globalAlpha = flashAlpha;
-                    drawMonsterSprite(img, sx, sy, renderWidth, bob, facing, 'brightness(1.8) saturate(0.8)');
+                    if (isDying && deathElapsed > MONSTER_DEATH_FLASH_HOLD_MS) {
+                        drawMonsterSpriteTopSegment(
+                            img,
+                            sx,
+                            sy,
+                            renderWidth,
+                            bob,
+                            facing,
+                            'brightness(1.8) saturate(0.8)',
+                            deathVisibleRatio,
+                            deathLift
+                        );
+                    } else {
+                        drawMonsterSprite(img, sx, sy, renderWidth, bob, facing, 'brightness(1.8) saturate(0.8)');
+                    }
                     ctx.restore();
                 }
             }
@@ -2722,7 +2758,7 @@ const Battle = (() => {
                 0,
                 Math.min(0.78, ((Number(m.hitSilhouetteEnd) || 0) - now) / MONSTER_HIT_SILHOUETTE_MS)
             );
-            if (silhouetteAlpha > 0) {
+            if (silhouetteAlpha > 0 && (!isDying || deathElapsed <= MONSTER_DEATH_FLASH_HOLD_MS + 30)) {
                 drawMonsterSilhouetteTint(img, sx, sy, renderWidth, bob, facing, '#ffffff', silhouetteAlpha);
             }
         } else {
