@@ -257,7 +257,7 @@ const Battle = (() => {
 
     const CONFIG = {
         playerSpeed: 10.4,
-        playerHP: 5,
+        playerHP: 2.5,
         dashSpeed: 55,
         dashDuration: 160,
         dashCooldown: 1500,
