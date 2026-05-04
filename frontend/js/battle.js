@@ -257,6 +257,7 @@ const Battle = (() => {
     const SOUL_WISP_SIZE_MULTIPLIER = 1.5;
     const BLOOD_SCATTER_SIZE_MULTIPLIER = 2;
     const BLOOD_SCATTER_Y_OFFSET = 240;
+    const BLOOD_SCATTER_EXTRA_Y_DROP = 150;
 
     const CONFIG = {
         playerSpeed: 10.4,
@@ -904,8 +905,6 @@ const Battle = (() => {
         { maxRatio: 0.78, multiplier: 0.48 },
         { maxRatio: 1.0, multiplier: 0.24 }
     ];
-    const MONSTER_HIT_PAUSE_MS = 70;
-    const MONSTER_ULTIMATE_HIT_PAUSE_MS = 90;
     const MONSTER_HIT_FLASH_MS = 110;
     const MONSTER_HIT_SILHOUETTE_MS = 120;
     const MONSTER_ABSORB_PAUSE_MS = 110;
@@ -1347,9 +1346,7 @@ const Battle = (() => {
         return 1 - Math.pow(1 - clamped, 3);
     }
 
-    function applyMonsterHitFeedback(monster, now, isUltimate) {
-        const pauseMs = isUltimate ? MONSTER_ULTIMATE_HIT_PAUSE_MS : MONSTER_HIT_PAUSE_MS;
-        monster.hitPauseUntil = Math.max(Number(monster.hitPauseUntil) || 0, now + pauseMs);
+    function applyMonsterHitFeedback(monster, now) {
         monster.flashEnd = Math.max(Number(monster.flashEnd) || 0, now + MONSTER_HIT_FLASH_MS);
         monster.hitSilhouetteEnd = Math.max(Number(monster.hitSilhouetteEnd) || 0, now + MONSTER_HIT_SILHOUETTE_MS);
     }
@@ -1454,7 +1451,7 @@ const Battle = (() => {
         );
         activeEffects.push({
             x: monster.x,
-            y: monster.y - Math.max(12, size * 0.08) - BLOOD_SCATTER_Y_OFFSET,
+            y: monster.y - Math.max(12, size * 0.08) - BLOOD_SCATTER_Y_OFFSET + BLOOD_SCATTER_EXTRA_Y_DROP,
             size,
             video: createAutoVideo(BLOOD_SCATTER_SRC),
             startTime: now,
@@ -1475,7 +1472,6 @@ const Battle = (() => {
         monster.deathRewardsTriggered = false;
         monster.hitPauseUntil = 0;
         monster.absorbFeedbackStart = 0;
-        spawnBloodScatterEffect(monster, now);
     }
 
     function spawnHordeGroup(species, count, tier, options = null) {
@@ -1711,7 +1707,6 @@ const Battle = (() => {
             const age = now - eff.startTime;
             if (!eff.damageApplied && age > 400 && age < 1200) {
                 eff.damageApplied = true;
-                let hitCount = 0;
                 monsters.forEach(m => {
                     if (m.isDying) return;
                     const hitRadius = getEffectHitRadius(eff);
@@ -1735,8 +1730,8 @@ const Battle = (() => {
                         }
                         if (hitResult.damage <= 0) return;
 
+                        spawnBloodScatterEffect(m, now);
                         m.hp -= hitResult.damage;
-                        hitCount++;
 
                         const dx = m.x - eff.x;
                         const dy = m.y - eff.y;
@@ -1745,14 +1740,10 @@ const Battle = (() => {
                         m.knockbackVX = (dx / dist) * kbForce;
                         m.knockbackVY = (dy / dist) * kbForce;
 
-                        applyMonsterHitFeedback(m, now, eff.isUltimate);
+                        applyMonsterHitFeedback(m, now);
                         if (m.hp <= 0) beginMonsterDeath(m, now);
                     }
                 });
-                if (hitCount > 0) {
-                    triggerHitstop(eff.isUltimate ? 18 : 15);
-                    triggerShake(eff.isUltimate ? 12 : 10, eff.isUltimate ? 200 : 180);
-                }
             }
         });
 
@@ -1854,8 +1845,9 @@ const Battle = (() => {
                 const dx = m.x - player.x;
                 const dy = m.y - player.y;
                 if (dx * dx + dy * dy < auraRadius * auraRadius) {
+                    spawnBloodScatterEffect(m, now);
                     m.hp -= AMULET_DAMAGE;
-                    applyMonsterHitFeedback(m, now, false);
+                    applyMonsterHitFeedback(m, now);
                     if (m.hp <= 0) beginMonsterDeath(m, now);
                 }
             });
