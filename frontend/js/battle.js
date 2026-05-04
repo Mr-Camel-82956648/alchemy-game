@@ -459,6 +459,7 @@ const Battle = (() => {
     let currentWaveIndex = -1;
     let nextMonsterGroupId = 1;
     let playerAdvance = { lastX: 0, lastY: 0, dirX: 0, dirY: 0, speed: 0 };
+    let closeGapState = { activeUntil: 0, reservePacks: 0, sectorCursor: 0, nextDispatchAt: 0, sectorAngles: [] };
 
     // Input
     const keys = {};
@@ -1141,43 +1142,108 @@ const Battle = (() => {
         return pressure;
     }
 
-    function getPackSpawnDirectives(now) {
+    function getForwardClosurePlan(now) {
         const heading = getPlayerAdvanceHeading();
-        if (heading == null) {
-            return { baseAngle: null, leadMs: 0, distScaleMultiplier: 1, cooldownScale: 1 };
-        }
+        if (heading == null) return null;
 
-        const frontPressure = getDirectionalPressure(heading, 0.72, now);
-        const leftPressure = getDirectionalPressure(heading - Math.PI * 0.5, 0.62, now);
-        const rightPressure = getDirectionalPressure(heading + Math.PI * 0.5, 0.62, now);
-        const forwardPressureTarget = 3.2 + Math.min(2.2, playerAdvance.speed * 0.16);
-        const frontGap = forwardPressureTarget - frontPressure;
-        const isForwardOpen = frontGap > 0.45 || frontPressure + 0.85 < Math.min(leftPressure, rightPressure);
-        if (!isForwardOpen) {
-            return { baseAngle: null, leadMs: 0, distScaleMultiplier: 1, cooldownScale: 1 };
-        }
+        const speedFactor = Math.min(1.6, Math.max(0, playerAdvance.speed / Math.max(1, CONFIG.playerSpeed)));
+        const sectors = [
+            { key: 'front', angle: heading, halfAngle: 0.46, target: 2.8 + speedFactor * 0.75 },
+            { key: 'frontLeft', angle: heading - 0.76, halfAngle: 0.5, target: 2.2 + speedFactor * 0.55 },
+            { key: 'frontRight', angle: heading + 0.76, halfAngle: 0.5, target: 2.2 + speedFactor * 0.55 }
+        ].map(sector => {
+            const pressure = getDirectionalPressure(sector.angle, sector.halfAngle, now);
+            const deficit = Math.max(0, sector.target - pressure);
+            return { ...sector, pressure, deficit };
+        });
 
-        const strongBias = frontGap > 1.4 || frontPressure < 1.8;
+        const totalDeficit = sectors.reduce((sum, sector) => sum + sector.deficit, 0);
+        const frontDeficit = sectors[0].deficit;
+        const flankDeficitCount = sectors.slice(1).filter(sector => sector.deficit > 0.35).length;
+        const weakestDeficit = Math.max(...sectors.map(sector => sector.deficit));
+        const shouldCloseGap =
+            totalDeficit > 0.75 ||
+            frontDeficit > 0.34 ||
+            flankDeficitCount > 0 ||
+            weakestDeficit > 0.55;
+
+        if (!shouldCloseGap) return null;
+
+        const sortedSectors = [...sectors].sort((a, b) => b.deficit - a.deficit);
+        const severe = totalDeficit > 2.1 || frontDeficit > 0.95 || flankDeficitCount === 2;
         return {
-            baseAngle: heading + (Math.random() - 0.5) * (strongBias ? 0.58 : 0.9),
-            leadMs: strongBias ? 140 : 80,
-            distScaleMultiplier: strongBias ? 0.9 : 0.95,
-            cooldownScale: strongBias ? 0.8 : 0.9
+            heading,
+            sectors,
+            sortedSectors,
+            totalDeficit,
+            frontDeficit,
+            severe
+        };
+    }
+
+    function refreshCloseGapState(now) {
+        const plan = getForwardClosurePlan(now);
+        if (!plan) {
+            if (closeGapState.activeUntil <= now) {
+                closeGapState.activeUntil = 0;
+                closeGapState.reservePacks = 0;
+                closeGapState.sectorAngles = [];
+                closeGapState.nextDispatchAt = 0;
+            }
+            return null;
+        }
+
+        closeGapState.activeUntil = Math.max(closeGapState.activeUntil, now + (plan.severe ? 1400 : 1000));
+        closeGapState.reservePacks = Math.max(closeGapState.reservePacks, plan.severe ? 3 : 2);
+        closeGapState.sectorAngles = plan.sortedSectors.map(sector => sector.angle);
+        closeGapState.sectorCursor = closeGapState.sectorCursor % Math.max(1, closeGapState.sectorAngles.length);
+        closeGapState.nextDispatchAt = Math.min(
+            closeGapState.nextDispatchAt > now ? closeGapState.nextDispatchAt : Number.POSITIVE_INFINITY,
+            now + (plan.severe ? 70 : 110)
+        );
+        if (!Number.isFinite(closeGapState.nextDispatchAt)) {
+            closeGapState.nextDispatchAt = now + (plan.severe ? 70 : 110);
+        }
+        return plan;
+    }
+
+    function hasActiveCloseGapMode(now) {
+        return closeGapState.activeUntil > now && closeGapState.reservePacks > 0 && closeGapState.sectorAngles.length > 0;
+    }
+
+    function getPackSpawnDirectives(now) {
+        if (!hasActiveCloseGapMode(now)) {
+            return { baseAngle: null, leadMs: 0, distScaleMultiplier: 1, cooldownScale: 1 };
+        }
+
+        const sectorAngles = closeGapState.sectorAngles.length > 0
+            ? closeGapState.sectorAngles.map((angle, index, list) => list[(index + closeGapState.sectorCursor) % list.length])
+            : [Math.atan2(playerAdvance.dirY, playerAdvance.dirX)];
+        return {
+            baseAngle: sectorAngles[0] + (Math.random() - 0.5) * 0.18,
+            sectorAngles,
+            leadMs: closeGapState.reservePacks >= 3 ? 260 : 180,
+            distScaleMultiplier: closeGapState.reservePacks >= 3 ? 0.84 : 0.89,
+            cooldownScale: closeGapState.reservePacks >= 3 ? 0.56 : 0.68,
+            followupDelayMs: closeGapState.reservePacks >= 3 ? 120 : 170,
+            isCloseGap: true
         };
     }
 
     function enqueuePack(pack, now, directives = null) {
         const packAngle = directives?.baseAngle != null ? directives.baseAngle : Math.random() * Math.PI * 2;
         const leadMs = Math.max(0, Number(directives?.leadMs) || 0);
-        const distScaleMultiplier = Math.max(0.86, Number(directives?.distScaleMultiplier) || 1);
-        pack.squads.forEach(squad => {
+        const distScaleMultiplier = Math.max(0.84, Number(directives?.distScaleMultiplier) || 1);
+        const sectorAngles = directives?.sectorAngles?.length ? directives.sectorAngles : [packAngle];
+        pack.squads.forEach((squad, index) => {
+            const sectorAngle = sectorAngles[index % sectorAngles.length];
             spawnQueue.push({
                 spawnAt: Math.max(now, now + (Number(squad.delayMs) || 0) - leadMs),
                 species: squad.species,
                 tier: squad.tier,
                 count: squad.count,
                 pattern: squad.pattern,
-                angle: packAngle + (Number(squad.angleOffset) || 0),
+                angle: sectorAngle + (Number(squad.angleOffset) || 0),
                 distScale: (squad.distScale || 1) * distScaleMultiplier
             });
         });
@@ -1189,10 +1255,18 @@ const Battle = (() => {
         wave.packCursor = (wave.packCursor + 1) % wave.packCycle.length;
         const directives = getPackSpawnDirectives(now + delayMs);
         enqueuePack(pack, now + delayMs, directives);
-        wave.nextPackAt = now + delayMs + Math.max(
+        const nextPackAt = now + delayMs + Math.max(
             180,
             (pack.cooldownMs || wave.packIntervalMs) * cooldownScale * (Number(directives?.cooldownScale) || 1)
         );
+        if (directives?.isCloseGap) {
+            closeGapState.reservePacks = Math.max(0, closeGapState.reservePacks - 1);
+            closeGapState.sectorCursor = (closeGapState.sectorCursor + 1) % Math.max(1, closeGapState.sectorAngles.length);
+            closeGapState.nextDispatchAt = now + delayMs + Math.max(90, Number(directives.followupDelayMs) || 150);
+            wave.nextPackAt = Math.min(nextPackAt, closeGapState.nextDispatchAt);
+        } else {
+            wave.nextPackAt = nextPackAt;
+        }
     }
 
     function flushSpawnQueue(now) {
@@ -1217,6 +1291,7 @@ const Battle = (() => {
         wave.nextPackAt = now + wave.packIntervalMs;
         wave.packCursor = 0;
         spawnQueue = [];
+        closeGapState = { activeUntil: 0, reservePacks: 0, sectorCursor: 0, nextDispatchAt: 0, sectorAngles: [] };
         waveNumber = wave.number;
         waveState = 'fighting';
         showWaveAnnouncement(wave.announceLabel);
@@ -1241,8 +1316,10 @@ const Battle = (() => {
         const aliveCount = getLivingMonsterCount();
         const queuedCount = getQueuedSpawnCount();
         const pressureCount = aliveCount + queuedCount;
+        refreshCloseGapState(now);
         const shouldSurge = pressureCount <= (Number(wave.surgeThreshold) || 0);
-        const shouldDispatch = now >= wave.nextPackAt || aliveCount <= wave.refillThreshold || shouldSurge;
+        const shouldForceCloseGap = hasActiveCloseGapMode(now) && now >= closeGapState.nextDispatchAt;
+        const shouldDispatch = now >= wave.nextPackAt || aliveCount <= wave.refillThreshold || shouldSurge || shouldForceCloseGap;
         if (!shouldDispatch) return;
         if (pressureCount >= Math.min(MAX_MONSTERS, wave.softCap)) {
             wave.nextPackAt = now + 220;
@@ -1677,6 +1754,7 @@ const Battle = (() => {
         gameTime = 0;
         spawnQueue = [];
         nextMonsterGroupId = 1;
+        closeGapState = { activeUntil: 0, reservePacks: 0, sectorCursor: 0, nextDispatchAt: 0, sectorAngles: [] };
         wavePlan = buildWavePlan();
         currentWaveIndex = -1;
         lastAmuletDamageTick = 0;
