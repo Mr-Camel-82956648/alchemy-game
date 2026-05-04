@@ -253,6 +253,10 @@ const Battle = (() => {
     const SOUL_WISP_ASSET_BASE = 'assets/vfx/soul_wisp';
     const BLOOD_SCATTER_SRC = 'assets/vfx/blood-scatter.mp4';
     const MONSTER_SPEED_MULTIPLIER = 1.3;
+    const SOUL_WISP_ALPHA_MULTIPLIER = 1.2;
+    const SOUL_WISP_SIZE_MULTIPLIER = 1.5;
+    const BLOOD_SCATTER_SIZE_MULTIPLIER = 2;
+    const BLOOD_SCATTER_Y_OFFSET = 240;
 
     const CONFIG = {
         playerSpeed: 10.4,
@@ -1444,10 +1448,13 @@ const Battle = (() => {
     }
 
     function spawnBloodScatterEffect(monster, now) {
-        const size = Math.max(240, Math.round((Number(monster.w) || 240) * (monster.tier === 'boss' ? 1.35 : 1.05)));
+        const size = Math.max(
+            480,
+            Math.round((Number(monster.w) || 240) * (monster.tier === 'boss' ? 1.35 : 1.05) * BLOOD_SCATTER_SIZE_MULTIPLIER)
+        );
         activeEffects.push({
             x: monster.x,
-            y: monster.y - Math.max(12, size * 0.08),
+            y: monster.y - Math.max(12, size * 0.08) - BLOOD_SCATTER_Y_OFFSET,
             size,
             video: createAutoVideo(BLOOD_SCATTER_SRC),
             startTime: now,
@@ -1459,6 +1466,16 @@ const Battle = (() => {
             hardCutThreshold: 4,
             holdAlpha: 0.94
         });
+    }
+
+    function beginMonsterDeath(monster, now) {
+        if (monster.isDying) return;
+        monster.isDying = true;
+        monster.deathStart = now;
+        monster.deathRewardsTriggered = false;
+        monster.hitPauseUntil = 0;
+        monster.absorbFeedbackStart = 0;
+        spawnBloodScatterEffect(monster, now);
     }
 
     function spawnHordeGroup(species, count, tier, options = null) {
@@ -1729,6 +1746,7 @@ const Battle = (() => {
                         m.knockbackVY = (dy / dist) * kbForce;
 
                         applyMonsterHitFeedback(m, now, eff.isUltimate);
+                        if (m.hp <= 0) beginMonsterDeath(m, now);
                     }
                 });
                 if (hitCount > 0) {
@@ -1742,23 +1760,20 @@ const Battle = (() => {
         for (let i = monsters.length - 1; i >= 0; i--) {
             const m = monsters[i];
 
-            if (m.hp <= 0 && !m.isDying) {
-                m.isDying = true;
-                m.deathStart = now;
-                m.hitPauseUntil = 0;
-                m.absorbFeedbackStart = 0;
-                spawnBloodScatterEffect(m, now);
-                spawnSoulWisp(m.x, m.y - 50, m.score, now);
-                floatingTexts.push({
-                    x: m.x,
-                    y: m.y - 42,
-                    text: `+${m.score}`,
-                    color: '#cb9cff',
-                    startTime: now
-                });
-            }
+            if (m.hp <= 0 && !m.isDying) beginMonsterDeath(m, now);
 
             if (m.isDying) {
+                if (!m.deathRewardsTriggered) {
+                    m.deathRewardsTriggered = true;
+                    floatingTexts.push({
+                        x: m.x,
+                        y: m.y - 42,
+                        text: `+${m.score}`,
+                        color: '#cb9cff',
+                        startTime: now
+                    });
+                    spawnSoulWisp(m.x, m.y - 50, m.score, now);
+                }
                 if (now - m.deathStart > MONSTER_DEATH_FADE_MS) {
                     killCount++;
                     energy = Math.min(100, killCount * CONFIG.energyPerKill);
@@ -1841,6 +1856,7 @@ const Battle = (() => {
                 if (dx * dx + dy * dy < auraRadius * auraRadius) {
                     m.hp -= AMULET_DAMAGE;
                     applyMonsterHitFeedback(m, now, false);
+                    if (m.hp <= 0) beginMonsterDeath(m, now);
                 }
             });
         }
@@ -2077,7 +2093,7 @@ const Battle = (() => {
         });
 
         target.value += value;
-        target.baseSize = Math.min(216, target.baseSize + Math.max(8, Math.sqrt(value) * 2.3));
+        target.baseSize = Math.min(324, target.baseSize + Math.max(12, Math.sqrt(value) * 3.45));
         target.renderSize = target.baseSize;
         target.duration = Math.max(target.duration, SOUL_WISP_MIN_DURATION_MS + 220);
         return true;
@@ -2100,7 +2116,7 @@ const Battle = (() => {
             SOUL_WISP_MIN_DURATION_MS,
             Math.min(SOUL_WISP_MAX_DURATION_MS, 2080 + distance * 0.88)
         );
-        const baseSize = Math.max(144, Math.min(208, (70 + Math.sqrt(value) * 2.1) * 2));
+        const baseSize = Math.max(216, Math.min(312, (70 + Math.sqrt(value) * 2.1) * 2 * SOUL_WISP_SIZE_MULTIPLIER));
 
         activeSoulWisps.push({
             value,
@@ -2115,7 +2131,7 @@ const Battle = (() => {
             progress: 0,
             orthoX: -dirY,
             orthoY: dirX,
-            baseAlpha: 0.5 + Math.random() * 0.2,
+            baseAlpha: Math.min(1, (0.5 + Math.random() * 0.2) * SOUL_WISP_ALPHA_MULTIPLIER),
             alpha: 1,
             baseSize,
             renderSize: baseSize,
