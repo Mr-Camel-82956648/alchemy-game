@@ -241,7 +241,7 @@ const Battle = (() => {
                    species: [].concat(...Object.values(SMALL_MONSTER_POOLS)) },
         elite:   { hp: 6,  speedRange: [1.1, 1.9],  scale: 1.0, barColor: '#ffc107', score: 30,
                    species: [].concat(...Object.values(SMALL_MONSTER_POOLS)) },
-        boss:    { hp: 24, speedRange: [0.72, 1.02], scale: 1.0, barColor: '#f44336', score: 140,
+        boss:    { hp: 14, speedRange: [0.72, 1.02], scale: 1.0, barColor: '#f44336', score: 140,
                    species: BOSS_MONSTER_IDS }
     };
 
@@ -251,9 +251,11 @@ const Battle = (() => {
     const SOUL_WISP_FPS = 4;
     const SOUL_WISP_FRAME_MS = 1000 / SOUL_WISP_FPS;
     const SOUL_WISP_ASSET_BASE = 'assets/vfx/soul_wisp';
+    const BLOOD_SCATTER_SRC = 'assets/vfx/blood-scatter.mp4';
+    const MONSTER_SPEED_MULTIPLIER = 1.3;
 
     const CONFIG = {
-        playerSpeed: 8,
+        playerSpeed: 10.4,
         playerHP: 5,
         dashSpeed: 55,
         dashDuration: 160,
@@ -443,6 +445,7 @@ const Battle = (() => {
     const AMULET_DAMAGE = 0.3;
     const AMULET_TICK_MS = 500;
     let amuletVideo = null;
+    let bloodScatterPreload = null;
     let amuletProcCanvas, amuletProcCtx;
     let lastAmuletDamageTick = 0;
 
@@ -533,6 +536,13 @@ const Battle = (() => {
         amuletVideo.muted = true;
         amuletVideo.playsInline = true;
         amuletVideo.preload = 'auto';
+
+        bloodScatterPreload = document.createElement('video');
+        bloodScatterPreload.src = BLOOD_SCATTER_SRC;
+        bloodScatterPreload.muted = true;
+        bloodScatterPreload.playsInline = true;
+        bloodScatterPreload.preload = 'auto';
+        bloodScatterPreload.load();
 
         amuletProcCanvas = document.createElement('canvas');
         amuletProcCanvas.width = AMULET_SIZE;
@@ -820,10 +830,11 @@ const Battle = (() => {
             durationSec: 18,
             speciesCount: 1,
             tier: 'minion',
-            packIntervalMs: 2150,
-            kickoffDelaysMs: [0, 560, 1120],
-            refillThreshold: 12,
-            softCap: 24,
+            packIntervalMs: 1550,
+            kickoffDelaysMs: [0, 380, 760, 1140],
+            refillThreshold: 11,
+            surgeThreshold: 7,
+            softCap: 22,
             announceLabel: 'WAVE 1'
         },
         {
@@ -831,10 +842,11 @@ const Battle = (() => {
             durationSec: 22,
             speciesCount: 1,
             tier: 'minion',
-            packIntervalMs: 1900,
-            kickoffDelaysMs: [0, 300, 760, 1220],
-            refillThreshold: 18,
-            softCap: 34,
+            packIntervalMs: 1320,
+            kickoffDelaysMs: [0, 260, 620, 960, 1300],
+            refillThreshold: 16,
+            surgeThreshold: 10,
+            softCap: 30,
             announceLabel: 'WAVE 2'
         },
         {
@@ -842,10 +854,11 @@ const Battle = (() => {
             durationSec: 24,
             speciesCount: 1,
             tier: 'minion',
-            packIntervalMs: 1600,
-            kickoffDelaysMs: [0, 240, 600, 980, 1360],
-            refillThreshold: 24,
-            softCap: 46,
+            packIntervalMs: 1120,
+            kickoffDelaysMs: [0, 220, 520, 820, 1120, 1420],
+            refillThreshold: 20,
+            surgeThreshold: 13,
+            softCap: 38,
             announceLabel: 'WAVE 3'
         },
         {
@@ -853,26 +866,27 @@ const Battle = (() => {
             durationSec: 26,
             speciesCount: 1,
             tier: 'boss',
-            packIntervalMs: 7600,
-            kickoffDelaysMs: [0],
-            refillThreshold: 2,
-            softCap: 4,
+            packIntervalMs: 3000,
+            kickoffDelaysMs: [0, 780],
+            refillThreshold: 3,
+            surgeThreshold: 2,
+            softCap: 7,
             announceLabel: 'WAVE 4 BOSS'
         }
     ];
     const PACK_ARCHETYPES = {
-        'plague-scavenger': { baseCount: 10, variance: 2, formations: ['line', 'wedge'], distScale: 0.98 },
-        'slag-ooze':        { baseCount: 6, variance: 1, formations: ['cluster', 'wedge'], distScale: 0.94 },
-        'stitch-ghoul':     { baseCount: 8, variance: 1, formations: ['cluster', 'line'], distScale: 0.97 },
-        'eclipse-wraith':   { baseCount: 7, variance: 1, formations: ['ringLoose', 'line'], distScale: 0.98 },
-        'ember-sprinter':   { baseCount: 10, variance: 2, formations: ['line', 'wedge'], distScale: 0.96 },
-        'furnace-thrall':   { baseCount: 6, variance: 1, formations: ['wedge', 'line'], distScale: 0.94 },
-        'cinder-guard':     { baseCount: 7, variance: 1, formations: ['cluster', 'wedge'], distScale: 0.96 },
-        'bone-cage-brute':  { baseCount: 5, variance: 1, formations: ['line', 'wedge'], distScale: 0.92 },
-        'frost-warden':     { baseCount: 7, variance: 1, formations: ['cluster', 'line'], distScale: 0.97 },
-        'frost-wisp':       { baseCount: 8, variance: 1, formations: ['ringLoose', 'line'], distScale: 0.98 },
-        'alchemy-beholder': { baseCount: 6, variance: 1, formations: ['ringLoose', 'cluster'], distScale: 0.98 },
-        'storm-idol':       { baseCount: 7, variance: 1, formations: ['wedge', 'line'], distScale: 0.97 }
+        'plague-scavenger': { baseCount: 9, variance: 1, formations: ['line', 'wedge'], distScale: 0.98 },
+        'slag-ooze':        { baseCount: 5, variance: 1, formations: ['cluster', 'wedge'], distScale: 0.94 },
+        'stitch-ghoul':     { baseCount: 7, variance: 1, formations: ['cluster', 'line'], distScale: 0.97 },
+        'eclipse-wraith':   { baseCount: 6, variance: 1, formations: ['ringLoose', 'line'], distScale: 0.98 },
+        'ember-sprinter':   { baseCount: 9, variance: 1, formations: ['line', 'wedge'], distScale: 0.96 },
+        'furnace-thrall':   { baseCount: 5, variance: 1, formations: ['wedge', 'line'], distScale: 0.94 },
+        'cinder-guard':     { baseCount: 6, variance: 1, formations: ['cluster', 'wedge'], distScale: 0.96 },
+        'bone-cage-brute':  { baseCount: 4, variance: 1, formations: ['line', 'wedge'], distScale: 0.92 },
+        'frost-warden':     { baseCount: 6, variance: 1, formations: ['cluster', 'line'], distScale: 0.97 },
+        'frost-wisp':       { baseCount: 7, variance: 1, formations: ['ringLoose', 'line'], distScale: 0.98 },
+        'alchemy-beholder': { baseCount: 5, variance: 1, formations: ['ringLoose', 'cluster'], distScale: 0.98 },
+        'storm-idol':       { baseCount: 6, variance: 1, formations: ['wedge', 'line'], distScale: 0.97 }
     };
     const RESIST_ABSORB_VISUAL_SCALE_STEPS = [0, 0.3, 0.62, 0.98];
     const NORMAL_DAMAGE_FALLOFF_STEPS = [
@@ -889,6 +903,7 @@ const Battle = (() => {
     const MONSTER_HIT_PAUSE_MS = 70;
     const MONSTER_ULTIMATE_HIT_PAUSE_MS = 90;
     const MONSTER_HIT_FLASH_MS = 110;
+    const MONSTER_HIT_SILHOUETTE_MS = 120;
     const MONSTER_ABSORB_PAUSE_MS = 110;
     const MONSTER_ABSORB_FEEDBACK_MS = 280;
     const MONSTER_DEATH_FADE_MS = 560;
@@ -950,63 +965,68 @@ const Battle = (() => {
 
     function buildWaveOnePackCycle(species) {
         return [
-            buildPack([buildSquad(species, { pattern: 'line', countScale: 1.06 })], 1650),
+            buildPack([buildSquad(species, { pattern: 'line', countScale: 0.94 })], 1400),
             buildPack([
-                buildSquad(species, { pattern: 'cluster', countScale: 0.88 }),
-                buildSquad(species, { pattern: 'wedge', countScale: 0.62, angleOffset: 0.16, delayMs: 180 })
-            ], 2100),
+                buildSquad(species, { pattern: 'cluster', countScale: 0.72 }),
+                buildSquad(species, { pattern: 'wedge', countScale: 0.48, angleOffset: 0.16, delayMs: 140 })
+            ], 1600),
             buildPack([
-                buildSquad(species, { pattern: 'line', countScale: 0.76, angleOffset: -0.24 }),
-                buildSquad(species, { pattern: 'line', countScale: 0.76, angleOffset: 0.24, delayMs: 220 })
-            ], 2200)
+                buildSquad(species, { pattern: 'line', countScale: 0.6, angleOffset: -0.24 }),
+                buildSquad(species, { pattern: 'line', countScale: 0.6, angleOffset: 0.24, delayMs: 180 })
+            ], 1700)
         ];
     }
 
     function buildWaveTwoPackCycle(species) {
         return [
-            buildPack([buildSquad(species, { pattern: 'line', countScale: 1.18 })], 1600),
-            buildPack([buildSquad(species, { pattern: 'cluster', countScale: 1.12 })], 1600),
+            buildPack([buildSquad(species, { pattern: 'line', countScale: 1.0 })], 1250),
+            buildPack([buildSquad(species, { pattern: 'cluster', countScale: 0.96 })], 1250),
             buildPack([
-                buildSquad(species, { pattern: 'wedge', countScale: 1.0, angleOffset: -0.18 }),
-                buildSquad(species, { pattern: 'line', countScale: 0.96, angleOffset: 0.22, delayMs: 300 })
-            ], 2000),
+                buildSquad(species, { pattern: 'wedge', countScale: 0.82, angleOffset: -0.18 }),
+                buildSquad(species, { pattern: 'line', countScale: 0.78, angleOffset: 0.22, delayMs: 240 })
+            ], 1450),
             buildPack([
-                buildSquad(species, { pattern: 'cluster', countScale: 0.88, angleOffset: -0.28 }),
-                buildSquad(species, { pattern: 'wedge', countScale: 0.88, angleOffset: 0.28, delayMs: 260 })
-            ], 2150)
+                buildSquad(species, { pattern: 'cluster', countScale: 0.68, angleOffset: -0.28 }),
+                buildSquad(species, { pattern: 'wedge', countScale: 0.72, angleOffset: 0.28, delayMs: 220 })
+            ], 1550)
         ];
     }
 
     function buildWaveThreePackCycle(species) {
         return [
             buildPack([
-                buildSquad(species, { pattern: 'line', countScale: 1.12 }),
-                buildSquad(species, { pattern: 'wedge', countScale: 0.88, angleOffset: 0.24, delayMs: 260 })
-            ], 1550),
+                buildSquad(species, { pattern: 'line', countScale: 0.96 }),
+                buildSquad(species, { pattern: 'wedge', countScale: 0.72, angleOffset: 0.24, delayMs: 220 })
+            ], 1100),
             buildPack([
-                buildSquad(species, { pattern: 'cluster', countScale: 1.1 }),
-                buildSquad(species, { pattern: 'line', countScale: 0.82, angleOffset: -0.26, delayMs: 220 })
-            ], 1600),
+                buildSquad(species, { pattern: 'cluster', countScale: 0.92 }),
+                buildSquad(species, { pattern: 'line', countScale: 0.62, angleOffset: -0.26, delayMs: 180 })
+            ], 1180),
             buildPack([
-                buildSquad(species, { pattern: 'ringLoose', countScale: 1.0, angleOffset: -0.18 }),
-                buildSquad(species, { pattern: 'wedge', countScale: 0.94, angleOffset: 0.2, delayMs: 240 })
-            ], 1650),
+                buildSquad(species, { pattern: 'ringLoose', countScale: 0.82, angleOffset: -0.18 }),
+                buildSquad(species, { pattern: 'wedge', countScale: 0.76, angleOffset: 0.2, delayMs: 190 })
+            ], 1220),
             buildPack([
-                buildSquad(species, { pattern: 'line', countScale: 0.84, angleOffset: -0.35 }),
-                buildSquad(species, { pattern: 'cluster', countScale: 0.82, angleOffset: 0, delayMs: 180 }),
-                buildSquad(species, { pattern: 'wedge', countScale: 0.84, angleOffset: 0.35, delayMs: 420 })
-            ], 1900)
+                buildSquad(species, { pattern: 'line', countScale: 0.64, angleOffset: -0.35 }),
+                buildSquad(species, { pattern: 'cluster', countScale: 0.62, angleOffset: 0, delayMs: 150 }),
+                buildSquad(species, { pattern: 'wedge', countScale: 0.66, angleOffset: 0.35, delayMs: 340 })
+            ], 1400)
         ];
     }
 
     function buildBossPackCycle(bossSpecies) {
-        return buildPack([
-            buildSquad(bossSpecies, { tier: 'boss', fixedCount: 1, pattern: 'cluster', distScale: 0.98 })
-        ], 9000);
+        return [
+            buildPack([buildSquad(bossSpecies, { tier: 'boss', fixedCount: 2, pattern: 'line', distScale: 0.92 })], 2600),
+            buildPack([buildSquad(bossSpecies, { tier: 'boss', fixedCount: 3, pattern: 'wedge', distScale: 0.9 })], 3200),
+            buildPack([
+                buildSquad(bossSpecies, { tier: 'boss', fixedCount: 2, pattern: 'cluster', distScale: 0.88, angleOffset: -0.18 }),
+                buildSquad(bossSpecies, { tier: 'boss', fixedCount: 2, pattern: 'line', distScale: 0.9, angleOffset: 0.2, delayMs: 220 })
+            ], 3600)
+        ];
     }
 
     function buildWavePackCycle(template, species) {
-        if (template.tier === 'boss') return [buildBossPackCycle(species[0])];
+        if (template.tier === 'boss') return buildBossPackCycle(species[0]);
         if (template.number === 1) return buildWaveOnePackCycle(species[0]);
         if (template.number === 2) return buildWaveTwoPackCycle(species[0]);
         return buildWaveThreePackCycle(species[0]);
@@ -1070,12 +1090,12 @@ const Battle = (() => {
         });
     }
 
-    function dispatchNextPack(wave, now, delayMs = 0) {
+    function dispatchNextPack(wave, now, delayMs = 0, cooldownScale = 1) {
         if (!wave.packCycle || wave.packCycle.length === 0) return;
         const pack = wave.packCycle[wave.packCursor % wave.packCycle.length];
         wave.packCursor = (wave.packCursor + 1) % wave.packCycle.length;
         enqueuePack(pack, now + delayMs);
-        wave.nextPackAt = now + delayMs + (pack.cooldownMs || wave.packIntervalMs);
+        wave.nextPackAt = now + delayMs + Math.max(180, (pack.cooldownMs || wave.packIntervalMs) * cooldownScale);
     }
 
     function flushSpawnQueue(now) {
@@ -1123,14 +1143,16 @@ const Battle = (() => {
 
         const aliveCount = getLivingMonsterCount();
         const queuedCount = getQueuedSpawnCount();
-        const shouldDispatch = now >= wave.nextPackAt || aliveCount <= wave.refillThreshold;
+        const pressureCount = aliveCount + queuedCount;
+        const shouldSurge = pressureCount <= (Number(wave.surgeThreshold) || 0);
+        const shouldDispatch = now >= wave.nextPackAt || aliveCount <= wave.refillThreshold || shouldSurge;
         if (!shouldDispatch) return;
-        if (aliveCount + queuedCount >= Math.min(MAX_MONSTERS, wave.softCap)) {
-            wave.nextPackAt = now + 320;
+        if (pressureCount >= Math.min(MAX_MONSTERS, wave.softCap)) {
+            wave.nextPackAt = now + 220;
             return;
         }
 
-        dispatchNextPack(wave, now);
+        dispatchNextPack(wave, now, 0, shouldSurge ? 0.72 : 1);
     }
 
     function getMonsterAbsorbVisualScaleBonus(monster) {
@@ -1185,7 +1207,10 @@ const Battle = (() => {
         monster.immuneAttrs = [...(profile.immuneAttrs || [])];
         monster.movePattern = profile.movePattern || 'direct';
         monster.groupPattern = profile.groupPattern || 'cluster';
-        monster.speed = (Number(monster.baseSpeed) || tierDef.speedRange[0]) * speedScale;
+        monster.speed = (Number(monster.baseSpeed) || tierDef.speedRange[0])
+            * speedScale
+            * (Number(monster.individualSpeedScale) || 1)
+            * MONSTER_SPEED_MULTIPLIER;
         monster.baseMaxHp = Math.max(1, Math.round(tierDef.hp * hpScale));
         monster.maxHp = monster.baseMaxHp;
         monster.hp = monster.baseMaxHp;
@@ -1243,6 +1268,22 @@ const Battle = (() => {
                     distOffset: slot.row * 94 - 42 + jitter() * 18
                 };
         }
+    }
+
+    function getMonsterTargetPoint(monster, now) {
+        const anchor = Number(monster.groupAnchorAngle ?? monster.spawnAngle) || 0;
+        const anchorX = Math.cos(anchor);
+        const anchorY = Math.sin(anchor);
+        const perpX = -anchorY;
+        const perpY = anchorX;
+        const wobble = Math.sin((now - monster.spawnTime) * 0.0018 + (monster.targetOffsetPhase || 0))
+            * (Number(monster.targetOffsetWobble) || 0);
+        const laneOffset = (Number(monster.groupLaneOffset) || 0) + wobble;
+        const forwardOffset = Number(monster.groupForwardOffset) || 0;
+        return {
+            x: player.x + anchorX * forwardOffset + perpX * laneOffset,
+            y: player.y + anchorY * forwardOffset + perpY * laneOffset * 0.82
+        };
     }
 
     function getMonsterVelocity(monster, dx, dy, distance, now) {
@@ -1306,6 +1347,7 @@ const Battle = (() => {
         const pauseMs = isUltimate ? MONSTER_ULTIMATE_HIT_PAUSE_MS : MONSTER_HIT_PAUSE_MS;
         monster.hitPauseUntil = Math.max(Number(monster.hitPauseUntil) || 0, now + pauseMs);
         monster.flashEnd = Math.max(Number(monster.flashEnd) || 0, now + MONSTER_HIT_FLASH_MS);
+        monster.hitSilhouetteEnd = Math.max(Number(monster.hitSilhouetteEnd) || 0, now + MONSTER_HIT_SILHOUETTE_MS);
     }
 
     function getMonsterAbsorbFeedback(monster, now) {
@@ -1390,6 +1432,35 @@ const Battle = (() => {
         return baseDamage * falloffSteps[falloffSteps.length - 1].multiplier;
     }
 
+    function createAutoVideo(src, options = null) {
+        const video = document.createElement('video');
+        video.src = src;
+        video.loop = !!options?.loop;
+        video.muted = options?.muted !== false;
+        video.playsInline = true;
+        video.preload = options?.preload || 'auto';
+        video.play().catch(() => {});
+        return video;
+    }
+
+    function spawnBloodScatterEffect(monster, now) {
+        const size = Math.max(240, Math.round((Number(monster.w) || 240) * (monster.tier === 'boss' ? 1.35 : 1.05)));
+        activeEffects.push({
+            x: monster.x,
+            y: monster.y - Math.max(12, size * 0.08),
+            size,
+            video: createAutoVideo(BLOOD_SCATTER_SRC),
+            startTime: now,
+            damageApplied: true,
+            renderTop: false,
+            effectKind: 'bloodScatter',
+            persistMs: 1100,
+            alphaKeyThreshold: 18,
+            hardCutThreshold: 4,
+            holdAlpha: 0.94
+        });
+    }
+
     function spawnHordeGroup(species, count, tier, options = null) {
         // Spawn a same-species group with lightweight formation variance.
         const baseAngle = options?.baseAngle != null ? options.baseAngle : Math.random() * Math.PI * 2;
@@ -1441,12 +1512,16 @@ const Battle = (() => {
         const spawnDist = distOverride || (Math.max(CANVAS_W, CANVAS_H) * 0.6 + 100);
         const x = player.x + Math.cos(angle) * spawnDist;
         const y = player.y + Math.sin(angle) * spawnDist * 0.6;
+        const groupIndex = groupMeta?.groupIndex ?? 0;
+        const groupCount = groupMeta?.groupCount ?? 1;
+        const centered = groupCount > 1 ? (groupIndex / (groupCount - 1)) - 0.5 : 0;
 
         const species = speciesOverride || def.species[Math.floor(Math.random() * def.species.length)];
         const specDef = MOB_SPECIES[species];
         const monster = {
             x, y, tier, species,
             baseSpeed: def.speedRange[0] + Math.random() * (def.speedRange[1] - def.speedRange[0]),
+            individualSpeedScale: 0.9 + Math.random() * 0.2,
             speed: 0,
             hp: def.hp,
             maxHp: def.hp,
@@ -1467,6 +1542,7 @@ const Battle = (() => {
             knockbackVX: 0,
             knockbackVY: 0,
             flashEnd: 0,
+            hitSilhouetteEnd: 0,
             hitPauseUntil: 0,
             absorbFeedbackStart: 0,
             absorbFeedbackColor: null,
@@ -1477,8 +1553,12 @@ const Battle = (() => {
             groupId: groupMeta?.groupId ?? 0,
             groupPattern: groupMeta?.groupPattern || 'cluster',
             groupAnchorAngle: groupMeta?.groupAnchorAngle ?? angle,
-            groupIndex: groupMeta?.groupIndex ?? 0,
-            groupCount: groupMeta?.groupCount ?? 1,
+            groupIndex,
+            groupCount,
+            groupLaneOffset: centered * 132 + (Math.random() - 0.5) * 24,
+            groupForwardOffset: -28 + Math.abs(centered) * 70 + (Math.random() - 0.5) * 28,
+            targetOffsetWobble: 14 + Math.random() * 14,
+            targetOffsetPhase: Math.random() * Math.PI * 2,
             movePattern: 'direct'
         };
 
@@ -1667,6 +1747,7 @@ const Battle = (() => {
                 m.deathStart = now;
                 m.hitPauseUntil = 0;
                 m.absorbFeedbackStart = 0;
+                spawnBloodScatterEffect(m, now);
                 spawnSoulWisp(m.x, m.y - 50, m.score, now);
                 floatingTexts.push({
                     x: m.x,
@@ -1698,14 +1779,15 @@ const Battle = (() => {
                 m.knockbackVY *= 0.85;
             }
 
-            const dx = player.x - m.x;
-            const dy = player.y - m.y;
+            const targetPoint = getMonsterTargetPoint(m, now);
+            const dx = targetPoint.x - m.x;
+            const dy = targetPoint.y - m.y;
             const d = Math.sqrt(dx * dx + dy * dy);
             if (!isHitPaused && d > 0) {
                 const velocity = getMonsterVelocity(m, dx, dy, d, now);
                 m.x += velocity.vx;
                 m.y += velocity.vy;
-                m.facingLeft = dx < 0;
+                m.facingLeft = targetPoint.x < m.x;
             }
 
             // Animate sprite frames
@@ -1758,7 +1840,7 @@ const Battle = (() => {
                 const dy = m.y - player.y;
                 if (dx * dx + dy * dy < auraRadius * auraRadius) {
                     m.hp -= AMULET_DAMAGE;
-                    m.flashEnd = now + 120;
+                    applyMonsterHitFeedback(m, now, false);
                 }
             });
         }
@@ -1766,7 +1848,7 @@ const Battle = (() => {
         // Cleanup effects
         activeEffects = activeEffects.filter(e => {
             const age = now - e.startTime;
-            const dur = e.video ? (e.video.duration * 1000 || 3000) : 1500;
+            const dur = getEffectDurationMs(e);
             return age < dur + 200;
         });
 
@@ -2125,22 +2207,19 @@ const Battle = (() => {
         drawLightOrbs(now);
 
         // Layer 4a: Effect bottom layer (processFrame + lighten)
-        let lastProcessedVideo = null;
         activeEffects.forEach(eff => {
-            if (eff.video && eff.video.readyState >= 2 && !eff.video.ended) {
+            if (eff.video) {
                 const alpha = effectAlpha(eff, now);
                 if (alpha <= 0) return;
-                if (eff.video !== lastProcessedVideo) {
-                    processFrame(eff.video);
-                    lastProcessedVideo = eff.video;
-                }
+                const frameSurface = getEffectFrameSurface(eff);
+                if (!frameSurface) return;
                 const ex = w2sx(eff.x), ey = w2sy(eff.y);
                 const half = eff.size / 2;
 
                 ctx.save();
-                ctx.globalCompositeOperation = 'lighten';
+                ctx.globalCompositeOperation = eff.effectKind === 'bloodScatter' ? 'source-over' : 'lighten';
                 ctx.globalAlpha = alpha;
-                ctx.drawImage(procCanvas, ex - half, ey - half, eff.size, eff.size);
+                ctx.drawImage(frameSurface, ex - half, ey - half, eff.size, eff.size);
                 ctx.restore();
             } else if (!eff.video) {
                 drawFallbackEffect(eff, now);
@@ -2163,20 +2242,18 @@ const Battle = (() => {
         });
 
         // Layer 4c: Effect top layer (gradient mask + lighten for 2.5D occlusion)
-        let lastProcessedVideo2 = null;
         activeEffects.forEach(eff => {
-            if (eff.video && eff.video.readyState >= 2 && !eff.video.ended) {
+            if (eff.video) {
+                if (eff.renderTop === false) return;
                 const alpha = effectAlpha(eff, now);
                 if (alpha <= 0) return;
-                if (eff.video !== lastProcessedVideo2) {
-                    processFrame(eff.video);
-                    lastProcessedVideo2 = eff.video;
-                }
+                const frameSurface = getEffectFrameSurface(eff);
+                if (!frameSurface) return;
 
                 // Gradient mask: top 30% opaque → sharp transition → bottom 60% transparent
                 maskCtx.clearRect(0, 0, EFFECT_SIZE, EFFECT_SIZE);
                 maskCtx.save();
-                maskCtx.drawImage(procCanvas, 0, 0, EFFECT_SIZE, EFFECT_SIZE);
+                maskCtx.drawImage(frameSurface, 0, 0, EFFECT_SIZE, EFFECT_SIZE);
                 maskCtx.globalCompositeOperation = 'destination-in';
                 const grad = maskCtx.createLinearGradient(0, 0, 0, EFFECT_SIZE);
                 grad.addColorStop(0, 'rgba(0,0,0,1)');
@@ -2276,21 +2353,65 @@ const Battle = (() => {
         ctx.restore();
     }
 
-    function processFrame(v) {
+    function processFrame(v, options = null) {
         procCtx.clearRect(0, 0, EFFECT_SIZE, EFFECT_SIZE);
         procCtx.drawImage(v, 0, 0, EFFECT_SIZE, EFFECT_SIZE);
         const frame = procCtx.getImageData(0, 0, EFFECT_SIZE, EFFECT_SIZE);
         const d = frame.data;
+        const alphaKeyThreshold = Number(options?.alphaKeyThreshold) || 40;
+        const hardCutThreshold = Number(options?.hardCutThreshold) || 10;
         for (let i = 0; i < d.length; i += 4) {
             const avg = (d[i] + d[i + 1] + d[i + 2]) / 3;
-            if (avg < 40) d[i + 3] = avg < 10 ? 0 : d[i + 3] * ((avg - 10) / 30);
+            if (avg < alphaKeyThreshold) {
+                d[i + 3] = avg < hardCutThreshold
+                    ? 0
+                    : d[i + 3] * ((avg - hardCutThreshold) / Math.max(1, alphaKeyThreshold - hardCutThreshold));
+            }
         }
         procCtx.putImageData(frame, 0, 0);
     }
 
+    function getEffectDurationMs(eff) {
+        const baseDuration = eff.durationMs
+            || (eff.video ? (eff.video.duration * 1000 || 3000) : 1500);
+        return baseDuration + (Number(eff.persistMs) || 0);
+    }
+
+    function cacheFrozenEffectFrame(eff) {
+        if (!eff.frozenFrameCanvas) {
+            eff.frozenFrameCanvas = document.createElement('canvas');
+            eff.frozenFrameCanvas.width = EFFECT_SIZE;
+            eff.frozenFrameCanvas.height = EFFECT_SIZE;
+            eff.frozenFrameCtx = eff.frozenFrameCanvas.getContext('2d');
+        }
+        eff.frozenFrameCtx.clearRect(0, 0, EFFECT_SIZE, EFFECT_SIZE);
+        eff.frozenFrameCtx.drawImage(procCanvas, 0, 0);
+    }
+
+    function getEffectFrameSurface(eff) {
+        if (!eff?.video) return null;
+        if (eff.video.readyState >= 2 && !eff.video.ended) {
+            processFrame(eff.video, eff);
+            if ((Number(eff.persistMs) || 0) > 0) cacheFrozenEffectFrame(eff);
+            return procCanvas;
+        }
+        return eff.frozenFrameCanvas || null;
+    }
+
     function effectAlpha(eff, now) {
         const age = now - eff.startTime;
-        const dur = eff.video ? (eff.video.duration * 1000 || 3000) : 1500;
+        const dur = getEffectDurationMs(eff);
+        if (eff.effectKind === 'bloodScatter') {
+            const eruptMs = 120;
+            const videoMs = eff.durationMs || (eff.video ? (eff.video.duration * 1000 || 700) : 700);
+            const persistMs = Number(eff.persistMs) || 0;
+            const holdAlpha = Number(eff.holdAlpha) || 0.92;
+            if (age <= eruptMs) return clamp01(age / eruptMs);
+            if (age <= videoMs + persistMs * 0.45) return holdAlpha;
+            const fadeStart = Math.max(videoMs, dur - persistMs);
+            return age <= fadeStart ? holdAlpha : holdAlpha * Math.max(0, 1 - (age - fadeStart) / Math.max(1, dur - fadeStart));
+        }
+
         const fadeOut = dur - 800;
         return Math.min(Math.min(1, age / 200), Math.max(0, 1 - (age - fadeOut) / 800));
     }
@@ -2515,6 +2636,40 @@ const Battle = (() => {
         ctx.restore();
     }
 
+    function drawMonsterSilhouetteTint(img, sx, sy, w, bob, facingLeft, color, alpha) {
+        if (!img || alpha <= 0) return;
+
+        const ratio = img.naturalHeight / img.naturalWidth;
+        const drawW = Math.ceil(w);
+        const drawH = Math.ceil(w * ratio);
+        if (drawW < 1 || drawH < 1) return;
+
+        shadowCanvas.width = drawW;
+        shadowCanvas.height = drawH;
+        shadowCtx.clearRect(0, 0, drawW, drawH);
+        if (facingLeft) {
+            shadowCtx.save();
+            shadowCtx.translate(drawW, 0);
+            shadowCtx.scale(-1, 1);
+            shadowCtx.drawImage(img, 0, 0, drawW, drawH);
+            shadowCtx.restore();
+        } else {
+            shadowCtx.drawImage(img, 0, 0, drawW, drawH);
+        }
+
+        shadowCtx.save();
+        shadowCtx.globalCompositeOperation = 'source-atop';
+        shadowCtx.fillStyle = color;
+        shadowCtx.fillRect(0, 0, drawW, drawH);
+        shadowCtx.restore();
+
+        ctx.save();
+        ctx.globalCompositeOperation = 'screen';
+        ctx.globalAlpha = alpha;
+        ctx.drawImage(shadowCanvas, sx - drawW / 2, sy - drawH + bob, drawW, drawH);
+        ctx.restore();
+    }
+
     function drawMonsterSpriteTopSegment(img, sx, sy, w, bob, facingLeft, filter, visibleRatio, yLift) {
         const clippedRatio = clamp01(visibleRatio);
         if (clippedRatio <= 0) return;
@@ -2572,21 +2727,6 @@ const Battle = (() => {
         const renderWidth = absorbFeedback ? absorbFeedback.width : m.w;
 
         if (isDying) {
-            const deathProgress = Math.min(1, (now - m.deathStart) / MONSTER_DEATH_FADE_MS);
-            const img = getMonsterFrame(m, flashFrame);
-            if (!img) return;
-            const yLift = deathProgress * 18;
-            const fadeFilter = 'saturate(0.72) brightness(1.04)';
-
-            ctx.save();
-            ctx.globalAlpha = 0.18 * (1 - deathProgress);
-            drawMonsterSprite(img, sx, sy, m.w, -yLift * 0.35, facing, fadeFilter);
-            ctx.restore();
-
-            ctx.save();
-            ctx.globalAlpha = Math.max(0, 1 - deathProgress * 0.72);
-            drawMonsterSpriteTopSegment(img, sx, sy, m.w, 0, facing, fadeFilter, 1 - deathProgress, yLift);
-            ctx.restore();
             return;
         }
 
@@ -2625,6 +2765,14 @@ const Battle = (() => {
                     drawMonsterSprite(img, sx, sy, renderWidth, bob, facing, 'brightness(1.8) saturate(0.8)');
                     ctx.restore();
                 }
+            }
+
+            const silhouetteAlpha = Math.max(
+                0,
+                Math.min(0.78, ((Number(m.hitSilhouetteEnd) || 0) - now) / MONSTER_HIT_SILHOUETTE_MS)
+            );
+            if (silhouetteAlpha > 0) {
+                drawMonsterSilhouetteTint(img, sx, sy, renderWidth, bob, facing, '#ffffff', silhouetteAlpha);
             }
         } else {
             ctx.fillStyle = isFlashing ? '#f33' : '#a33';

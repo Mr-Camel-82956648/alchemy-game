@@ -10,12 +10,14 @@ const Alchemy = (() => {
         els.slotB = document.getElementById('slot-b');
         els.startBtn = document.getElementById('btn-start');
         els.loadoutBtn = document.getElementById('btn-loadout');
+        els.forgeReturnBtn = document.getElementById('btn-forge-return');
         els.cauldronResult = document.getElementById('cauldron-result');
 
         els.slotA.addEventListener('click', () => Collection.open('A'));
         els.slotB.addEventListener('click', () => Collection.open('B'));
         els.startBtn.addEventListener('click', onStart);
         els.loadoutBtn.addEventListener('click', () => Loadout.open());
+        if (els.forgeReturnBtn) els.forgeReturnBtn.addEventListener('click', onForgeReturn);
 
 
         refreshSlots();
@@ -104,6 +106,14 @@ const Alchemy = (() => {
             popup.style.display = 'none';
             App.switchPage('battle');
         };
+    }
+
+    function onForgeReturn() {
+        const popup = document.getElementById('forge-popup');
+        if (popup) popup.style.display = 'none';
+        ForgeAPI.stopPolling();
+        GameStorage.clearPending();
+        refreshSlots();
     }
 
     let revealedCard = null;

@@ -301,7 +301,16 @@ body {
     right: 4%;
     bottom: 4%;
 }
+.forge-popup .forge-return-btn {
+    position: absolute;
+    left: 4%;
+    bottom: 4%;
+}
 .forge-popup .forge-confirm-btn img {
+    height: 80px;
+    width: auto;
+}
+.forge-popup .forge-return-btn img {
     height: 80px;
     width: auto;
 }
@@ -751,8 +760,19 @@ body {
     border: none;
     background: none;
     border-radius: 0;
+    box-shadow: none;
 }
 .btn-confirm.icon-btn img {
+    height: 80px;
+}
+.btn-cancel.icon-btn {
+    padding: 0;
+    border: none;
+    background: none;
+    border-radius: 0;
+    box-shadow: none;
+}
+.btn-cancel.icon-btn img {
     height: 80px;
 }
 .btn-confirm:not(.icon-btn) {
@@ -1008,6 +1028,20 @@ body {
     transition: transform 0.2s, filter 0.2s, background 0.2s;
     box-shadow: 0 16px 36px rgba(0,0,0,0.42), 0 0 32px rgba(0,0,0,0.28);
 }
+.battle-result-screen .btn-overlay.icon-btn {
+    min-width: 0;
+    height: auto;
+    padding: 0;
+    border: none;
+    border-radius: 0;
+    background: none;
+    box-shadow: none;
+}
+.battle-result-screen .btn-overlay.icon-btn img {
+    height: 86px;
+    width: auto;
+    display: block;
+}
 .battle-result-screen .btn-overlay:hover {
     transform: scale(1.04);
     filter: brightness(1.08);
@@ -1016,6 +1050,9 @@ body {
     border-color: rgba(208, 222, 233, 0.86);
     background: linear-gradient(180deg, rgba(70, 84, 96, 0.94), rgba(38, 46, 54, 0.94));
     color: #edf5fb;
+}
+.battle-result-screen .btn-overlay.secondary.icon-btn {
+    background: none;
 }
 #btn-victory-return {
     right: 4%;

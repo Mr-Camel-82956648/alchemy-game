@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>炼金法阵</title>
-    <link rel="stylesheet" href="css/style.css?v=phase4-results-fix4">
+    <link rel="stylesheet" href="css/style.css?v=phase6-polish1">
 </head>
 <body>
     <div id="app">
@@ -63,6 +63,9 @@
 
                 <!-- 合成前叙事弹窗 -->
                 <div id="forge-popup" class="forge-popup" style="display:none">
+                    <button id="btn-forge-return" class="icon-btn forge-return-btn">
+                        <img src="assets/icon/return_to_lianjinshi.png" alt="返回炼金室">
+                    </button>
                     <button id="btn-forge-confirm" class="icon-btn forge-confirm-btn">
                         <img src="assets/icon/queren.png" alt="确认">
                     </button>
@@ -120,8 +123,12 @@
                     <p class="modal-title">在石板上刻下咒语——</p>
                     <input id="spell-input" type="text" class="spell-input" placeholder="输入咒语名称..." maxlength="20">
                     <div class="modal-actions">
-                        <button id="btn-spell-confirm" class="btn-confirm">确认</button>
-                        <button id="btn-spell-cancel" class="btn-cancel">取消</button>
+                        <button id="btn-spell-confirm" class="icon-btn btn-confirm">
+                            <img src="assets/icon/queren.png" alt="确认">
+                        </button>
+                        <button id="btn-spell-cancel" class="icon-btn btn-cancel">
+                            <img src="assets/icon/fanhui.png" alt="取消">
+                        </button>
                     </div>
                 </div>
             </div>
@@ -197,7 +204,9 @@
                 <div class="battle-result-copy">
                     <h2>法阵炼成完毕！</h2>
                     <p>能量已充满，新法阵即将诞生</p>
-                    <button id="btn-victory-return" class="btn-overlay">确认</button>
+                    <button id="btn-victory-return" class="btn-overlay icon-btn">
+                        <img src="assets/icon/queren.png" alt="确认">
+                    </button>
                 </div>
             </div>
 
@@ -206,8 +215,12 @@
                 <div class="overlay-panel defeat">
                     <h2>能量不足...</h2>
                     <p>炼金失败，但素材未消耗</p>
-                    <button id="btn-retry" class="btn-overlay">再试一次</button>
-                    <button id="btn-defeat-return" class="btn-overlay secondary">返回炼金室</button>
+                    <button id="btn-retry" class="btn-overlay icon-btn">
+                        <img src="assets/icon/try_again.png" alt="再试一次">
+                    </button>
+                    <button id="btn-defeat-return" class="btn-overlay secondary icon-btn">
+                        <img src="assets/icon/return_to_lianjinshi.png" alt="返回炼金室">
+                    </button>
                 </div>
             </div>
 
@@ -266,8 +279,8 @@
     <script src="js/forgeAPI.js?v=phase3"></script>
     <script src="js/collection.js?v=phase3"></script>
     <script src="js/loadout.js?v=phase3"></script>
-    <script src="js/alchemy.js?v=phase3"></script>
-    <script src="js/battle.js?v=phase5-wave-rule4"></script>
+    <script src="js/alchemy.js?v=phase6-polish1"></script>
+    <script src="js/battle.js?v=phase6-polish1"></script>
     <script src="js/main.js?v=phase3"></script>
 </body>
 </html>
