@@ -1028,12 +1028,44 @@ const Battle = (() => {
         return buildWaveThreePackCycle(species[0]);
     }
 
+    function interleaveWavePackCycles(cycles) {
+        const merged = [];
+        const maxLen = cycles.reduce((max, cycle) => Math.max(max, cycle.length), 0);
+        for (let i = 0; i < maxLen; i++) {
+            cycles.forEach(cycle => {
+                if (i < cycle.length) merged.push(cycle[i]);
+            });
+        }
+        return merged;
+    }
+
+    function getAccumulatedWaveLimits(waves, index) {
+        if (index <= 0) {
+            return {
+                refillThreshold: waves[index].refillThreshold,
+                surgeThreshold: waves[index].surgeThreshold,
+                softCap: waves[index].softCap
+            };
+        }
+
+        const previousWaves = waves.slice(0, index);
+        const refillBonus = previousWaves.reduce((sum, wave) => sum + wave.refillThreshold * 0.35, 0);
+        const surgeBonus = previousWaves.reduce((sum, wave) => sum + wave.surgeThreshold * 0.35, 0);
+        const softCapBonus = previousWaves.reduce((sum, wave) => sum + wave.softCap * 0.4, 0);
+
+        return {
+            refillThreshold: Math.round(waves[index].refillThreshold + refillBonus),
+            surgeThreshold: Math.round(waves[index].surgeThreshold + surgeBonus),
+            softCap: Math.round(waves[index].softCap + softCapBonus)
+        };
+    }
+
     function buildWavePlan() {
         const selectedCategories = shuffleArray(Object.keys(SMALL_MONSTER_POOLS)).slice(0, 3);
         const waveSpecies = selectedCategories.map(category => [pickRandom(SMALL_MONSTER_POOLS[category])]);
 
         let cursorSec = 0;
-        return WAVE_TEMPLATES.map((template, index) => {
+        const baseWaves = WAVE_TEMPLATES.map((template, index) => {
             const startSec = cursorSec;
             const endSec = cursorSec + template.durationSec;
             cursorSec = endSec;
@@ -1048,12 +1080,26 @@ const Battle = (() => {
                 nextPackAt: 0,
                 packCursor: 0,
                 startedAt: 0,
+                basePackCycle: [],
                 packCycle: []
             };
         }).map(wave => ({
             ...wave,
-            packCycle: buildWavePackCycle(wave, wave.species)
+            basePackCycle: buildWavePackCycle(wave, wave.species)
         }));
+
+        return baseWaves.map((wave, index, waves) => {
+            const inheritedCycles = waves
+                .slice(0, index + 1)
+                .map(candidate => candidate.basePackCycle)
+                .reverse();
+            const limits = getAccumulatedWaveLimits(waves, index);
+            return {
+                ...wave,
+                ...limits,
+                packCycle: interleaveWavePackCycles(inheritedCycles)
+            };
+        });
     }
 
     function getCurrentWaveIndex() {
@@ -1290,7 +1336,6 @@ const Battle = (() => {
         wave.startedAt = now;
         wave.nextPackAt = now + wave.packIntervalMs;
         wave.packCursor = 0;
-        spawnQueue = [];
         closeGapState = { activeUntil: 0, reservePacks: 0, sectorCursor: 0, nextDispatchAt: 0, sectorAngles: [] };
         waveNumber = wave.number;
         waveState = 'fighting';
