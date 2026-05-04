@@ -251,13 +251,9 @@ const Battle = (() => {
     const SOUL_WISP_FPS = 4;
     const SOUL_WISP_FRAME_MS = 1000 / SOUL_WISP_FPS;
     const SOUL_WISP_ASSET_BASE = 'assets/vfx/soul_wisp';
-    const BLOOD_SCATTER_SRC = 'assets/vfx/blood-scatter.mp4';
     const MONSTER_SPEED_MULTIPLIER = 1.3;
     const SOUL_WISP_ALPHA_MULTIPLIER = 1.2;
     const SOUL_WISP_SIZE_MULTIPLIER = 1.5;
-    const BLOOD_SCATTER_SIZE_MULTIPLIER = 2;
-    const BLOOD_SCATTER_Y_OFFSET = 240;
-    const BLOOD_SCATTER_EXTRA_Y_DROP = 150;
 
     const CONFIG = {
         playerSpeed: 10.4,
@@ -450,7 +446,6 @@ const Battle = (() => {
     const AMULET_DAMAGE = 0.3;
     const AMULET_TICK_MS = 500;
     let amuletVideo = null;
-    let bloodScatterPreload = null;
     let amuletProcCanvas, amuletProcCtx;
     let lastAmuletDamageTick = 0;
 
@@ -541,13 +536,6 @@ const Battle = (() => {
         amuletVideo.muted = true;
         amuletVideo.playsInline = true;
         amuletVideo.preload = 'auto';
-
-        bloodScatterPreload = document.createElement('video');
-        bloodScatterPreload.src = BLOOD_SCATTER_SRC;
-        bloodScatterPreload.muted = true;
-        bloodScatterPreload.playsInline = true;
-        bloodScatterPreload.preload = 'auto';
-        bloodScatterPreload.load();
 
         amuletProcCanvas = document.createElement('canvas');
         amuletProcCanvas.width = AMULET_SIZE;
@@ -1433,38 +1421,6 @@ const Battle = (() => {
         return baseDamage * falloffSteps[falloffSteps.length - 1].multiplier;
     }
 
-    function createAutoVideo(src, options = null) {
-        const video = document.createElement('video');
-        video.src = src;
-        video.loop = !!options?.loop;
-        video.muted = options?.muted !== false;
-        video.playsInline = true;
-        video.preload = options?.preload || 'auto';
-        video.play().catch(() => {});
-        return video;
-    }
-
-    function spawnBloodScatterEffect(monster, now) {
-        const size = Math.max(
-            480,
-            Math.round((Number(monster.w) || 240) * (monster.tier === 'boss' ? 1.35 : 1.05) * BLOOD_SCATTER_SIZE_MULTIPLIER)
-        );
-        activeEffects.push({
-            x: monster.x,
-            y: monster.y - Math.max(12, size * 0.08) - BLOOD_SCATTER_Y_OFFSET + BLOOD_SCATTER_EXTRA_Y_DROP,
-            size,
-            video: createAutoVideo(BLOOD_SCATTER_SRC),
-            startTime: now,
-            damageApplied: true,
-            renderTop: false,
-            effectKind: 'bloodScatter',
-            persistMs: 1100,
-            alphaKeyThreshold: 18,
-            hardCutThreshold: 4,
-            holdAlpha: 0.94
-        });
-    }
-
     function beginMonsterDeath(monster, now) {
         if (monster.isDying) return;
         monster.isDying = true;
@@ -1730,7 +1686,6 @@ const Battle = (() => {
                         }
                         if (hitResult.damage <= 0) return;
 
-                        spawnBloodScatterEffect(m, now);
                         m.hp -= hitResult.damage;
 
                         const dx = m.x - eff.x;
@@ -1845,7 +1800,6 @@ const Battle = (() => {
                 const dx = m.x - player.x;
                 const dy = m.y - player.y;
                 if (dx * dx + dy * dy < auraRadius * auraRadius) {
-                    spawnBloodScatterEffect(m, now);
                     m.hp -= AMULET_DAMAGE;
                     applyMonsterHitFeedback(m, now);
                     if (m.hp <= 0) beginMonsterDeath(m, now);
@@ -2225,7 +2179,7 @@ const Battle = (() => {
                 const half = eff.size / 2;
 
                 ctx.save();
-                ctx.globalCompositeOperation = eff.effectKind === 'bloodScatter' ? 'source-over' : 'lighten';
+                ctx.globalCompositeOperation = 'lighten';
                 ctx.globalAlpha = alpha;
                 ctx.drawImage(frameSurface, ex - half, ey - half, eff.size, eff.size);
                 ctx.restore();
@@ -2409,17 +2363,6 @@ const Battle = (() => {
     function effectAlpha(eff, now) {
         const age = now - eff.startTime;
         const dur = getEffectDurationMs(eff);
-        if (eff.effectKind === 'bloodScatter') {
-            const eruptMs = 120;
-            const videoMs = eff.durationMs || (eff.video ? (eff.video.duration * 1000 || 700) : 700);
-            const persistMs = Number(eff.persistMs) || 0;
-            const holdAlpha = Number(eff.holdAlpha) || 0.92;
-            if (age <= eruptMs) return clamp01(age / eruptMs);
-            if (age <= videoMs + persistMs * 0.45) return holdAlpha;
-            const fadeStart = Math.max(videoMs, dur - persistMs);
-            return age <= fadeStart ? holdAlpha : holdAlpha * Math.max(0, 1 - (age - fadeStart) / Math.max(1, dur - fadeStart));
-        }
-
         const fadeOut = dur - 800;
         return Math.min(Math.min(1, age / 200), Math.max(0, 1 - (age - fadeOut) / 800));
     }
