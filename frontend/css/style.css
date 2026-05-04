@@ -296,8 +296,13 @@ body {
     from { opacity: 0; }
     to   { opacity: 1; }
 }
+.forge-popup .forge-confirm-btn {
+    position: absolute;
+    right: 4%;
+    bottom: 4%;
+}
 .forge-popup .forge-confirm-btn img {
-    height: 64px;
+    height: 80px;
     width: auto;
 }
 
@@ -989,7 +994,7 @@ body {
     position: absolute;
     bottom: 4%;
     min-width: 270px;
-    height: 84px;
+    height: 80px;
     padding: 0 34px;
     border-radius: 999px;
     border: 2px solid rgba(241, 210, 138, 0.92);
@@ -1016,10 +1021,12 @@ body {
     right: 4%;
 }
 #btn-retry {
-    left: 4%;
+    right: 4%;
+    left: auto;
 }
 #btn-defeat-return {
-    right: 4%;
+    left: 4%;
+    right: auto;
 }
 
 .hud-hint {

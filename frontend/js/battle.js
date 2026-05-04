@@ -196,17 +196,17 @@ const Battle = (() => {
     };
 
     const MOB_SPECIES = {
-        'plague-scavenger': { category: 'eclipse', assetBase: 'assets/monsters/eclipse/plague-scavenger', frames: 5, framePrefix: 'frame_', scale: 0.96, flipDefault: true },
+        'plague-scavenger': { category: 'eclipse', assetBase: 'assets/monsters/eclipse/plague-scavenger', frames: 5, framePrefix: 'frame_', scale: 1.02, flipDefault: true },
         'slag-ooze':        { category: 'eclipse', assetBase: 'assets/monsters/eclipse/slag-ooze',        frames: 6, framePrefix: 'frame_', scale: 1.18, flipDefault: false },
         'stitch-ghoul':     { category: 'eclipse', assetBase: 'assets/monsters/eclipse/stitch-ghoul',     frames: 5, framePrefix: 'frame_', scale: 1.0,  flipDefault: false },
         'eclipse-wraith':   { category: 'eclipse', assetBase: 'assets/monsters/eclipse/eclipse-wraith',   frames: 6, framePrefix: 'frame_', scale: 1.06, flipDefault: true },
-        'ember-sprinter':   { category: 'fire',    assetBase: 'assets/monsters/fire/ember-sprinter',      frames: 5, framePrefix: 'frame_', scale: 0.94, flipDefault: true },
+        'ember-sprinter':   { category: 'fire',    assetBase: 'assets/monsters/fire/ember-sprinter',      frames: 5, framePrefix: 'frame_', scale: 1.0,  flipDefault: true },
         'furnace-thrall':   { category: 'fire',    assetBase: 'assets/monsters/fire/furnace-thrall',      frames: 6, framePrefix: 'frame_', scale: 1.26, flipDefault: true },
         'cinder-guard':     { category: 'fire',    assetBase: 'assets/monsters/fire/cinder-guard',        frames: 6, framePrefix: 'frame_', scale: 1.1,  flipDefault: false },
         'bone-cage-brute':  { category: 'ice',     assetBase: 'assets/monsters/ice/bone-cage-brute',      frames: 6, framePrefix: 'frame_', scale: 1.34, flipDefault: false },
-        'frost-warden':     { category: 'ice',     assetBase: 'assets/monsters/ice/frost-warden',         frames: 6, framePrefix: 'frame_', scale: 0.98, flipDefault: false },
+        'frost-warden':     { category: 'ice',     assetBase: 'assets/monsters/ice/frost-warden',         frames: 6, framePrefix: 'frame_', scale: 1.04, flipDefault: false },
         'frost-wisp':       { category: 'ice',     assetBase: 'assets/monsters/ice/frost-wisp',           frames: 6, framePrefix: 'frame_', scale: 1.08, flipDefault: true },
-        'alchemy-beholder': { category: 'thunder', assetBase: 'assets/monsters/thunder/alchemy-beholder', frames: 6, framePrefix: 'frame_', scale: 0.96, flipDefault: false },
+        'alchemy-beholder': { category: 'thunder', assetBase: 'assets/monsters/thunder/alchemy-beholder', frames: 6, framePrefix: 'frame_', scale: 1.02, flipDefault: false },
         'storm-idol':       { category: 'thunder', assetBase: 'assets/monsters/thunder/storm-idol',       frames: 6, framePrefix: 'frame_', scale: 1.04, flipDefault: true },
         'frostshade-alpha':  { category: 'boss', assetBase: 'assets/monsters/boss/frostshade-alpha',  frames: 6, framePrefix: 'frame_', scale: 1.54, flipDefault: true },
         'frostshade-omega':  { category: 'boss', assetBase: 'assets/monsters/boss/frostshade-omega',  frames: 6, framePrefix: 'frame_', scale: 1.62, flipDefault: true },
@@ -454,6 +454,7 @@ const Battle = (() => {
     let battleStartTime = 0;
     let wavePlan = [];
     let currentWaveIndex = -1;
+    let nextMonsterGroupId = 1;
 
     // Input
     const keys = {};
@@ -819,10 +820,10 @@ const Battle = (() => {
             durationSec: 18,
             speciesCount: 1,
             tier: 'minion',
-            packIntervalMs: 2300,
-            kickoffDelaysMs: [0, 760],
-            refillThreshold: 10,
-            softCap: 18,
+            packIntervalMs: 2150,
+            kickoffDelaysMs: [0, 560, 1120],
+            refillThreshold: 12,
+            softCap: 24,
             announceLabel: 'WAVE 1'
         },
         {
@@ -830,10 +831,10 @@ const Battle = (() => {
             durationSec: 22,
             speciesCount: 1,
             tier: 'minion',
-            packIntervalMs: 2100,
-            kickoffDelaysMs: [0, 420, 980],
-            refillThreshold: 15,
-            softCap: 28,
+            packIntervalMs: 1900,
+            kickoffDelaysMs: [0, 300, 760, 1220],
+            refillThreshold: 18,
+            softCap: 34,
             announceLabel: 'WAVE 2'
         },
         {
@@ -841,10 +842,10 @@ const Battle = (() => {
             durationSec: 24,
             speciesCount: 1,
             tier: 'minion',
-            packIntervalMs: 1800,
-            kickoffDelaysMs: [0, 320, 820, 1420],
-            refillThreshold: 20,
-            softCap: 36,
+            packIntervalMs: 1600,
+            kickoffDelaysMs: [0, 240, 600, 980, 1360],
+            refillThreshold: 24,
+            softCap: 46,
             announceLabel: 'WAVE 3'
         },
         {
@@ -852,26 +853,26 @@ const Battle = (() => {
             durationSec: 26,
             speciesCount: 1,
             tier: 'boss',
-            packIntervalMs: 8500,
+            packIntervalMs: 7600,
             kickoffDelaysMs: [0],
-            refillThreshold: 1,
-            softCap: 3,
+            refillThreshold: 2,
+            softCap: 4,
             announceLabel: 'WAVE 4 BOSS'
         }
     ];
     const PACK_ARCHETYPES = {
-        'plague-scavenger': { baseCount: 8, variance: 1, formations: ['line', 'wedge'], distScale: 1.0 },
-        'slag-ooze':        { baseCount: 5, variance: 1, formations: ['wedge', 'cluster'], distScale: 0.98 },
-        'stitch-ghoul':     { baseCount: 7, variance: 1, formations: ['cluster', 'wedge'], distScale: 1.0 },
-        'eclipse-wraith':   { baseCount: 6, variance: 1, formations: ['ringLoose', 'line'], distScale: 1.04 },
-        'ember-sprinter':   { baseCount: 8, variance: 1, formations: ['line', 'wedge'], distScale: 1.0 },
-        'furnace-thrall':   { baseCount: 5, variance: 1, formations: ['wedge', 'line'], distScale: 0.98 },
-        'cinder-guard':     { baseCount: 6, variance: 1, formations: ['cluster', 'wedge'], distScale: 0.98 },
-        'bone-cage-brute':  { baseCount: 4, variance: 1, formations: ['line', 'wedge'], distScale: 0.96 },
-        'frost-warden':     { baseCount: 6, variance: 1, formations: ['cluster', 'line'], distScale: 1.0 },
-        'frost-wisp':       { baseCount: 7, variance: 1, formations: ['ringLoose', 'line'], distScale: 1.03 },
-        'alchemy-beholder': { baseCount: 5, variance: 1, formations: ['ringLoose', 'line'], distScale: 1.05 },
-        'storm-idol':       { baseCount: 6, variance: 1, formations: ['wedge', 'line'], distScale: 1.0 }
+        'plague-scavenger': { baseCount: 10, variance: 2, formations: ['line', 'wedge'], distScale: 0.98 },
+        'slag-ooze':        { baseCount: 6, variance: 1, formations: ['cluster', 'wedge'], distScale: 0.94 },
+        'stitch-ghoul':     { baseCount: 8, variance: 1, formations: ['cluster', 'line'], distScale: 0.97 },
+        'eclipse-wraith':   { baseCount: 7, variance: 1, formations: ['ringLoose', 'line'], distScale: 0.98 },
+        'ember-sprinter':   { baseCount: 10, variance: 2, formations: ['line', 'wedge'], distScale: 0.96 },
+        'furnace-thrall':   { baseCount: 6, variance: 1, formations: ['wedge', 'line'], distScale: 0.94 },
+        'cinder-guard':     { baseCount: 7, variance: 1, formations: ['cluster', 'wedge'], distScale: 0.96 },
+        'bone-cage-brute':  { baseCount: 5, variance: 1, formations: ['line', 'wedge'], distScale: 0.92 },
+        'frost-warden':     { baseCount: 7, variance: 1, formations: ['cluster', 'line'], distScale: 0.97 },
+        'frost-wisp':       { baseCount: 8, variance: 1, formations: ['ringLoose', 'line'], distScale: 0.98 },
+        'alchemy-beholder': { baseCount: 6, variance: 1, formations: ['ringLoose', 'cluster'], distScale: 0.98 },
+        'storm-idol':       { baseCount: 7, variance: 1, formations: ['wedge', 'line'], distScale: 0.97 }
     };
     const RESIST_ABSORB_VISUAL_SCALE_STEPS = [0, 0.3, 0.62, 0.98];
     const NORMAL_DAMAGE_FALLOFF_STEPS = [
@@ -949,52 +950,52 @@ const Battle = (() => {
 
     function buildWaveOnePackCycle(species) {
         return [
-            buildPack([buildSquad(species, { pattern: 'line', countScale: 0.92 })], 1850),
+            buildPack([buildSquad(species, { pattern: 'line', countScale: 1.06 })], 1650),
             buildPack([
-                buildSquad(species, { pattern: 'cluster', countScale: 0.68 }),
-                buildSquad(species, { pattern: 'wedge', countScale: 0.42, angleOffset: 0.18, delayMs: 260 })
-            ], 2250),
+                buildSquad(species, { pattern: 'cluster', countScale: 0.88 }),
+                buildSquad(species, { pattern: 'wedge', countScale: 0.62, angleOffset: 0.16, delayMs: 180 })
+            ], 2100),
             buildPack([
-                buildSquad(species, { pattern: 'line', countScale: 0.58, angleOffset: -0.22 }),
-                buildSquad(species, { pattern: 'line', countScale: 0.58, angleOffset: 0.22, delayMs: 340 })
-            ], 2400)
+                buildSquad(species, { pattern: 'line', countScale: 0.76, angleOffset: -0.24 }),
+                buildSquad(species, { pattern: 'line', countScale: 0.76, angleOffset: 0.24, delayMs: 220 })
+            ], 2200)
         ];
     }
 
     function buildWaveTwoPackCycle(species) {
         return [
-            buildPack([buildSquad(species, { pattern: 'line', countScale: 1.1 })], 1750),
-            buildPack([buildSquad(species, { pattern: 'cluster', countScale: 1.05 })], 1750),
+            buildPack([buildSquad(species, { pattern: 'line', countScale: 1.18 })], 1600),
+            buildPack([buildSquad(species, { pattern: 'cluster', countScale: 1.12 })], 1600),
             buildPack([
-                buildSquad(species, { pattern: 'wedge', countScale: 0.95, angleOffset: -0.18 }),
-                buildSquad(species, { pattern: 'line', countScale: 0.88, angleOffset: 0.22, delayMs: 380 })
-            ], 2200),
+                buildSquad(species, { pattern: 'wedge', countScale: 1.0, angleOffset: -0.18 }),
+                buildSquad(species, { pattern: 'line', countScale: 0.96, angleOffset: 0.22, delayMs: 300 })
+            ], 2000),
             buildPack([
-                buildSquad(species, { pattern: 'cluster', countScale: 0.8, angleOffset: -0.28 }),
-                buildSquad(species, { pattern: 'wedge', countScale: 0.8, angleOffset: 0.28, delayMs: 320 })
-            ], 2350)
+                buildSquad(species, { pattern: 'cluster', countScale: 0.88, angleOffset: -0.28 }),
+                buildSquad(species, { pattern: 'wedge', countScale: 0.88, angleOffset: 0.28, delayMs: 260 })
+            ], 2150)
         ];
     }
 
     function buildWaveThreePackCycle(species) {
         return [
             buildPack([
-                buildSquad(species, { pattern: 'line', countScale: 1.06 }),
-                buildSquad(species, { pattern: 'wedge', countScale: 0.74, angleOffset: 0.24, delayMs: 320 })
+                buildSquad(species, { pattern: 'line', countScale: 1.12 }),
+                buildSquad(species, { pattern: 'wedge', countScale: 0.88, angleOffset: 0.24, delayMs: 260 })
+            ], 1550),
+            buildPack([
+                buildSquad(species, { pattern: 'cluster', countScale: 1.1 }),
+                buildSquad(species, { pattern: 'line', countScale: 0.82, angleOffset: -0.26, delayMs: 220 })
+            ], 1600),
+            buildPack([
+                buildSquad(species, { pattern: 'ringLoose', countScale: 1.0, angleOffset: -0.18 }),
+                buildSquad(species, { pattern: 'wedge', countScale: 0.94, angleOffset: 0.2, delayMs: 240 })
             ], 1650),
             buildPack([
-                buildSquad(species, { pattern: 'cluster', countScale: 1.0 }),
-                buildSquad(species, { pattern: 'line', countScale: 0.68, angleOffset: -0.26, delayMs: 260 })
-            ], 1700),
-            buildPack([
-                buildSquad(species, { pattern: 'ringLoose', countScale: 0.9, angleOffset: -0.18 }),
-                buildSquad(species, { pattern: 'wedge', countScale: 0.86, angleOffset: 0.2, delayMs: 280 })
-            ], 1750),
-            buildPack([
-                buildSquad(species, { pattern: 'line', countScale: 0.72, angleOffset: -0.35 }),
-                buildSquad(species, { pattern: 'cluster', countScale: 0.72, angleOffset: 0, delayMs: 240 }),
-                buildSquad(species, { pattern: 'wedge', countScale: 0.72, angleOffset: 0.35, delayMs: 520 })
-            ], 2100)
+                buildSquad(species, { pattern: 'line', countScale: 0.84, angleOffset: -0.35 }),
+                buildSquad(species, { pattern: 'cluster', countScale: 0.82, angleOffset: 0, delayMs: 180 }),
+                buildSquad(species, { pattern: 'wedge', countScale: 0.84, angleOffset: 0.35, delayMs: 420 })
+            ], 1900)
         ];
     }
 
@@ -1193,29 +1194,53 @@ const Battle = (() => {
         refreshMonsterReward(monster);
     }
 
+    function getClusterFormationSlot(index, count) {
+        let cursor = 0;
+        let row = 0;
+        let remaining = count;
+        let targetRowSize = 1;
+
+        while (remaining > 0) {
+            const rowSize = Math.min(targetRowSize, remaining);
+            if (index < cursor + rowSize) {
+                return { row, slot: index - cursor, rowSize };
+            }
+            cursor += rowSize;
+            remaining -= rowSize;
+            row += 1;
+            targetRowSize = Math.min(3, targetRowSize + 1);
+        }
+
+        return { row: 0, slot: 0, rowSize: 1 };
+    }
+
     function getGroupSpawnOffset(groupPattern, index, count) {
-        const centered = count > 1 ? (index / (count - 1)) - 0.5 : 0;
+        const midpoint = (count - 1) / 2;
+        const normalized = midpoint > 0 ? (index - midpoint) / midpoint : 0;
+        const jitter = () => Math.random() - 0.5;
         switch (groupPattern) {
             case 'line':
                 return {
-                    angleOffset: centered * 0.8,
-                    distOffset: (Math.random() - 0.5) * 80
+                    angleOffset: normalized * 0.9 + jitter() * 0.04,
+                    distOffset: (index % 2 === 0 ? -22 : 22) + Math.abs(normalized) * 18
                 };
             case 'wedge':
                 return {
-                    angleOffset: centered * 0.55,
-                    distOffset: Math.abs(centered) * 220 - 20
+                    angleOffset: normalized * 0.7 + jitter() * 0.05,
+                    distOffset: Math.abs(normalized) * 240 - 28
                 };
             case 'ringLoose':
                 return {
-                    angleOffset: centered * 1.2,
-                    distOffset: 120 + (Math.random() - 0.5) * 140
+                    angleOffset: normalized * 1.38 + jitter() * 0.06,
+                    distOffset: 150 - Math.abs(normalized) * 52 + jitter() * 28
                 };
             case 'cluster':
             default:
+                const slot = getClusterFormationSlot(index, count);
+                const rowCentered = slot.rowSize > 1 ? (slot.slot / (slot.rowSize - 1)) - 0.5 : 0;
                 return {
-                    angleOffset: centered * 0.3 + (Math.random() - 0.5) * 0.18,
-                    distOffset: (Math.random() - 0.5) * 160
+                    angleOffset: rowCentered * 0.48 + (slot.row % 2 === 0 ? 0 : 0.1) + jitter() * 0.04,
+                    distOffset: slot.row * 94 - 42 + jitter() * 18
                 };
         }
     }
@@ -1372,12 +1397,14 @@ const Battle = (() => {
         const baseDist = (Math.max(CANVAS_W, CANVAS_H) * 0.6 + 100) * distScale;
         const profile = MonsterDefs.getCombatProfile(species, tier || 'minion');
         const formation = options?.pattern || profile.groupPattern;
+        const groupId = nextMonsterGroupId++;
 
         for (let i = 0; i < count; i++) {
             const offset = getGroupSpawnOffset(formation, i, count);
             const angle = baseAngle + offset.angleOffset;
             const dist = baseDist + offset.distOffset;
             spawnMonster(tier || 'minion', angle, dist, species, {
+                groupId,
                 groupPattern: formation,
                 groupAnchorAngle: baseAngle,
                 groupIndex: i,
@@ -1447,6 +1474,7 @@ const Battle = (() => {
             spawnTime: Date.now(),
             spawnAngle: angle,
             arcDirection: Math.random() < 0.5 ? -1 : 1,
+            groupId: groupMeta?.groupId ?? 0,
             groupPattern: groupMeta?.groupPattern || 'cluster',
             groupAnchorAngle: groupMeta?.groupAnchorAngle ?? angle,
             groupIndex: groupMeta?.groupIndex ?? 0,
@@ -1488,6 +1516,7 @@ const Battle = (() => {
         battleStartTime = Date.now();
         gameTime = 0;
         spawnQueue = [];
+        nextMonsterGroupId = 1;
         wavePlan = buildWavePlan();
         currentWaveIndex = -1;
         lastAmuletDamageTick = 0;
@@ -1695,20 +1724,21 @@ const Battle = (() => {
         }
 
         // Monster-to-monster soft separation (prevents total overlap)
-        const sepRadius = 28;
-        const sepForce = 0.6;
         const aliveMonsters = monsters.filter(m => !m.isDying);
         const sepLen = aliveMonsters.length;
         for (let i = 0; i < sepLen; i++) {
             const a = aliveMonsters[i];
             for (let j = i + 1; j < sepLen; j++) {
                 const b = aliveMonsters[j];
+                const sameGroup = a.groupId !== 0 && a.groupId === b.groupId;
+                const sepRadius = Math.max(42, Math.min(128, (a.w + b.w) * (sameGroup ? 0.18 : 0.145)));
                 const sdx = a.x - b.x;
                 const sdy = a.y - b.y;
                 if (Math.abs(sdx) > sepRadius || Math.abs(sdy) > sepRadius) continue;
                 const sd2 = sdx * sdx + sdy * sdy;
                 if (sd2 < sepRadius * sepRadius && sd2 > 0) {
                     const sd = Math.sqrt(sd2);
+                    const sepForce = sameGroup ? 0.72 : 0.42;
                     const push = (sepRadius - sd) * sepForce / sd;
                     a.x += sdx * push;
                     a.y += sdy * push;
