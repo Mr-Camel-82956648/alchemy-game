@@ -3228,16 +3228,8 @@ const Battle = (() => {
         return score >= CONFIG.soulGoal;
     }
 
-    function isPendingForgeReady() {
-        const pending = GameStorage.getPending();
-        return !!(pending && pending.status === 'done');
-    }
-
     function getDisplayedSoulRingRatio() {
-        const goalRatio = Math.min(1, score / CONFIG.soulGoal);
-        if (isPendingForgeReady()) return goalRatio;
-        // Keep a visible gap until victory can actually resolve.
-        return Math.min(goalRatio, 0.97);
+        return Math.min(1, score / CONFIG.soulGoal);
     }
 
     // ---- Canvas HUD ----
@@ -3519,8 +3511,7 @@ const Battle = (() => {
     function hasBattleVictoryCondition() {
         return !!(
             player.hp > 0 &&
-            hasSoulGoalReached() &&
-            isPendingForgeReady()
+            hasSoulGoalReached()
         );
     }
 

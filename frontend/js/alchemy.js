@@ -3,6 +3,9 @@
  */
 const Alchemy = (() => {
     const els = {};
+    let pendingResultRetryTimer = null;
+    const PENDING_RESULT_RETRY_MS = 1000;
+    const MAX_PENDING_RESULT_RETRIES = 180;
 
     function init() {
         els.page = document.getElementById('page-alchemy');
@@ -109,6 +112,7 @@ const Alchemy = (() => {
     }
 
     function onForgeReturn() {
+        stopPendingResultRetry();
         const popup = document.getElementById('forge-popup');
         if (popup) popup.style.display = 'none';
         ForgeAPI.stopPolling();
@@ -151,6 +155,7 @@ const Alchemy = (() => {
     }
 
     function dismissReveal(discard) {
+        stopPendingResultRetry();
         const overlay = document.getElementById('page-reveal');
         const cardEl = document.getElementById('reveal-card');
         const title = document.getElementById('reveal-title');
@@ -169,33 +174,93 @@ const Alchemy = (() => {
         refreshSlots();
     }
 
-    function onReturnFromBattle() {
+    function stopPendingResultRetry() {
+        if (!pendingResultRetryTimer) return;
+        clearTimeout(pendingResultRetryTimer);
+        pendingResultRetryTimer = null;
+    }
+
+    function finalizePendingResult(pending) {
+        if (!pending?.result) return false;
+        stopPendingResultRetry();
+        const r = pending.result;
+        const thumbnail = GameStorage.generateTextThumbnail(r.name);
+        const newCard = GameStorage.addCard({
+            name: r.name,
+            type: 'spell',
+            status: r.status || 'complete',
+            videoUrl: r.videoUrl,
+            thumbnail,
+            attrSet: r.attrSet || [],
+            element: r.element || r.mainAttr,
+            mainAttr: r.mainAttr || r.element,
+            subAttr: r.subAttr || null,
+            generation: r.generation || 1,
+            baseAtk: r.baseAtk || SpellDefs.calcBaseAtk(r.generation || 1),
+            parentA: pending.cardAId,
+            parentB: pending.cardBId
+        });
+        GameStorage.clearPending();
+        GameStorage.clearSlots();
+        showReveal(newCard);
+        return true;
+    }
+
+    function writePendingResult(taskId, result) {
+        const data = GameStorage.load();
+        if (!data.pendingGeneration || data.pendingGeneration.taskId !== taskId) return null;
+        data.pendingGeneration.status = 'done';
+        data.pendingGeneration.result = result;
+        GameStorage.save(data);
+        return data.pendingGeneration;
+    }
+
+    async function syncPendingResult(taskId) {
         const pending = GameStorage.getPending();
-        if (pending && pending.status === 'done' && pending.result) {
-            const r = pending.result;
-            const thumbnail = GameStorage.generateTextThumbnail(r.name);
-            const newCard = GameStorage.addCard({
-                name: r.name,
-                type: 'spell',
-                status: r.status || 'complete',
-                videoUrl: r.videoUrl,
-                thumbnail,
-                attrSet: r.attrSet || [],
-                element: r.element || r.mainAttr,
-                mainAttr: r.mainAttr || r.element,
-                subAttr: r.subAttr || null,
-                generation: r.generation || 1,
-                baseAtk: r.baseAtk || SpellDefs.calcBaseAtk(r.generation || 1),
-                parentA: pending.cardAId,
-                parentB: pending.cardBId
-            });
-            GameStorage.clearPending();
-            GameStorage.clearSlots();
-            showReveal(newCard);
-        } else {
-            GameStorage.clearPending();
-            refreshSlots();
+        if (!pending || pending.taskId !== taskId) return null;
+        if (pending.status === 'done' && pending.result) return pending;
+
+        const status = await ForgeAPI.checkStatus(taskId);
+        if (!status) return GameStorage.getPending();
+        if (status.status === 'completed' && status.result) {
+            return writePendingResult(taskId, status.result);
         }
+        if (status.status === 'failed') {
+            GameStorage.clearPending();
+            return null;
+        }
+        return GameStorage.getPending();
+    }
+
+    function schedulePendingResultRetry(taskId, attempt = 0) {
+        stopPendingResultRetry();
+        if (!taskId || attempt >= MAX_PENDING_RESULT_RETRIES) return;
+        pendingResultRetryTimer = setTimeout(async () => {
+            const resolved = await syncPendingResult(taskId);
+            if (resolved && resolved.status === 'done' && resolved.result) {
+                finalizePendingResult(resolved);
+                return;
+            }
+            schedulePendingResultRetry(taskId, attempt + 1);
+        }, PENDING_RESULT_RETRY_MS);
+    }
+
+    async function onReturnFromBattle() {
+        stopPendingResultRetry();
+        const pending = GameStorage.getPending();
+        if (!pending) {
+            refreshSlots();
+            return;
+        }
+
+        const resolved = await syncPendingResult(pending.taskId);
+        if (resolved && resolved.status === 'done' && resolved.result) {
+            finalizePendingResult(resolved);
+            return;
+        }
+
+        refreshSlots();
+        schedulePendingResultRetry(pending.taskId);
     }
 
     return { init, refreshSlots, onReturnFromBattle };
