@@ -1,6 +1,8 @@
-import os
 import json
 import logging
+import os
+from pathlib import Path
+
 import httpx
 
 logger = logging.getLogger("forge.llm")
@@ -14,7 +16,6 @@ ELEMENT_ALIASES = {
     "ember": "fire",
     "火": "fire",
     "炎": "fire",
-    "焰": "fire",
     "烈焰": "fire",
     "ice": "ice",
     "frost": "ice",
@@ -43,75 +44,49 @@ ELEMENT_ALIASES = {
     "瘴": "blight",
     "瘴毒": "blight",
     "毒": "blight",
-    "蚀": "blight",
+    "蛊": "blight",
 }
 
-SYSTEM_PROMPT = """你是"AI法阵·炼金术士"的法阵融合引擎。基于两个父法阵，生成一个全新的融合法阵。
+PROMPTS_DIR = Path(__file__).resolve().parents[1] / "prompts" / "forge"
 
-设计原则：
-- 视觉优先：法阵的核心是视觉表现，不是数值
-- 规则极简：不要发明复杂世界观或冗长设定
-- 数值为视觉服务
-- 输出适合 2.5D 俯视角游戏法阵特效的概念基础
-- 主属性基于视觉主导特征判断
-- 融合应体现两个父法阵特征的有机结合
-- 输出简洁、清晰、稳定、可解析
 
-命名规则（非常重要）：
-- 优先 4 个汉字，最多 6 个汉字
-- 必须是融合后的全新名称，体现新意象
-- 禁止直接使用、拼接或保留任何父法阵的原始名称
-- 禁止使用"之阵""融合""合成""与""·"等机械连接形式
-- 名称应尽量保留两个输入的核心视觉意象，不要退化成空泛的元素词堆砌
-- 即使输入是食物、建筑、地名、俗语或普通名词，也要提取其可视化意象（形体、材质、色彩、运动、氛围）再融合成法阵名
-- 尽量避免过于泛化、像占位词一样的名字，例如：惊雷炎轮、寒冰电印、瘴毒火环、烈焰雷阵
-- 好名字示例：霜龙吐息、雷火焚天、冰雷裂空、蚀焰漩涡、凝霜怒雷
-- 坏名字示例（绝对禁止）：A·B之阵、A与B、AB融合阵
+def _load_prompt_text(filename, fallback):
+    path = PROMPTS_DIR / filename
+    try:
+        return path.read_text(encoding="utf-8").strip()
+    except OSError:
+        logger.warning("prompt file missing, using fallback: %s", path)
+        return fallback
 
-元素只能从以下四个中选择：fire, ice, thunder, blight
-subAttr 必须与 mainAttr 不同。
-JSON 中 `mainAttr` 与 `subAttr` 必须使用上述四个英文小写值之一，不要输出中文元素名，不要输出其他近义词。
 
-严格按以下 JSON 格式输出，不要附带任何其他文字：
-{
-  "name": "新法阵名称（4个汉字优先，最多6个）",
-  "mainAttr": "fire 或 ice 或 thunder 或 blight",
-  "subAttr": "fire 或 ice 或 thunder 或 blight（必须与 mainAttr 不同）",
-  "visualDesc": "法阵视觉描述（1-2句，描述俯视角下看到的法阵特效）",
-  "fusionPrompt": "给视频生成模型的英文提示词（1-2句，描述法阵视觉效果）"
-}"""
+SYSTEM_PROMPT = _load_prompt_text(
+    "system_prompt.txt",
+    (
+        "你是法阵融合引擎。请严格输出 JSON，字段包含 "
+        "name/mainAttr/subAttr/visualDesc/fusionPrompt，元素只允许 fire/ice/thunder/blight。"
+    ),
+)
+
+USER_PROMPT_TEMPLATE = _load_prompt_text(
+    "user_prompt.txt",
+    (
+        "请融合以下两个父法阵，输出严格 JSON：\n"
+        "父法阵 A：{spell_a_name} / {spell_a_attr} / Gen {spell_a_gen}\n"
+        "父法阵 B：{spell_b_name} / {spell_b_attr} / Gen {spell_b_gen}"
+    ),
+)
 
 
 def _build_user_prompt(spell_a_name, spell_a_attr, spell_a_gen,
                        spell_b_name, spell_b_attr, spell_b_gen):
-    return f"""请融合以下两个父法阵，生成一个全新的融合法阵：
-
-父法阵 A：
-- 名称：{spell_a_name}
-- 主属性：{spell_a_attr or '未知'}
-- 世代：{spell_a_gen}
-
-父法阵 B：
-- 名称：{spell_b_name}
-- 主属性：{spell_b_attr or '未知'}
-- 世代：{spell_b_gen}
-
-请先在心中提取两个输入各自最鲜明的视觉意象，再进行融合：
-- 形体或主体（例如龙、楼阁、器物、飞鸟、烟雾、浪潮）
-- 材质与颜色（例如寒霜、铜火、椒红、金影、夜雾）
-- 运动与气势（例如盘旋、坠落、喷吐、升腾、俯冲、扩散）
-
-重要命名要求：
-- 新法阵名称必须是全新创造的（4个汉字优先），禁止直接拼接"{spell_a_name}"和"{spell_b_name}"
-- 名称要尽量让人隐约感到两个输入都参与了融合，而不是只剩泛元素标签
-- 如果输入来自食物、建筑、地名、俗语或普通名词，也必须把它们转译成法阵意象，不要偷懒退化为通用元素词名
-- 避免输出像“惊雷炎轮”“寒冰电印”“瘴毒火环”这种泛元素占位感过强的名字
-
-输出要求：
-- `mainAttr` 和 `subAttr` 必须是：fire / ice / thunder / blight 之一
-- `mainAttr` 与 `subAttr` 必须不同
-
-请输出融合后的新法阵（严格 JSON 格式）。"""
+    return USER_PROMPT_TEMPLATE.format(
+        spell_a_name=spell_a_name,
+        spell_a_attr=spell_a_attr or "未知",
+        spell_a_gen=spell_a_gen,
+        spell_b_name=spell_b_name,
+        spell_b_attr=spell_b_attr or "未知",
+        spell_b_gen=spell_b_gen,
+    )
 
 
 def _normalize_element(value):
@@ -261,7 +236,7 @@ def _call_gemini_rest(user_prompt, timeout, max_retries):
 
         except httpx.HTTPStatusError as e:
             error_text = e.response.text[:200]
-            print(f"  [LLM] Gemini HTTP error (attempt {attempt + 1}): {e.response.status_code} — {error_text}")
+            print(f"  [LLM] Gemini HTTP error (attempt {attempt + 1}): {e.response.status_code} - {error_text}")
             _log_location_restriction("Gemini", error_text)
         except (json.JSONDecodeError, KeyError, IndexError) as e:
             print(f"  [LLM] Gemini parse error (attempt {attempt + 1}): {e}")
@@ -316,7 +291,7 @@ def _call_openai_compat(user_prompt, timeout, max_retries):
 
         except httpx.HTTPStatusError as e:
             error_text = e.response.text[:200]
-            print(f"  [LLM] OpenAI-compatible HTTP error (attempt {attempt + 1}): {e.response.status_code} — {error_text}")
+            print(f"  [LLM] OpenAI-compatible HTTP error (attempt {attempt + 1}): {e.response.status_code} - {error_text}")
             _log_location_restriction("OpenAI-compatible", error_text)
         except (json.JSONDecodeError, KeyError, IndexError) as e:
             print(f"  [LLM] OpenAI-compatible parse error (attempt {attempt + 1}): {e}")
@@ -365,5 +340,4 @@ def call_gemini_rest(spell_a_name, spell_a_attr, spell_a_gen,
         return backup_result
 
     print("  [LLM] Backup provider failed: openai_compat")
-
     return None

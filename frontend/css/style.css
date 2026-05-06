@@ -6,6 +6,32 @@
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
 
+:root {
+    --alchemy-slot-width: 15.8%;
+    --alchemy-slot-top: 24.4%;
+    --alchemy-slot-a-left: 34.3%;
+    --alchemy-slot-b-left: 52.9%;
+    --alchemy-slot-scale: 1;
+    --alchemy-slot-opacity: 1;
+    --alchemy-slot-brightness: 1;
+    --alchemy-slot-saturation: 1;
+
+    --collection-preview-width: 385px;
+    --collection-layout-gap: 30px;
+    --collection-grid-gap: 19px;
+    --collection-grid-columns: 6;
+
+    --loadout-slot-width: 278px;
+    --loadout-slot-gap: 20px;
+    --loadout-slot-margin-bottom: 48px;
+    --loadout-slot-scale: 1;
+    --loadout-slot-opacity: 1;
+    --loadout-slot-brightness: 1;
+    --loadout-slot-saturation: 1;
+    --loadout-grid-gap: 11px;
+    --loadout-grid-columns: 6;
+}
+
 body {
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
     background: #000;
@@ -78,10 +104,16 @@ body {
 /* ---- 炼金室卡槽（frame-alchemy-slot.webp） ---- */
 .card-slot {
     position: absolute;
-    width: 15.8%;
+    width: var(--alchemy-slot-width);
+    opacity: var(--alchemy-slot-opacity);
     cursor: pointer;
-    transition: transform 0.3s, filter 0.3s;
-    filter: drop-shadow(0 0 12px rgba(0,0,0,0.7)) drop-shadow(0 0 25px rgba(0,0,0,0.5));
+    transition: transform 0.3s, filter 0.3s, opacity 0.3s;
+    transform: scale(var(--alchemy-slot-scale));
+    filter:
+        brightness(var(--alchemy-slot-brightness))
+        saturate(var(--alchemy-slot-saturation))
+        drop-shadow(0 0 12px rgba(0,0,0,0.7))
+        drop-shadow(0 0 25px rgba(0,0,0,0.5));
 }
 .card-slot::before {
     content: '';
@@ -97,8 +129,12 @@ body {
     background: radial-gradient(ellipse, rgba(0,0,0,0.95) 10%, rgba(0,0,0,0.6) 30%, transparent 55%);
 }
 .card-slot:hover {
-    transform: scale(1.05);
-    filter: brightness(1.15) drop-shadow(0 0 12px rgba(0,0,0,0.7)) drop-shadow(0 0 25px rgba(0,0,0,0.5));
+    transform: scale(calc(var(--alchemy-slot-scale) * 1.05));
+    filter:
+        brightness(calc(var(--alchemy-slot-brightness) * 1.15))
+        saturate(calc(var(--alchemy-slot-saturation) * 1.05))
+        drop-shadow(0 0 12px rgba(0,0,0,0.7))
+        drop-shadow(0 0 25px rgba(0,0,0,0.5));
 }
 .card-slot.highlight {
     animation: slot-pulse 1.2s ease-in-out infinite;
@@ -108,8 +144,8 @@ body {
     50% { filter: brightness(1.2); }
 }
 
-#slot-a { left: 34.3%; top: 24.4%; }
-#slot-b { left: 52.9%; top: 24.4%; }
+#slot-a { left: var(--alchemy-slot-a-left); top: var(--alchemy-slot-top); }
+#slot-b { left: var(--alchemy-slot-b-left); top: var(--alchemy-slot-top); }
 
 .slot-frame {
     width: 100%;
@@ -382,7 +418,7 @@ body {
 .collection-layout {
     flex: 1;
     display: flex;
-    gap: 30px;
+    gap: var(--collection-layout-gap);
     min-height: 0;
 }
 
@@ -397,8 +433,8 @@ body {
 
 .preview-card {
     position: relative;
-    width: 385px;
-    max-width: 385px;
+    width: var(--collection-preview-width);
+    max-width: var(--collection-preview-width);
     filter: drop-shadow(0 0 12px rgba(0,0,0,0.7)) drop-shadow(0 0 25px rgba(0,0,0,0.5));
 }
 .preview-frame {
@@ -501,8 +537,8 @@ body {
 }
 .card-grid {
     display: grid;
-    grid-template-columns: repeat(6, 1fr);
-    gap: 19px;
+    grid-template-columns: repeat(var(--collection-grid-columns), minmax(0, 1fr));
+    gap: var(--collection-grid-gap);
 }
 
 /* ---- 卡牌项（各页面独立 frame-*.webp） ---- */
@@ -595,25 +631,39 @@ body {
 
 .loadout-slots {
     display: flex;
-    gap: 20px;
+    gap: var(--loadout-slot-gap);
     justify-content: center;
-    margin-bottom: 48px;
+    margin-bottom: var(--loadout-slot-margin-bottom);
     flex-shrink: 0;
 }
 
 .loadout-slot {
     position: relative;
-    width: 278px;
+    width: var(--loadout-slot-width);
+    opacity: var(--loadout-slot-opacity);
     cursor: pointer;
-    transition: transform 0.2s, filter 0.2s;
-    filter: drop-shadow(0 0 12px rgba(0,0,0,0.7)) drop-shadow(0 0 25px rgba(0,0,0,0.5));
+    transition: transform 0.2s, filter 0.2s, opacity 0.2s;
+    transform: scale(var(--loadout-slot-scale));
+    filter:
+        brightness(var(--loadout-slot-brightness))
+        saturate(var(--loadout-slot-saturation))
+        drop-shadow(0 0 12px rgba(0,0,0,0.7))
+        drop-shadow(0 0 25px rgba(0,0,0,0.5));
 }
 .loadout-slot:hover {
-    transform: scale(1.05);
-    filter: brightness(1.15) drop-shadow(0 0 12px rgba(0,0,0,0.7)) drop-shadow(0 0 25px rgba(0,0,0,0.5));
+    transform: scale(calc(var(--loadout-slot-scale) * 1.05));
+    filter:
+        brightness(calc(var(--loadout-slot-brightness) * 1.15))
+        saturate(calc(var(--loadout-slot-saturation) * 1.05))
+        drop-shadow(0 0 12px rgba(0,0,0,0.7))
+        drop-shadow(0 0 25px rgba(0,0,0,0.5));
 }
 .loadout-slot.active {
-    filter: brightness(1.3) drop-shadow(0 0 15px rgba(255,200,80,0.6)) drop-shadow(0 0 12px rgba(0,0,0,0.7));
+    filter:
+        brightness(calc(var(--loadout-slot-brightness) * 1.25))
+        saturate(calc(var(--loadout-slot-saturation) * 1.08))
+        drop-shadow(0 0 15px rgba(255,200,80,0.6))
+        drop-shadow(0 0 12px rgba(0,0,0,0.7));
 }
 
 .loadout-slot-frame {
@@ -680,8 +730,8 @@ body {
     padding-right: 10px;
 }
 .loadout-grid-area .card-grid {
-    grid-template-columns: repeat(6, 1fr);
-    gap: 11px;
+    grid-template-columns: repeat(var(--loadout-grid-columns), minmax(0, 1fr));
+    gap: var(--loadout-grid-gap);
 }
 
 .loadout-actions {
@@ -791,6 +841,118 @@ body {
 .btn-cancel:hover {
     background: rgba(80, 70, 60, 0.8);
     color: #ccc;
+}
+
+.ui-tuner-panel {
+    position: fixed;
+    top: 16px;
+    right: 16px;
+    width: 340px;
+    max-height: calc(100vh - 32px);
+    overflow: auto;
+    z-index: 12000;
+    padding: 14px;
+    border: 1px solid rgba(212, 196, 160, 0.28);
+    border-radius: 14px;
+    background: rgba(16, 14, 12, 0.92);
+    color: #e7d9bb;
+    box-shadow: 0 14px 40px rgba(0, 0, 0, 0.45);
+    backdrop-filter: blur(10px);
+    display: none;
+}
+
+.ui-tuner-panel.open {
+    display: block;
+}
+
+.ui-tuner-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 12px;
+}
+
+.ui-tuner-title {
+    font: 700 15px/1.3 "Consolas", monospace;
+    letter-spacing: 0.4px;
+}
+
+.ui-tuner-subtitle {
+    margin-top: 4px;
+    font-size: 12px;
+    color: rgba(231, 217, 187, 0.66);
+}
+
+.ui-tuner-actions {
+    display: flex;
+    gap: 6px;
+}
+
+.ui-tuner-btn {
+    border: 1px solid rgba(212, 196, 160, 0.25);
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.06);
+    color: #f0e1bf;
+    padding: 6px 10px;
+    font: 600 11px/1 "Consolas", monospace;
+    cursor: pointer;
+}
+
+.ui-tuner-btn:hover {
+    background: rgba(255, 255, 255, 0.12);
+}
+
+.ui-tuner-group + .ui-tuner-group {
+    margin-top: 12px;
+}
+
+.ui-tuner-group-title {
+    margin-bottom: 8px;
+    font: 700 12px/1 "Consolas", monospace;
+    color: #ffd88e;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+}
+
+.ui-tuner-row {
+    display: grid;
+    grid-template-columns: 96px 1fr 54px;
+    gap: 8px;
+    align-items: center;
+}
+
+.ui-tuner-row + .ui-tuner-row {
+    margin-top: 8px;
+}
+
+.ui-tuner-label {
+    font-size: 12px;
+    color: rgba(231, 217, 187, 0.88);
+}
+
+.ui-tuner-range {
+    width: 100%;
+    accent-color: #ffbf47;
+}
+
+.ui-tuner-value {
+    font: 600 11px/1 "Consolas", monospace;
+    color: rgba(255, 244, 214, 0.92);
+    text-align: right;
+}
+
+.ui-tuner-output {
+    width: 100%;
+    min-height: 92px;
+    margin-top: 12px;
+    padding: 10px;
+    border-radius: 10px;
+    border: 1px solid rgba(212, 196, 160, 0.16);
+    background: rgba(0, 0, 0, 0.24);
+    color: #f2e7cb;
+    font: 12px/1.45 "Consolas", monospace;
+    white-space: pre-wrap;
 }
 
 /* ============================================
