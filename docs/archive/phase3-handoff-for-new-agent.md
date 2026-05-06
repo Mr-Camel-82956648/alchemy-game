@@ -392,3 +392,5 @@ ace6c81 Add backend placeholder and update README with local run instructions
 | `frontend/js/collection.js` | `renderGrid()` / `onSpellConfirm()` | 收藏页 / 刻写咒语 |
 | `backend/app/services/forge_service.py` | `create_forge_task()` / `_process_forge()` | 任务调度 |
 | `backend/app/services/llm_client.py` | `call_gemini_rest()` / `_validate()` | LLM 调用 |
+> 历史参考：这是旧 Phase 3 阶段的交接文档，对应的提交点、协议和目录说明都可能已经过时。
+> 历史参考：这是旧 Phase 3 阶段的交接文档，对应的提交点、协议和目录说明都可能已经过时。

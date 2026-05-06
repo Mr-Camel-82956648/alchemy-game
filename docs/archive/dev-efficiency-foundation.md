@@ -1,3 +1,5 @@
+> 历史参考：这是机制重构前后的分析底稿，保留用于追溯设计来源，不再代表当前代码真相。
+
 # Dev Efficiency Foundation
 
 This document records the current project baseline and the lowest-risk follow-up path for faster iteration.

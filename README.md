@@ -1,24 +1,8 @@
 # AI法阵炼金术士
 
-玩家通过炼金合成已有法阵，生成更高世代的新法阵，并在 4-wave 战斗里用属性匹配规则对抗怪物。
+一个前后端分离的游戏原型：玩家通过炼金合成已有法阵，生成更高世代的新法阵，并在 4-wave 战斗中用属性匹配机制对抗怪物。
 
-## 当前状态
-
-- 前端卡牌与后端 forge 结果已统一到 `attrSet` 口径，`mainAttr` / `subAttr` 作为兼容字段继续保留。
-- 战斗命中规则已切换为“技能属性集合与怪物属性集合有交集则命中，否则触发吸收成长”。
-- 后端 forge 接口已接入最小每日配额；请求需要 `playerId`，超额时返回 `429 quota_exhausted`。
-- forge 的 LLM prompt 已改为中文创意口径，LLM 只负责 `name / visualDesc / fusionPrompt`，属性集合由后端规则决定。
-
-## 目录
-
-```text
-alchemy-game/
-  frontend/     # 游戏前端
-  backend/      # FastAPI 后端
-  docs/         # 当前说明与历史设计稿
-```
-
-## 本地运行
+## 如何启动
 
 ### 前端
 
@@ -27,7 +11,7 @@ cd frontend
 python -m http.server 8000
 ```
 
-浏览器访问 `http://localhost:8000`。
+访问 `http://localhost:8000`。
 
 ### 后端
 
@@ -37,74 +21,32 @@ pip install -r requirements.txt
 uvicorn app.main:app --reload --port 18001
 ```
 
-接口文档位于 `http://localhost:18001/docs`。
+接口文档位于 `http://localhost:18001/docs`。如果修改后端端口，需要同步修改 `frontend/js/forgeAPI.js` 中的 `API_BASE`。
 
-默认前端会请求 `http://localhost:18001`。如果改端口，需要同时修改启动命令和 `frontend/js/forgeAPI.js` 里的 `API_BASE`。
+## 当前开发阶段
 
-## Forge 协议摘要
+当前主线已经收口到“机制重构 + 最小配额后端 + 中文 forge 文档”阶段，后续继续开发前，默认先以本文和 `docs/` 根目录文档为准，不再以旧 phase / handover 稿作为当前真相源。
 
-### 创建合成任务
+## 当前核心机制现状
 
-`POST /api/forge`
+- `attrSet` 是当前主字段。`mainAttr / subAttr / element` 只作为兼容字段保留。
+- 战斗命中规则是“技能 `attrSet` 与怪物 `attrSet` 有交集才命中”，否则走吸收成长反馈。
+- 当前正式战斗流程按“单属性怪优先出场”假设收口；双属性怪数据仍保留，暂不作为当前扩机制目标。
+- 后端 forge 已接入最小每日配额实现，请求需要 `playerId`；超额返回 `429 quota_exhausted`。
+- forge 的 LLM 只负责 `name / visualDesc / fusionPrompt`，属性集合和数值由后端规则决定。
 
-```json
-{
-  "playerId": "player_xxx",
-  "spellA": {
-    "id": "spell_a",
-    "name": "赤焰印",
-    "attrSet": ["fire"],
-    "mainAttr": "fire",
-    "generation": 1
-  },
-  "spellB": {
-    "id": "spell_b",
-    "name": "寒潮轮",
-    "attrSet": ["ice"],
-    "mainAttr": "ice",
-    "generation": 1
-  }
-}
-```
+## 当前最应该看的文档
 
-### 查询任务结果
+1. `docs/attrset-quota-walkthrough.md`
+2. `docs/forge-schema.md`
+3. `backend/README.md`
 
-`GET /api/forge/status/{taskId}`
+`docs/archive/` 下的文档仅作为历史参考，不应再作为当前主参考。
 
-```json
-{
-  "taskId": "task_xxx",
-  "status": "completed",
-  "result": {
-    "name": "焚天寒环",
-    "attrSet": ["fire", "ice"],
-    "mainAttr": "fire",
-    "subAttr": "ice",
-    "element": "fire",
-    "generation": 2,
-    "baseAtk": 130.0,
-    "videoUrl": null,
-    "status": "partial",
-    "visualDesc": null,
-    "fusionPrompt": null,
-    "source": "fallback"
-  },
-  "error": null
-}
-```
+## 新会话 / 新 agent 建议阅读顺序
 
-### 查询配额
-
-`GET /api/player/quota?playerId=player_xxx`
-
-返回 `playerId / quotaDate / dailyLimit / used / remaining / resetAt`。
-
-## 文档入口
-
-- `docs/forge-schema.md`: 当前有效的 forge + quota 接口与字段说明
-- `docs/attrset-quota-walkthrough.md`: 本轮机制重构、前后端链路与接管 walkthrough
-- `backend/README.md`: 后端启动、环境变量、接口与 prompt 说明
-
-## 历史文档说明
-
-`docs/phase3-handoff-for-new-agent.md`、`docs/phase4-minimal-balance-design-v2.md`、`docs/handover_to_cursor.md`、`docs/roadmap.md` 主要保留为历史设计与交接材料，其中仍有旧的 `mainAttr / subAttr / immuneAttrs` 叙述，不应再视为当前协议真相来源。
+1. 先读本文，确认当前阶段、启动方式和主文档入口。
+2. 再读 `docs/attrset-quota-walkthrough.md`，建立机制、前后端链路和接管边界。
+3. 再读 `docs/forge-schema.md`，确认接口、字段和 quota 行为。
+4. 需要后端环境变量或接口细节时，再补读 `backend/README.md`。
+5. 只有在排查历史决策或旧实现来源时，才进入 `docs/archive/`。

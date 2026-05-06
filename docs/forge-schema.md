@@ -1,15 +1,8 @@
-# Forge Schema
+# Forge 协议与字段说明
 
-## 目标
+本文是当前有效的 forge / quota 协议说明。旧文档中若仍写“LLM 直接决定 `mainAttr / subAttr`”，以本文为准。
 
-当前 forge 协议分成两层：
-
-- 创意层：LLM 负责命名和视觉描述
-- 规则层：后端负责属性集合、世代、攻击力和配额
-
-不要再把旧文档里的 `LLM 直接输出 mainAttr / subAttr` 视为现行协议。
-
-## 请求协议
+## 1. 请求协议
 
 ### POST /api/forge
 
@@ -33,11 +26,11 @@
 }
 ```
 
-规则：
+说明：
 
 - `playerId` 必填，用于 quota 统计
-- `spellA.attrSet` / `spellB.attrSet` 是当前主口径
-- `mainAttr` 仍保留为兼容字段；如果没有 `attrSet`，后端会回退到 `[mainAttr]`
+- `attrSet` 是当前主口径
+- `mainAttr` 仍保留为兼容字段；如果没传 `attrSet`，后端会回退到 `[mainAttr]`
 
 成功响应：
 
@@ -67,7 +60,7 @@
 }
 ```
 
-## 状态协议
+## 2. 状态协议
 
 ### GET /api/forge/status/{taskId}
 
@@ -93,24 +86,54 @@
 }
 ```
 
-字段说明：
+## 3. 字段来源
 
-| 字段 | 类型 | 来源 | 说明 |
-|------|------|------|------|
-| `name` | string | LLM / fallback | 新法阵名称 |
-| `attrSet` | string[] | 后端规则 | 合并后的目标属性集合 |
-| `mainAttr` | string | 后端规则 | `attrSet[0]` 的兼容字段 |
-| `subAttr` | string? | 后端规则 | `attrSet[1]` 的兼容字段 |
-| `element` | string | 后端规则 | 等于 `mainAttr` |
-| `generation` | int | 后端规则 | `max(parent.gen) + 1` |
-| `baseAtk` | float | 后端规则 | 由世代推导 |
-| `videoUrl` | string? | 后端规则 | 当前固定为 `null` |
-| `status` | string | 后端规则 | 当前固定为 `"partial"` |
-| `visualDesc` | string? | LLM / fallback | 中文视觉描述 |
-| `fusionPrompt` | string? | LLM / fallback | 英文视频提示词 |
-| `source` | string | 后端规则 | `"llm"` 或 `"fallback"` |
+| 字段 | 来源 | 说明 |
+|------|------|------|
+| `name` | LLM / fallback | 新法阵名称 |
+| `attrSet` | 后端规则 | 合并后的目标属性集合 |
+| `mainAttr` | 后端规则 | `attrSet[0]` 的兼容字段 |
+| `subAttr` | 后端规则 | `attrSet[1]` 的兼容字段 |
+| `element` | 后端规则 | 等于 `mainAttr` |
+| `generation` | 后端规则 | `max(parent.gen) + 1` |
+| `baseAtk` | 后端规则 | 按世代推导 |
+| `videoUrl` | 后端规则 | 当前固定为 `null` |
+| `status` | 后端规则 | 当前固定为 `"partial"` |
+| `visualDesc` | LLM / fallback | 中文视觉描述 |
+| `fusionPrompt` | LLM / fallback | 英文视频提示词 |
+| `source` | 后端规则 | `"llm"` 或 `"fallback"` |
 
-## Quota 协议
+## 4. LLM 输出边界
+
+当前 LLM 只允许输出：
+
+```json
+{
+  "name": "新法阵名称",
+  "visualDesc": "1到2句中文视觉描述",
+  "fusionPrompt": "1到2句英文视频生成提示词"
+}
+```
+
+注意：
+
+- LLM 不再决定 `attrSet / mainAttr / subAttr`
+- 后端会忽略额外字段
+- 只要 `name` 合法，后端就会把创意字段和规则字段合并为最终结果
+
+## 5. 属性集合规则
+
+- 合法元素：`fire` / `ice` / `thunder` / `blight`
+- 兼容别名：`poison -> blight`
+- 合并规则：先按出现频次排序，再按首次出现顺序打破并列
+- 最多保留 3 个属性
+
+示例：
+
+- `["fire"] + ["ice"] -> ["fire", "ice"]`
+- `["fire", "ice"] + ["ice", "thunder"] -> ["ice", "fire", "thunder"]`
+
+## 6. Quota 协议
 
 ### GET /api/player/quota
 
@@ -140,46 +163,20 @@ GET /api/player/quota?playerId=player_xxx
 }
 ```
 
-## LLM 输出协议
+## 7. 状态区分
 
-当前 LLM 只允许返回以下 JSON：
-
-```json
-{
-  "name": "新法阵名称",
-  "visualDesc": "1到2句中文视觉描述",
-  "fusionPrompt": "1到2句英文视频生成提示词"
-}
-```
-
-注意：
-
-- LLM 不再决定 `mainAttr / subAttr / attrSet`
-- 后端会忽略任何额外字段
-- 只要 `name` 合法，后端就会把创意字段与规则字段合并成最终 `ForgeResult`
-
-## 属性集合规则
-
-- 合法元素：`fire` / `ice` / `thunder` / `blight`
-- 兼容别名：`poison -> blight`
-- 合并规则：先统计两个父技能中属性出现频次，再按首次出现顺序打破并列
-- 最多保留 3 个属性
-
-示例：
-
-- `["fire"] + ["ice"] -> ["fire", "ice"]`
-- `["fire", "ice"] + ["ice", "thunder"] -> ["ice", "fire", "thunder"]`
-
-## 前端本地状态
-
-后端任务状态与前端本地状态不要混淆：
+不要混淆三层状态：
 
 - 后端任务状态：`pending | completed | failed`
 - `ForgeResult.status`：当前固定 `"partial"`
-- 前端 `localStorage.pendingGeneration.status`：本地只把成功结果标记为 `"done"`；失败和超时会直接清理 pending，避免卡死
+- 前端本地 `pendingGeneration.status`：只在成功时写 `"done"`；失败和超时会直接清理 pending
 
-## 已知限制
+## 8. 文档使用建议
 
-- 任务状态仍在内存中，进程重启后丢失
-- 配额是最小实现，前端尚未提供独立 quota 面板
-- 当前正式文档入口只有本文件、根 README 和 `backend/README.md`
+如果你是新会话：
+
+1. 先读 `README.md`
+2. 再读 `docs/attrset-quota-walkthrough.md`
+3. 最后用本文确认接口和字段细节
+
+`docs/archive/` 中的旧 handover、phase、roadmap 文档不应再作为当前主参考。

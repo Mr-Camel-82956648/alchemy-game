@@ -31,6 +31,8 @@ _archive/
 archive/
 _archive_docs/
 _archive_claude/
+!docs/archive/
+!docs/archive/**
 
 # ===== Environment variables =====
 .env

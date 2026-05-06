@@ -423,3 +423,5 @@ newGeneration = max(parentA.generation, parentB.generation) + 1
    - 我该带什么法阵上场
    - 这一波怪偏什么属性
    - 我要不要继续合成更高代的法阵
+> 历史参考：这是旧的 Phase 4 balance 设计稿，保留用于追溯战斗设计背景，不再作为当前机制真相源。
+> 历史参考：这是旧的 Phase 4 balance 设计稿，保留用于追溯战斗设计背景，不再作为当前机制真相源。
