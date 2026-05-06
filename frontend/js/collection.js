@@ -41,8 +41,15 @@ const Collection = (() => {
     }
 
     function close() {
+        resetPreview();
         els.page.classList.remove('active');
         setTimeout(() => { els.page.style.display = 'none'; }, 500);
+    }
+
+    function stopPreviewVideo() {
+        els.previewVideo.pause();
+        els.previewVideo.removeAttribute('src');
+        els.previewVideo.load();
     }
 
     function renderGrid() {
@@ -80,11 +87,13 @@ const Collection = (() => {
 
         els.previewEmpty.style.display = 'none';
         els.previewContent.style.display = 'block';
+        stopPreviewVideo();
 
         if (card.type === 'spell' && card.videoUrl) {
             els.previewVideo.src = card.videoUrl;
             els.previewVideo.style.display = 'block';
             els.previewText.style.display = 'none';
+            els.previewVideo.play().catch(() => {});
         } else {
             els.previewVideo.style.display = 'none';
             els.previewText.style.display = 'flex';
@@ -99,8 +108,7 @@ const Collection = (() => {
     function resetPreview() {
         els.previewEmpty.style.display = 'flex';
         els.previewContent.style.display = 'none';
-        els.previewVideo.pause();
-        els.previewVideo.src = '';
+        stopPreviewVideo();
         els.previewText.textContent = '';
         els.previewName.textContent = '';
         els.previewActions.style.display = 'none';

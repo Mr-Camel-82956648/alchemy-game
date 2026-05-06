@@ -267,10 +267,10 @@ const Battle = (() => {
         killsToFull: 50,
         energyPerKill: 1,
         wavePause: 1500,
-        spellMaxCharges: 3,
+        spellMaxCharges: 6,
         spellChargeTime: 4000,
         battleDuration: 90,
-        soulGoal: 1800,
+        soulGoal: 900,
         spellSizes: [796, 597, 696, 895],
         spellDamages: [3, 2, 4, 2],
         spellColors: ['#ff6600', '#00ccff', '#cc88ff', '#44ff66'],
@@ -429,7 +429,7 @@ const Battle = (() => {
     let particles = [];
     let afterimages = [];
     let lastAfterimageTime = 0;
-    let spellCharges = [3, 3, 3, 3];
+    let spellCharges = Array(4).fill(CONFIG.spellMaxCharges);
     let spellLastChargeTime = [0, 0, 0, 0];
 
     // Lightning projectiles
@@ -446,7 +446,6 @@ const Battle = (() => {
     const AMULET_DAMAGE = 0.3;
     const AMULET_TICK_MS = 500;
     let amuletVideo = null;
-    let amuletProcCanvas, amuletProcCtx;
     let lastAmuletDamageTick = 0;
 
     // Wave system
@@ -481,18 +480,13 @@ const Battle = (() => {
     let spellThumbImgs = [null, null, null, null];
     let spellCardData = [null, null, null, null];
     const EFFECT_SIZE = 480;
-    let procCanvas, procCtx, maskCanvas, maskCtx;
+    let maskCanvas, maskCtx;
 
     let forgeCheckTimer = null;
 
     function init() {
         canvas = document.getElementById('battle-canvas');
         ctx = canvas.getContext('2d');
-
-        procCanvas = document.createElement('canvas');
-        procCanvas.width = EFFECT_SIZE;
-        procCanvas.height = EFFECT_SIZE;
-        procCtx = procCanvas.getContext('2d', { willReadFrequently: true });
 
         maskCanvas = document.createElement('canvas');
         maskCanvas.width = EFFECT_SIZE;
@@ -539,16 +533,13 @@ const Battle = (() => {
         amuletVideo.playsInline = true;
         amuletVideo.preload = 'auto';
 
-        amuletProcCanvas = document.createElement('canvas');
-        amuletProcCanvas.width = AMULET_SIZE;
-        amuletProcCanvas.height = AMULET_SIZE;
-        amuletProcCtx = amuletProcCanvas.getContext('2d', { willReadFrequently: true });
-
         document.addEventListener('keydown', onKeyDown);
         document.addEventListener('keyup', e => { keys[e.code] = false; });
         canvas.addEventListener('mousedown', onCanvasClick);
         canvas.addEventListener('mousemove', onMouseMove);
         canvas.addEventListener('contextmenu', e => e.preventDefault());
+        window.addEventListener('pagehide', stop);
+        window.addEventListener('beforeunload', stop);
 
         document.getElementById('btn-victory-return').addEventListener('click', onVictoryReturn);
         document.getElementById('btn-retry').addEventListener('click', onRetry);
@@ -590,7 +581,7 @@ const Battle = (() => {
         if (!running) return;
         if (e.code === 'Escape') {
             isPaused = !isPaused;
-            if (amuletVideo) { isPaused ? amuletVideo.pause() : amuletVideo.play().catch(() => {}); }
+            syncBattleMediaPlayback(isPaused);
             return;
         }
         if (isPaused) return;
@@ -687,13 +678,8 @@ const Battle = (() => {
         const sizeJitter = 0.9 + Math.random() * 0.2;
         setTimeout(() => {
             if (!running) return;
-            let video = null;
-            if (spellVideoSrcs[index]) {
-                video = document.createElement('video');
-                video.src = spellVideoSrcs[index];
-                video.muted = true;
-                video.play().catch(() => {});
-            }
+            const video = createBattleVideo(spellVideoSrcs[index]);
+            if (video) video.play().catch(() => {});
 
             const spellData = buildEffectSpellData(index);
             const mainAttr = spellData.mainAttr;
@@ -705,7 +691,8 @@ const Battle = (() => {
                 damage: CONFIG.spellDamages[index],
                 mainAttr: mainAttr,
                 spellData: spellData,
-                video, startTime: Date.now(),
+                video: retainBattleVideo(video),
+                startTime: Date.now(),
                 damageApplied: false
             });
 
@@ -737,14 +724,8 @@ const Battle = (() => {
         energy -= CONFIG.ultimateCost;
         updateBars();
 
-        let video = null;
         const vidIdx = Math.floor(Math.random() * spellVideoSrcs.length);
-        if (spellVideoSrcs[vidIdx]) {
-            video = document.createElement('video');
-            video.src = spellVideoSrcs[vidIdx];
-            video.muted = true;
-            video.play().catch(() => {});
-        }
+        let sharedVideo = null;
 
         const spellData = buildEffectSpellData(activeSpellIndex);
         const mainAttr = spellData.mainAttr;
@@ -794,13 +775,18 @@ const Battle = (() => {
 
                 setTimeout(() => {
                     if (!running) return;
+                    if (!sharedVideo && spellVideoSrcs[vidIdx]) {
+                        sharedVideo = createBattleVideo(spellVideoSrcs[vidIdx]);
+                        sharedVideo.play().catch(() => {});
+                    }
                     activeEffects.push({
                         x: ex, y: ey, size: s,
                         color: effectColor, glowColor: effectGlow,
                         damage: CONFIG.ultimateDamage * (i === 0 ? 1 : 0.5),
                         mainAttr: mainAttr,
                         spellData: spellData,
-                        video, startTime: Date.now(),
+                        video: retainBattleVideo(sharedVideo),
+                        startTime: Date.now(),
                         damageApplied: false, isUltimate: true
                     });
                     lightningBolts.push({
@@ -865,13 +851,13 @@ const Battle = (() => {
             number: 4,
             durationSec: 26,
             speciesCount: 1,
-            tier: 'boss',
-            packIntervalMs: 3000,
-            kickoffDelaysMs: [0, 780],
-            refillThreshold: 3,
-            surgeThreshold: 2,
-            softCap: 7,
-            announceLabel: 'WAVE 4 BOSS'
+            tier: 'minion',
+            packIntervalMs: 1040,
+            kickoffDelaysMs: [0, 180, 480, 780, 1080, 1380],
+            refillThreshold: 24,
+            surgeThreshold: 16,
+            softCap: 44,
+            announceLabel: 'WAVE 4'
         }
     ];
     const PACK_ARCHETYPES = {
@@ -1066,7 +1052,7 @@ const Battle = (() => {
     }
 
     function buildWavePlan() {
-        const selectedCategories = shuffleArray(Object.keys(SMALL_MONSTER_POOLS)).slice(0, 3);
+        const selectedCategories = shuffleArray(Object.keys(SMALL_MONSTER_POOLS)).slice(0, WAVE_TEMPLATES.length);
         const waveSpecies = selectedCategories.map(category => [pickRandom(SMALL_MONSTER_POOLS[category])]);
 
         let cursorSec = 0;
@@ -1105,6 +1091,78 @@ const Battle = (() => {
                 packCycle: interleaveWavePackCycles(inheritedCycles)
             };
         });
+    }
+
+    function createBattleVideo(src, options = {}) {
+        if (!src) return null;
+        const video = document.createElement('video');
+        video.src = src;
+        video.loop = !!options.loop;
+        video.muted = true;
+        video.playsInline = true;
+        video.preload = 'auto';
+        video.__battleRefs = 0;
+        return video;
+    }
+
+    function retainBattleVideo(video) {
+        if (!video) return null;
+        video.__battleRefs = (video.__battleRefs || 0) + 1;
+        return video;
+    }
+
+    function releaseBattleVideo(video) {
+        if (!video) return;
+        video.__battleRefs = Math.max(0, (video.__battleRefs || 0) - 1);
+        if (video.__battleRefs > 0) return;
+        video.pause();
+        video.removeAttribute('src');
+        video.load();
+    }
+
+    function forEachUniqueEffectVideo(callback) {
+        const seen = new Set();
+        activeEffects.forEach(eff => {
+            if (!eff?.video || seen.has(eff.video)) return;
+            seen.add(eff.video);
+            callback(eff.video);
+        });
+    }
+
+    function syncBattleMediaPlayback(paused) {
+        if (amuletVideo) {
+            if (paused) {
+                amuletVideo.pause();
+            } else {
+                amuletVideo.play().catch(() => {});
+            }
+        }
+        forEachUniqueEffectVideo(video => {
+            if (paused) {
+                video.pause();
+                return;
+            }
+            if (!video.ended) video.play().catch(() => {});
+        });
+    }
+
+    function cleanupEffectMedia(eff) {
+        if (!eff) return;
+        if (eff.video) {
+            releaseBattleVideo(eff.video);
+            eff.video = null;
+        }
+        eff.frozenFrameCanvas = null;
+        eff.frozenFrameCtx = null;
+    }
+
+    function cleanupBattleMedia() {
+        activeEffects.forEach(cleanupEffectMedia);
+        activeEffects = [];
+        if (amuletVideo) {
+            amuletVideo.pause();
+            amuletVideo.currentTime = 0;
+        }
     }
 
     function getCurrentWaveIndex() {
@@ -1774,6 +1832,17 @@ const Battle = (() => {
 
     // ---- Game loop ----
     function start() {
+        if (running) return;
+        if (animFrameId) {
+            cancelAnimationFrame(animFrameId);
+            animFrameId = null;
+        }
+        if (forgeCheckTimer) {
+            clearInterval(forgeCheckTimer);
+            forgeCheckTimer = null;
+        }
+        cleanupBattleMedia();
+
         canvas.width = CANVAS_W;
         canvas.height = CANVAS_H;
 
@@ -1828,9 +1897,23 @@ const Battle = (() => {
 
     function stop() {
         running = false;
-        if (animFrameId) cancelAnimationFrame(animFrameId);
-        if (forgeCheckTimer) clearInterval(forgeCheckTimer);
-        if (amuletVideo) amuletVideo.pause();
+        if (animFrameId) {
+            cancelAnimationFrame(animFrameId);
+            animFrameId = null;
+        }
+        if (forgeCheckTimer) {
+            clearInterval(forgeCheckTimer);
+            forgeCheckTimer = null;
+        }
+        isPaused = false;
+        Object.keys(keys).forEach(code => { keys[code] = false; });
+        cleanupBattleMedia();
+        floatingTexts = [];
+        activeSoulWisps = [];
+        particles = [];
+        afterimages = [];
+        lightningBolts = [];
+        spawnQueue = [];
     }
 
     function gameLoop() {
@@ -2054,7 +2137,9 @@ const Battle = (() => {
         activeEffects = activeEffects.filter(e => {
             const age = now - e.startTime;
             const dur = getEffectDurationMs(e);
-            return age < dur + 200;
+            if (age < dur + 200) return true;
+            cleanupEffectMedia(e);
+            return false;
         });
 
         // Cleanup lightning bolts
@@ -2411,7 +2496,7 @@ const Battle = (() => {
         // Layer 3: Light orbs (parallax + breathing)
         drawLightOrbs(now);
 
-        // Layer 4a: Effect bottom layer (processFrame + lighten)
+        // Layer 4a: Effect bottom layer (direct video blend)
         activeEffects.forEach(eff => {
             if (eff.video) {
                 const alpha = effectAlpha(eff, now);
@@ -2530,17 +2615,7 @@ const Battle = (() => {
     }
 
     function drawAmuletAura() {
-        if (!amuletVideo || amuletVideo.readyState < 2 || amuletVideo.paused) return;
-
-        amuletProcCtx.clearRect(0, 0, AMULET_SIZE, AMULET_SIZE);
-        amuletProcCtx.drawImage(amuletVideo, 0, 0, AMULET_SIZE, AMULET_SIZE);
-        const frame = amuletProcCtx.getImageData(0, 0, AMULET_SIZE, AMULET_SIZE);
-        const d = frame.data;
-        for (let i = 0; i < d.length; i += 4) {
-            const avg = (d[i] + d[i + 1] + d[i + 2]) / 3;
-            if (avg < 40) d[i + 3] = avg < 10 ? 0 : d[i + 3] * ((avg - 10) / 30);
-        }
-        amuletProcCtx.putImageData(frame, 0, 0);
+        if (!amuletVideo || amuletVideo.readyState < 2 || amuletVideo.ended) return;
 
         const psx = w2sx(player.x), psy = w2sy(player.y);
         const vNatH = amuletVideo.videoHeight || amuletVideo.height || AMULET_SIZE;
@@ -2552,28 +2627,10 @@ const Battle = (() => {
         const drawX = psx - drawSize / 2;
 
         ctx.save();
-        ctx.globalCompositeOperation = 'lighten';
-        ctx.globalAlpha = 0.95;
-        ctx.drawImage(amuletProcCanvas, drawX, drawY, drawSize, drawSize);
+        ctx.globalCompositeOperation = 'screen';
+        ctx.globalAlpha = 0.96;
+        ctx.drawImage(amuletVideo, drawX, drawY, drawSize, drawSize);
         ctx.restore();
-    }
-
-    function processFrame(v, options = null) {
-        procCtx.clearRect(0, 0, EFFECT_SIZE, EFFECT_SIZE);
-        procCtx.drawImage(v, 0, 0, EFFECT_SIZE, EFFECT_SIZE);
-        const frame = procCtx.getImageData(0, 0, EFFECT_SIZE, EFFECT_SIZE);
-        const d = frame.data;
-        const alphaKeyThreshold = Number(options?.alphaKeyThreshold) || 40;
-        const hardCutThreshold = Number(options?.hardCutThreshold) || 10;
-        for (let i = 0; i < d.length; i += 4) {
-            const avg = (d[i] + d[i + 1] + d[i + 2]) / 3;
-            if (avg < alphaKeyThreshold) {
-                d[i + 3] = avg < hardCutThreshold
-                    ? 0
-                    : d[i + 3] * ((avg - hardCutThreshold) / Math.max(1, alphaKeyThreshold - hardCutThreshold));
-            }
-        }
-        procCtx.putImageData(frame, 0, 0);
     }
 
     function getEffectDurationMs(eff) {
@@ -2582,7 +2639,7 @@ const Battle = (() => {
         return baseDuration + (Number(eff.persistMs) || 0);
     }
 
-    function cacheFrozenEffectFrame(eff) {
+    function cacheFrozenEffectFrame(eff, source) {
         if (!eff.frozenFrameCanvas) {
             eff.frozenFrameCanvas = document.createElement('canvas');
             eff.frozenFrameCanvas.width = EFFECT_SIZE;
@@ -2590,15 +2647,14 @@ const Battle = (() => {
             eff.frozenFrameCtx = eff.frozenFrameCanvas.getContext('2d');
         }
         eff.frozenFrameCtx.clearRect(0, 0, EFFECT_SIZE, EFFECT_SIZE);
-        eff.frozenFrameCtx.drawImage(procCanvas, 0, 0);
+        eff.frozenFrameCtx.drawImage(source, 0, 0, EFFECT_SIZE, EFFECT_SIZE);
     }
 
     function getEffectFrameSurface(eff) {
         if (!eff?.video) return null;
         if (eff.video.readyState >= 2 && !eff.video.ended) {
-            processFrame(eff.video, eff);
-            if ((Number(eff.persistMs) || 0) > 0) cacheFrozenEffectFrame(eff);
-            return procCanvas;
+            if ((Number(eff.persistMs) || 0) > 0) cacheFrozenEffectFrame(eff, eff.video);
+            return eff.video;
         }
         return eff.frozenFrameCanvas || null;
     }
@@ -3343,13 +3399,19 @@ const Battle = (() => {
             }
 
             // Charges dots only (no key label below)
+            const dotRows = 2;
+            const dotsPerRow = Math.ceil(CONFIG.spellMaxCharges / dotRows);
             const dotY2 = cy + slotR + Math.round(10 * S);
             const dotSpacing = Math.round(10 * S);
-            const dotsX = cx - (CONFIG.spellMaxCharges - 1) * dotSpacing / 2;
             for (let c = 0; c < CONFIG.spellMaxCharges; c++) {
+                const row = Math.floor(c / dotsPerRow);
+                const col = c % dotsPerRow;
+                const rowCount = Math.min(dotsPerRow, CONFIG.spellMaxCharges - row * dotsPerRow);
+                const dotsX = cx - (rowCount - 1) * dotSpacing / 2;
+                const dotY = dotY2 + row * Math.round(10 * S);
                 ctx.fillStyle = c < charges ? CONFIG.spellColors[i] : 'rgba(60,60,60,0.5)';
                 ctx.beginPath();
-                ctx.arc(dotsX + c * dotSpacing, dotY2, Math.round(3.5 * S), 0, Math.PI * 2);
+                ctx.arc(dotsX + col * dotSpacing, dotY, Math.round(3.5 * S), 0, Math.PI * 2);
                 ctx.fill();
             }
         }
