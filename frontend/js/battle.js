@@ -3224,6 +3224,22 @@ const Battle = (() => {
         activeSoulWisps.forEach(wisp => drawSoulWisp(wisp, now));
     }
 
+    function hasSoulGoalReached() {
+        return score >= CONFIG.soulGoal;
+    }
+
+    function isPendingForgeReady() {
+        const pending = GameStorage.getPending();
+        return !!(pending && pending.status === 'done');
+    }
+
+    function getDisplayedSoulRingRatio() {
+        const goalRatio = Math.min(1, score / CONFIG.soulGoal);
+        if (isPendingForgeReady()) return goalRatio;
+        // Keep a visible gap until victory can actually resolve.
+        return Math.min(goalRatio, 0.97);
+    }
+
     // ---- Canvas HUD ----
     function drawCanvasHUD(now) {
         ctx.save();
@@ -3258,7 +3274,7 @@ const Battle = (() => {
 
         // === Top-center: Crucible + soul ring ===
         const crucible = layout.crucible;
-        const soulRatio = Math.min(1, score / CONFIG.soulGoal);
+        const soulRatio = getDisplayedSoulRingRatio();
         const pulseAge = now - cruciblePulseAt;
         const pulseActive = pulseAge >= 0 && pulseAge < CRUCIBLE_PULSE_MS;
         const pulseT = pulseActive ? pulseAge / CRUCIBLE_PULSE_MS : 1;
@@ -3501,12 +3517,10 @@ const Battle = (() => {
 
     // ---- Win/Lose ----
     function hasBattleVictoryCondition() {
-        const pending = GameStorage.getPending();
         return !!(
             player.hp > 0 &&
-            score >= CONFIG.soulGoal &&
-            pending &&
-            pending.status === 'done'
+            hasSoulGoalReached() &&
+            isPendingForgeReady()
         );
     }
 
