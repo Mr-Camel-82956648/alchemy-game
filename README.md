@@ -1,49 +1,35 @@
-# AI法阵·炼金术士
+# AI法阵炼金术士
 
-玩家扮演炼金术士，通过合成已有法阵生成新的法阵大招，并在战斗中使用它们对抗不同属性的敌人。
+玩家通过炼金合成已有法阵，生成更高世代的新法阵，并在 4-wave 战斗里用属性匹配规则对抗怪物。
 
-## 项目结构
+## 当前状态
 
-```
+- 前端卡牌与后端 forge 结果已统一到 `attrSet` 口径，`mainAttr` / `subAttr` 作为兼容字段继续保留。
+- 战斗命中规则已切换为“技能属性集合与怪物属性集合有交集则命中，否则触发吸收成长”。
+- 后端 forge 接口已接入最小每日配额；请求需要 `playerId`，超额时返回 `429 quota_exhausted`。
+- forge 的 LLM prompt 已改为中文创意口径，LLM 只负责 `name / visualDesc / fusionPrompt`，属性集合由后端规则决定。
+
+## 目录
+
+```text
 alchemy-game/
-  frontend/     # 前端：游戏主循环、战斗、法阵展示、炼金合成
-  backend/      # 后端：FastAPI 法阵合成 API
-  docs/         # 项目文档
+  frontend/     # 游戏前端
+  backend/      # FastAPI 后端
+  docs/         # 当前说明与历史设计稿
 ```
 
-## 本地运行前端
+## 本地运行
 
-### 1. 克隆仓库
-
-```bash
-git clone https://github.com/Mr-Camel-82956648/alchemy-game.git
-cd alchemy-game
-```
-
-### 2. 启动本地服务器
-
-在 `frontend/` 目录下启动 HTTP 服务器：
+### 前端
 
 ```bash
 cd frontend
 python -m http.server 8000
 ```
 
-如果 8000 端口被占用，可以改用其他端口：
+浏览器访问 `http://localhost:8000`。
 
-```bash
-python -m http.server 8080
-```
-
-### 3. 打开浏览器
-
-访问 `http://localhost:8000`（或你指定的端口）。
-
-> **不建议直接双击 `frontend/index.html` 打开。** 浏览器以 `file://` 协议加载时，视频资源和 fetch 请求（如加载 seed_cards.json）会因跨域限制而失败，导致法阵无法正常显示。
-
-## 启动后端
-
-前端默认以 `USE_MOCK = false` 连接后端，需要启动后端服务：
+### 后端
 
 ```bash
 cd backend
@@ -51,51 +37,74 @@ pip install -r requirements.txt
 uvicorn app.main:app --reload --port 18001
 ```
 
-启动后访问 `http://localhost:18001/docs` 可查看自动生成的 API 文档。
+接口文档位于 `http://localhost:18001/docs`。
 
-> 默认端口为 18001。如果你的机器上该端口被占用或希望使用其他端口（如 8001），同时修改启动命令和 `frontend/js/forgeAPI.js` 中的 `API_BASE` 即可。
+默认前端会请求 `http://localhost:18001`。如果改端口，需要同时修改启动命令和 `frontend/js/forgeAPI.js` 里的 `API_BASE`。
 
-如果不启动后端，将 `frontend/js/forgeAPI.js` 中的 `USE_MOCK` 改为 `true` 即可使用本地 mock 模式。
+## Forge 协议摘要
 
-## 前后端模式切换
+### 创建合成任务
 
-在 `frontend/js/forgeAPI.js` 中：
+`POST /api/forge`
 
-- `USE_MOCK = true` — 纯前端本地模拟，不需要后端
-- `USE_MOCK = false` — 前端连接 `http://localhost:18001` 后端 API
+```json
+{
+  "playerId": "player_xxx",
+  "spellA": {
+    "id": "spell_a",
+    "name": "赤焰印",
+    "attrSet": ["fire"],
+    "mainAttr": "fire",
+    "generation": 1
+  },
+  "spellB": {
+    "id": "spell_b",
+    "name": "寒潮轮",
+    "attrSet": ["ice"],
+    "mainAttr": "ice",
+    "generation": 1
+  }
+}
+```
 
-## Phase 2 完成状态
+### 查询任务结果
 
-前后端最小真实闭环已跑通（2026-04-30 验收通过）：
+`GET /api/forge/status/{taskId}`
 
-- 前端炼金合成流程通过 `POST /api/forge` 提交请求，轮询 `GET /api/forge/status/{taskId}` 获取结果
-- 后端使用 FastAPI + 内存任务表，mock 生成逻辑（随机属性 + 5~10 秒延迟）
-- 合成结果写入 localStorage 后，battle.js 和 alchemy.js 正常消费，新卡进入收藏夹
+```json
+{
+  "taskId": "task_xxx",
+  "status": "completed",
+  "result": {
+    "name": "焚天寒环",
+    "attrSet": ["fire", "ice"],
+    "mainAttr": "fire",
+    "subAttr": "ice",
+    "element": "fire",
+    "generation": 2,
+    "baseAtk": 130.0,
+    "videoUrl": null,
+    "status": "partial",
+    "visualDesc": null,
+    "fusionPrompt": null,
+    "source": "fallback"
+  },
+  "error": null
+}
+```
 
-当前限制（后续阶段解决）：
+### 查询配额
 
-- 后端生成逻辑为随机 mock，尚未接入真实 AI 模型
-- 任务存储在内存中，后端重启后任务丢失
-- 合成结果的 videoUrl 始终为 null
-- 无认证鉴权、无限流
+`GET /api/player/quota?playerId=player_xxx`
 
-## 当前阶段目标
+返回 `playerId / quotaDate / dailyLimit / used / remaining / resetAt`。
 
-1. 保留现有前端玩法（已完成）
-2. 统一法阵/怪物数据结构（已完成）
-3. 极简属性与伤害规则（已完成）
-4. 最小后端 forge 接口（已完成）
-5. 前后端通信闭环（已完成）
-6. 真实 LLM 结构化合成（已完成 — Gemini REST）
+## 文档入口
 
-## 设计原则
+- `docs/forge-schema.md`: 当前有效的 forge + quota 接口与字段说明
+- `docs/attrset-quota-walkthrough.md`: 本轮机制重构、前后端链路与接管 walkthrough
+- `backend/README.md`: 后端启动、环境变量、接口与 prompt 说明
 
-- 视觉优先，数值是视觉的翻译层
-- 主属性参与战斗，副属性只记录
-- 老法阵兼容迁移，新法阵优先结构化
-- 资源一律通过稳定 id 管理，不通过数组位置管理
+## 历史文档说明
 
-## 文档
-
-- `docs/handover_to_cursor.md` — 项目交接说明
-- `docs/roadmap.md` — 开发路线图
+`docs/phase3-handoff-for-new-agent.md`、`docs/phase4-minimal-balance-design-v2.md`、`docs/handover_to_cursor.md`、`docs/roadmap.md` 主要保留为历史设计与交接材料，其中仍有旧的 `mainAttr / subAttr / immuneAttrs` 叙述，不应再视为当前协议真相来源。

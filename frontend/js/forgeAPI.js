@@ -1,12 +1,5 @@
 /**
- * forgeAPI.js — 合成 API 封装（mock / real 切换）
- *
- * USE_MOCK = true  → 前端本地模拟，不需要后端
- * USE_MOCK = false → 请求 FastAPI 后端（默认 http://localhost:18001）
- *
- * 两种模式都将结果写入 localStorage（pendingGeneration.status = 'done'）。
- * 这里的 'done' 是前端本地状态，不等于后端任务状态 pending/completed/failed。
- * battle.js 和 alchemy.js 只读 localStorage，无需关心模式差异。
+ * forgeAPI.js - 合成 API 封装（mock / real 切换）
  */
 const ForgeAPI = (() => {
     const USE_MOCK = false;
@@ -14,9 +7,18 @@ const ForgeAPI = (() => {
 
     console.log('[ForgeAPI] loaded, USE_MOCK=' + USE_MOCK + ', API_BASE=' + API_BASE);
 
-    let _pollTimer = null;
-    let _pollCount = 0;
+    let pollTimer = null;
+    let pollCount = 0;
     const MAX_POLLS = 60;
+
+    function clearPendingTask(taskId) {
+        const data = GameStorage.load();
+        if (!data.pendingGeneration) return false;
+        if (taskId && data.pendingGeneration.taskId !== taskId) return false;
+        data.pendingGeneration = null;
+        GameStorage.save(data);
+        return true;
+    }
 
     function startForge(cardA, cardB) {
         const a = SpellDefs.normalizeCard(cardA);
@@ -24,9 +26,42 @@ const ForgeAPI = (() => {
 
         if (USE_MOCK) return mockForge(a, b);
         realForge(a, b);
+        return null;
     }
 
-    // ---- Mock mode: local setTimeout, writes directly to localStorage ----
+    function buildRequestSpell(card) {
+        const normalized = SpellDefs.normalizeCard(card);
+        return {
+            id: normalized.id,
+            name: normalized.name,
+            attrSet: SpellDefs.getCardAttrSet(normalized),
+            mainAttr: normalized.mainAttr,
+            generation: normalized.generation || 1
+        };
+    }
+
+    function buildMockResult(cardA, cardB) {
+        const generation = Math.max(cardA.generation || 1, cardB.generation || 1) + 1;
+        const attrSet = SpellDefs.mergeAttrSets(
+            SpellDefs.getCardAttrSet(cardA),
+            SpellDefs.getCardAttrSet(cardB)
+        );
+        const mainAttr = attrSet[0] || SpellDefs.ELEMENTS[0];
+        const subAttr = attrSet[1] || null;
+
+        return {
+            name: `${cardA.name}${cardB.name}`.slice(0, 6) || '新法阵',
+            attrSet,
+            mainAttr,
+            subAttr,
+            element: mainAttr,
+            generation,
+            baseAtk: SpellDefs.calcBaseAtk(generation),
+            videoUrl: null,
+            status: 'partial',
+            source: 'fallback'
+        };
+    }
 
     function mockForge(cardA, cardB) {
         const taskId = 'task_' + Date.now();
@@ -35,33 +70,15 @@ const ForgeAPI = (() => {
         setTimeout(() => {
             const data = GameStorage.load();
             if (data.pendingGeneration && data.pendingGeneration.taskId === taskId) {
-                const gen = Math.max(cardA.generation || 1, cardB.generation || 1) + 1;
-                const elements = SpellDefs.ELEMENTS;
-                const mainAttr = elements[Math.floor(Math.random() * elements.length)];
-                const remaining = elements.filter(e => e !== mainAttr);
-                const subAttr = remaining[Math.floor(Math.random() * remaining.length)] || null;
-
                 data.pendingGeneration.status = 'done';
-                data.pendingGeneration.result = {
-                    name: `${cardA.name}·${cardB.name}之阵`,
-                    mainAttr: mainAttr,
-                    subAttr: subAttr,
-                    element: mainAttr,
-                    generation: gen,
-                    baseAtk: SpellDefs.calcBaseAtk(gen),
-                    videoUrl: null,
-                    status: 'partial',
-                    source: 'fallback'
-                };
+                data.pendingGeneration.result = buildMockResult(cardA, cardB);
                 GameStorage.save(data);
                 console.log('[ForgeAPI] mock result written:', data.pendingGeneration.result.name);
             }
-        }, 8000 + Math.random() * 7000);
+        }, 1500);
 
         return taskId;
     }
-
-    // ---- Real mode: POST to backend, then poll until completed ----
 
     function realForge(cardA, cardB) {
         const tempTaskId = 'task_' + Date.now();
@@ -71,34 +88,44 @@ const ForgeAPI = (() => {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                spellA: { id: cardA.id, name: cardA.name, mainAttr: cardA.mainAttr, generation: cardA.generation || 1 },
-                spellB: { id: cardB.id, name: cardB.name, mainAttr: cardB.mainAttr, generation: cardB.generation || 1 }
+                playerId: GameStorage.getPlayerId(),
+                spellA: buildRequestSpell(cardA),
+                spellB: buildRequestSpell(cardB)
             })
         })
-        .then(res => res.json())
-        .then(resp => {
-            const realTaskId = resp.taskId;
-            const data = GameStorage.load();
-            if (data.pendingGeneration && data.pendingGeneration.taskId === tempTaskId) {
-                data.pendingGeneration.taskId = realTaskId;
-                GameStorage.save(data);
-            }
-            console.log('[ForgeAPI] task created:', realTaskId);
-            startPolling(realTaskId);
-        })
-        .catch(err => {
-            console.error('[ForgeAPI] POST /api/forge failed:', err);
-        });
+            .then(async res => {
+                const data = await res.json().catch(() => null);
+                if (!res.ok) {
+                    const message = data?.detail?.message || data?.detail || `HTTP ${res.status}`;
+                    throw new Error(message);
+                }
+                return data;
+            })
+            .then(resp => {
+                const realTaskId = resp.taskId;
+                const data = GameStorage.load();
+                if (data.pendingGeneration && data.pendingGeneration.taskId === tempTaskId) {
+                    data.pendingGeneration.taskId = realTaskId;
+                    GameStorage.save(data);
+                }
+                console.log('[ForgeAPI] task created:', realTaskId);
+                startPolling(realTaskId);
+            })
+            .catch(err => {
+                clearPendingTask(tempTaskId);
+                console.error('[ForgeAPI] POST /api/forge failed:', err);
+            });
     }
 
     function startPolling(taskId) {
         stopPolling();
-        _pollCount = 0;
-        _pollTimer = setInterval(() => {
-            _pollCount++;
-            if (_pollCount > MAX_POLLS) {
+        pollCount = 0;
+        pollTimer = setInterval(() => {
+            pollCount += 1;
+            if (pollCount > MAX_POLLS) {
                 console.warn('[ForgeAPI] polling timed out');
                 stopPolling();
+                clearPendingTask(taskId);
                 return;
             }
             fetch(`${API_BASE}/api/forge/status/${taskId}`)
@@ -118,6 +145,7 @@ const ForgeAPI = (() => {
                         }
                     } else if (data.status === 'failed') {
                         stopPolling();
+                        clearPendingTask(taskId);
                         console.error('[ForgeAPI] forge task failed:', data.error);
                     }
                 })
@@ -128,9 +156,9 @@ const ForgeAPI = (() => {
     }
 
     function stopPolling() {
-        if (_pollTimer) {
-            clearInterval(_pollTimer);
-            _pollTimer = null;
+        if (pollTimer) {
+            clearInterval(pollTimer);
+            pollTimer = null;
         }
     }
 

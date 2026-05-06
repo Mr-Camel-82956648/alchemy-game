@@ -1,140 +1,185 @@
-# Forge Schema — 法阵合成结构化协议
+# Forge Schema
 
-## 概述
+## 目标
 
-法阵合成通过 `POST /api/forge` 提交请求，后端异步处理后通过 `GET /api/forge/status/{taskId}` 返回结构化结果。Phase 3 起，后端可调用真实 LLM 生成法阵名称、属性和视觉描述。
+当前 forge 协议分成两层：
 
-## .env 配置
+- 创意层：LLM 负责命名和视觉描述
+- 规则层：后端负责属性集合、世代、攻击力和配额
 
-| 变量 | 说明 | 示例值 |
-|------|------|--------|
-| `FORGE_USE_REAL_LLM` | 是否启用真实 LLM 生成 | `true` / `false` |
-| `LLM_PROVIDER` | 主 LLM provider 标识 | `gemini_rest` / `openai_compat` |
-| `GEMINI_API_KEY` | Gemini API Key | `AIzaSy...` |
-| `LLM_MODEL` | 模型名称 | `gemini-2.0-flash` |
-| `LLM_BASE_URL` | OpenAI-compatible 备用接口地址 | `https://example.com/v1` |
-| `LLM_API_KEY` | OpenAI-compatible 备用接口密钥 | `sk-...` |
-| `OPENAI_COMPAT_MODEL` | OpenAI-compatible 备用模型名 | `gemini-3.1-flash-lite-preview` |
-| `LLM_TIMEOUT_SECONDS` | 单次 HTTP 请求超时（秒） | `30` |
-| `LLM_MAX_RETRIES` | 失败后重试次数 | `1` |
+不要再把旧文档里的 `LLM 直接输出 mainAttr / subAttr` 视为现行协议。
 
-要切换回 mock：将 `FORGE_USE_REAL_LLM` 设为 `false`，无需改代码。
+## 请求协议
 
-当前最小可用策略：
-- 默认先使用 `LLM_PROVIDER` 指定的主 provider
-- 当主 provider 为 `gemini_rest` 且调用失败时，后端会自动尝试 OpenAI-compatible 备用 provider
-- 只有主、备 provider 都拿不到可用的结构化结果时，才进入词库 fallback
-
-## Gemini REST 调用方式
-
-直接通过 HTTP POST 调用，不使用 SDK：
-
-```
-POST https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}
-```
-
-请求体使用 `systemInstruction` 传入设计原则和输出格式要求，`contents` 传入两个父法阵信息。设置 `responseMimeType: "application/json"` 强制 JSON 输出。
-
-## OpenAI-compatible 备用调用方式
-
-当主 provider 失败且 `.env` 中配置了 `LLM_BASE_URL`、`LLM_API_KEY`、`OPENAI_COMPAT_MODEL` 时，后端会自动调用：
-
-```
-POST {LLM_BASE_URL}/chat/completions
-```
-
-请求体使用标准 `messages` 格式传入同一套 system prompt 和 user prompt，并对返回内容执行相同的 JSON 提取与结构校验。
-
-## LLM 输出 Schema
-
-LLM 被要求输出以下 JSON 结构：
+### POST /api/forge
 
 ```json
 {
-  "name": "新法阵名称（2-6个汉字）",
-  "mainAttr": "fire | ice | thunder | blight",
-  "subAttr": "fire | ice | thunder | blight（与 mainAttr 不同）",
-  "visualDesc": "法阵视觉描述（1-2句，俯视角特效）",
-  "fusionPrompt": "英文视频生成提示词（1-2句）"
+  "playerId": "player_xxx",
+  "spellA": {
+    "id": "spell_a",
+    "name": "赤焰印",
+    "attrSet": ["fire"],
+    "mainAttr": "fire",
+    "generation": 1
+  },
+  "spellB": {
+    "id": "spell_b",
+    "name": "寒潮轮",
+    "attrSet": ["ice"],
+    "mainAttr": "ice",
+    "generation": 1
+  }
 }
 ```
 
-## 最终返回给前端的 ForgeResult 字段
+规则：
+
+- `playerId` 必填，用于 quota 统计
+- `spellA.attrSet` / `spellB.attrSet` 是当前主口径
+- `mainAttr` 仍保留为兼容字段；如果没有 `attrSet`，后端会回退到 `[mainAttr]`
+
+成功响应：
+
+```json
+{
+  "taskId": "task_xxx",
+  "status": "pending"
+}
+```
+
+超额响应：
+
+```json
+{
+  "detail": {
+    "code": "quota_exhausted",
+    "message": "今日实时合成次数已用尽",
+    "quota": {
+      "playerId": "player_xxx",
+      "quotaDate": "2026-05-06",
+      "dailyLimit": 5,
+      "used": 5,
+      "remaining": 0,
+      "resetAt": "2026-05-07T00:00:00+08:00"
+    }
+  }
+}
+```
+
+## 状态协议
+
+### GET /api/forge/status/{taskId}
+
+```json
+{
+  "taskId": "task_xxx",
+  "status": "completed",
+  "result": {
+    "name": "焚天寒环",
+    "attrSet": ["fire", "ice"],
+    "mainAttr": "fire",
+    "subAttr": "ice",
+    "element": "fire",
+    "generation": 2,
+    "baseAtk": 130.0,
+    "videoUrl": null,
+    "status": "partial",
+    "visualDesc": "中文视觉描述",
+    "fusionPrompt": "English video prompt",
+    "source": "llm"
+  },
+  "error": null
+}
+```
+
+字段说明：
 
 | 字段 | 类型 | 来源 | 说明 |
 |------|------|------|------|
-| `name` | string | LLM / fallback | 法阵名称 |
-| `mainAttr` | string | LLM / fallback | 主属性（fire/ice/thunder/blight） |
-| `subAttr` | string? | LLM / fallback | 副属性，与主属性不同 |
-| `element` | string | 后端规则 | 等于 mainAttr，兼容旧字段 |
-| `generation` | int | 后端规则 | max(parentA.gen, parentB.gen) + 1 |
-| `baseAtk` | float | 后端规则 | 100 × (1 + 0.3 × (generation - 1)) |
-| `videoUrl` | string? | 后端规则 | 当前始终为 null |
-| `status` | string | 后端规则 | 当前固定为 `"partial"`，表示法阵结果已生成但尚无视频资源 |
-| `visualDesc` | string? | LLM | 法阵视觉描述文本 |
-| `fusionPrompt` | string? | LLM | 未来视频生成用的英文提示词 |
-| `source` | string | 后端规则 | 必填；`"llm"` 或 `"fallback"`，表示最终结果来源 |
+| `name` | string | LLM / fallback | 新法阵名称 |
+| `attrSet` | string[] | 后端规则 | 合并后的目标属性集合 |
+| `mainAttr` | string | 后端规则 | `attrSet[0]` 的兼容字段 |
+| `subAttr` | string? | 后端规则 | `attrSet[1]` 的兼容字段 |
+| `element` | string | 后端规则 | 等于 `mainAttr` |
+| `generation` | int | 后端规则 | `max(parent.gen) + 1` |
+| `baseAtk` | float | 后端规则 | 由世代推导 |
+| `videoUrl` | string? | 后端规则 | 当前固定为 `null` |
+| `status` | string | 后端规则 | 当前固定为 `"partial"` |
+| `visualDesc` | string? | LLM / fallback | 中文视觉描述 |
+| `fusionPrompt` | string? | LLM / fallback | 英文视频提示词 |
+| `source` | string | 后端规则 | `"llm"` 或 `"fallback"` |
 
-## 字段来源分工
+## Quota 协议
 
-**LLM 负责**（创意层）：
-- name — 融合后的法阵名称
-- mainAttr — 基于视觉主导特征的主属性
-- subAttr — 副属性
-- visualDesc — 视觉描述
-- fusionPrompt — 视频生成提示词
+### GET /api/player/quota
 
-**后端规则负责**（确定性层）：
-- generation — 世代计算
-- baseAtk — 攻击力计算
-- element — 兼容字段，等于 mainAttr
-- videoUrl — 当前为 null
-- status — 当前固定 "partial"
-- source — 标记最终结果来源
+```text
+GET /api/player/quota?playerId=player_xxx
+```
 
-## 状态分层
+```json
+{
+  "playerId": "player_xxx",
+  "quotaDate": "2026-05-06",
+  "dailyLimit": 5,
+  "used": 1,
+  "remaining": 4,
+  "resetAt": "2026-05-07T00:00:00+08:00"
+}
+```
 
-- **任务状态**：`POST /api/forge` 与 `GET /api/forge/status/{taskId}` 使用 `pending | completed | failed`
-- **ForgeResult.status**：当前 forge 结果固定为 `"partial"`，表示结果卡已生成但没有视频资源
-- **前端本地状态**：`localStorage.pendingGeneration.status` 当前使用 `"done"` 作为前端本地完成标记，不属于后端接口协议
+### POST /api/admin/quota/reset
 
-## source 语义
+```json
+{
+  "playerId": "player_xxx",
+  "applyToAll": false,
+  "usedCount": 0,
+  "dailyLimit": 5
+}
+```
 
-- `source = "llm"`：最终返回给前端的结果主要来自 LLM 输出，并通过后端规则校验
-- `source = "fallback"`：仅当后端拿不到可用的结构化 LLM 结果时，才由 fallback 逻辑生成最终结果
+## LLM 输出协议
 
-## Fallback 机制
+当前 LLM 只允许返回以下 JSON：
 
-以下情况自动触发 fallback（回退到随机 mock 生成）：
+```json
+{
+  "name": "新法阵名称",
+  "visualDesc": "1到2句中文视觉描述",
+  "fusionPrompt": "1到2句英文视频生成提示词"
+}
+```
 
-1. `FORGE_USE_REAL_LLM=false`
-2. `GEMINI_API_KEY` 未设置
-3. Gemini API 调用失败（网络错误、超时、HTTP 错误）
-4. Gemini 返回非 JSON 或 JSON 解析失败
-5. JSON 缺少必要字段（name 或 mainAttr）
-6. mainAttr 不在合法元素列表中
-7. 所有重试均失败
+注意：
 
-后端 fallback 时：
-- name 由元素前后缀词库随机生成 3-4 字短名
-- mainAttr / subAttr 随机选取
-- visualDesc / fusionPrompt 为 null
-- source 标记为 "fallback"
-- 所有 fallback 情况均有日志输出
+- LLM 不再决定 `mainAttr / subAttr / attrSet`
+- 后端会忽略任何额外字段
+- 只要 `name` 合法，后端就会把创意字段与规则字段合并成最终 `ForgeResult`
 
-说明：命名风格是否理想不再作为 fallback 条件。只要 LLM 成功返回可解析、字段合格的结构化结果，后端就优先采用该结果。
+## 属性集合规则
 
-注意：前端 `USE_MOCK=true` 的本地模拟模式为了便于识别，仍会生成 `{父A名}·{父B名}之阵` 这种占位名；这不是后端 `source="fallback"` 的命名规则。
+- 合法元素：`fire` / `ice` / `thunder` / `blight`
+- 兼容别名：`poison -> blight`
+- 合并规则：先统计两个父技能中属性出现频次，再按首次出现顺序打破并列
+- 最多保留 3 个属性
 
-## 元素值域
+示例：
 
-合法值：`fire`, `ice`, `thunder`, `blight`
+- `["fire"] + ["ice"] -> ["fire", "ice"]`
+- `["fire", "ice"] + ["ice", "thunder"] -> ["ice", "fire", "thunder"]`
 
-兼容别名：`poison` → `blight`（后端自动转换）
+## 前端本地状态
 
-## 已知限制（Phase 3）
+后端任务状态与前端本地状态不要混淆：
 
-- 任务存储在内存中，后端重启丢失
-- videoUrl 始终为 null
-- 无鉴权、无限流
-- fusionPrompt 已生成但尚未对接视频生成服务
+- 后端任务状态：`pending | completed | failed`
+- `ForgeResult.status`：当前固定 `"partial"`
+- 前端 `localStorage.pendingGeneration.status`：本地只把成功结果标记为 `"done"`；失败和超时会直接清理 pending，避免卡死
+
+## 已知限制
+
+- 任务状态仍在内存中，进程重启后丢失
+- 配额是最小实现，前端尚未提供独立 quota 面板
+- 当前正式文档入口只有本文件、根 README 和 `backend/README.md`

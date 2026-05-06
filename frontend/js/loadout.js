@@ -116,14 +116,16 @@ const Loadout = (() => {
 
         const attrs = document.createElement('div');
         attrs.style.cssText = 'display:flex;gap:4px;';
-        const mainBadge = createAttrBadge(card.mainAttr, false);
-        if (mainBadge) attrs.appendChild(mainBadge);
-        const subBadge = createAttrBadge(card.subAttr, false);
-        if (subBadge) {
-            subBadge.style.opacity = '0.82';
-            subBadge.style.transform = 'scale(0.9)';
-            attrs.appendChild(subBadge);
-        }
+        const attrSet = SpellDefs.getCardAttrSet ? SpellDefs.getCardAttrSet(card) : [card.mainAttr, card.subAttr].filter(Boolean);
+        attrSet.forEach((attr, index) => {
+            const badge = createAttrBadge(attr, false);
+            if (!badge) return;
+            if (index > 0) {
+                badge.style.opacity = '0.82';
+                badge.style.transform = 'scale(0.9)';
+            }
+            attrs.appendChild(badge);
+        });
         meta.appendChild(attrs);
 
         slotEl.appendChild(meta);
@@ -160,14 +162,16 @@ const Loadout = (() => {
             gap: 4px;
             pointer-events: none;
         `;
-        const mainBadge = createAttrBadge(card.mainAttr, true);
-        if (mainBadge) attrs.appendChild(mainBadge);
-        const subBadge = createAttrBadge(card.subAttr, true);
-        if (subBadge) {
-            subBadge.style.opacity = '0.82';
-            subBadge.style.transform = 'scale(0.9)';
-            attrs.appendChild(subBadge);
-        }
+        const attrSet = SpellDefs.getCardAttrSet ? SpellDefs.getCardAttrSet(card) : [card.mainAttr, card.subAttr].filter(Boolean);
+        attrSet.forEach((attr, index) => {
+            const badge = createAttrBadge(attr, true);
+            if (!badge) return;
+            if (index > 0) {
+                badge.style.opacity = '0.82';
+                badge.style.transform = 'scale(0.9)';
+            }
+            attrs.appendChild(badge);
+        });
         if (attrs.childNodes.length > 0) item.appendChild(attrs);
     }
 

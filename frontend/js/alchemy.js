@@ -180,6 +180,7 @@ const Alchemy = (() => {
                 status: r.status || 'complete',
                 videoUrl: r.videoUrl,
                 thumbnail,
+                attrSet: r.attrSet || [],
                 element: r.element || r.mainAttr,
                 mainAttr: r.mainAttr || r.element,
                 subAttr: r.subAttr || null,

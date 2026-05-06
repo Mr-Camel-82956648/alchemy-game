@@ -2,55 +2,16 @@ import json
 import logging
 import os
 from pathlib import Path
+from typing import Iterable, List
 
 import httpx
 
 logger = logging.getLogger("forge.llm")
 
-VALID_ELEMENTS = {"fire", "ice", "thunder", "blight"}
-ELEMENT_ALIASES = {
-    "fire": "fire",
-    "flame": "fire",
-    "blaze": "fire",
-    "inferno": "fire",
-    "ember": "fire",
-    "火": "fire",
-    "炎": "fire",
-    "烈焰": "fire",
-    "ice": "ice",
-    "frost": "ice",
-    "snow": "ice",
-    "cold": "ice",
-    "冰": "ice",
-    "霜": "ice",
-    "寒": "ice",
-    "寒冰": "ice",
-    "冰霜": "ice",
-    "thunder": "thunder",
-    "lightning": "thunder",
-    "electric": "thunder",
-    "electricity": "thunder",
-    "雷": "thunder",
-    "电": "thunder",
-    "雷电": "thunder",
-    "blight": "blight",
-    "poison": "blight",
-    "toxic": "blight",
-    "venom": "blight",
-    "decay": "blight",
-    "腐蚀": "blight",
-    "侵蚀": "blight",
-    "枯萎": "blight",
-    "瘴": "blight",
-    "瘴毒": "blight",
-    "毒": "blight",
-    "蛊": "blight",
-}
-
 PROMPTS_DIR = Path(__file__).resolve().parents[1] / "prompts" / "forge"
 
 
-def _load_prompt_text(filename, fallback):
+def _load_prompt_text(filename: str, fallback: str) -> str:
     path = PROMPTS_DIR / filename
     try:
         return path.read_text(encoding="utf-8").strip()
@@ -61,50 +22,46 @@ def _load_prompt_text(filename, fallback):
 
 SYSTEM_PROMPT = _load_prompt_text(
     "system_prompt.txt",
-    (
-        "你是法阵融合引擎。请严格输出 JSON，字段包含 "
-        "name/mainAttr/subAttr/visualDesc/fusionPrompt，元素只允许 fire/ice/thunder/blight。"
-    ),
+    "你是法阵命名与视觉描述引擎。请严格输出 JSON，字段只包含 name、visualDesc、fusionPrompt。",
 )
 
 USER_PROMPT_TEMPLATE = _load_prompt_text(
     "user_prompt.txt",
     (
-        "请融合以下两个父法阵，输出严格 JSON：\n"
-        "父法阵 A：{spell_a_name} / {spell_a_attr} / Gen {spell_a_gen}\n"
-        "父法阵 B：{spell_b_name} / {spell_b_attr} / Gen {spell_b_gen}"
+        "请基于以下两张父技能生成一个新法阵的名字和视觉描述：\n"
+        "父技能 A：{spell_a_name} / 属性集合 {spell_a_attr_set} / Gen {spell_a_gen}\n"
+        "父技能 B：{spell_b_name} / 属性集合 {spell_b_attr_set} / Gen {spell_b_gen}\n"
+        "目标属性集合：{merged_attr_set}"
     ),
 )
 
 
-def _build_user_prompt(spell_a_name, spell_a_attr, spell_a_gen,
-                       spell_b_name, spell_b_attr, spell_b_gen):
+def _format_attr_set(attr_set: Iterable[str]) -> str:
+    attrs = [str(attr).strip() for attr in attr_set if str(attr).strip()]
+    return "、".join(attrs) if attrs else "未定"
+
+
+def _build_user_prompt(
+    spell_a_name: str,
+    spell_a_attr_set: List[str],
+    spell_a_gen: int,
+    spell_b_name: str,
+    spell_b_attr_set: List[str],
+    spell_b_gen: int,
+    merged_attr_set: List[str],
+) -> str:
     return USER_PROMPT_TEMPLATE.format(
         spell_a_name=spell_a_name,
-        spell_a_attr=spell_a_attr or "未知",
+        spell_a_attr_set=_format_attr_set(spell_a_attr_set),
         spell_a_gen=spell_a_gen,
         spell_b_name=spell_b_name,
-        spell_b_attr=spell_b_attr or "未知",
+        spell_b_attr_set=_format_attr_set(spell_b_attr_set),
         spell_b_gen=spell_b_gen,
+        merged_attr_set=_format_attr_set(merged_attr_set),
     )
 
 
-def _normalize_element(value):
-    if value is None:
-        return None
-
-    text = str(value).strip()
-    if not text:
-        return None
-
-    compact = text.replace(" ", "").replace("_", "").replace("-", "").lower()
-    if compact.endswith("属性"):
-        compact = compact[:-2]
-
-    return ELEMENT_ALIASES.get(compact, compact)
-
-
-def _extract_json_text(text):
+def _extract_json_text(text: str) -> str:
     text = str(text or "").strip()
     if not text:
         raise json.JSONDecodeError("empty response", text, 0)
@@ -125,7 +82,7 @@ def _extract_json_text(text):
     return text
 
 
-def _extract_openai_message_text(message):
+def _extract_openai_message_text(message) -> str:
     if isinstance(message, str):
         return message
 
@@ -142,53 +99,33 @@ def _extract_openai_message_text(message):
 
 
 def _validate(raw):
-    """校验并规范化 LLM 返回的 JSON，返回 dict 或 None。"""
+    """校验并规范化 LLM 返回的 JSON，只接收创意字段。"""
     if not isinstance(raw, dict):
         return None
 
-    name = raw.get("name")
-    main_attr = raw.get("mainAttr") or raw.get("element")
-    sub_attr = raw.get("subAttr")
-    visual_desc = raw.get("visualDesc", "")
-    fusion_prompt = raw.get("fusionPrompt", "")
+    name = str(raw.get("name") or "").strip()
+    visual_desc = str(raw.get("visualDesc") or "").strip()
+    fusion_prompt = str(raw.get("fusionPrompt") or "").strip()
 
-    if not name or not main_attr:
-        print(f"  [LLM] VALIDATE FAIL: missing name={name} or mainAttr={main_attr}")
+    if not name:
+        print("  [LLM] VALIDATE FAIL: missing name")
         return None
-
-    main_attr = _normalize_element(main_attr)
-    if sub_attr:
-        sub_attr = _normalize_element(sub_attr)
-
-    if main_attr not in VALID_ELEMENTS:
-        print(f"  [LLM] VALIDATE FAIL: invalid mainAttr={main_attr}")
-        return None
-    if sub_attr and sub_attr not in VALID_ELEMENTS:
-        sub_attr = None
-    if sub_attr == main_attr:
-        sub_attr = None
-
-    name = str(name).strip()
-    if len(name) > 20:
-        name = name[:20]
 
     return {
-        "name": name,
-        "mainAttr": main_attr,
-        "subAttr": sub_attr,
-        "visualDesc": str(visual_desc).strip()[:200] if visual_desc else "",
-        "fusionPrompt": str(fusion_prompt).strip()[:300] if fusion_prompt else "",
+        "name": name[:20],
+        "visualDesc": visual_desc[:200] if visual_desc else "",
+        "fusionPrompt": fusion_prompt[:300] if fusion_prompt else "",
     }
 
 
-def _log_location_restriction(provider_name, error_text):
+def _log_location_restriction(provider_name: str, error_text: str):
     text = str(error_text or "")
     lowered = text.lower()
     if "user location is not supported for the api use" in lowered or "location is not supported" in lowered:
         print(f"  [LLM] {provider_name} availability issue: request appears blocked by network/region restrictions")
 
 
-def _call_gemini_rest(user_prompt, timeout, max_retries):
+def _call_gemini_rest(user_prompt: str, timeout: int, max_retries: int):
     api_key = os.getenv("GEMINI_API_KEY", "")
     model = os.getenv("LLM_MODEL", "gemini-2.0-flash")
 
@@ -229,7 +166,7 @@ def _call_gemini_rest(user_prompt, timeout, max_retries):
             raw = json.loads(_extract_json_text(text))
             validated = _validate(raw)
             if validated:
-                print(f"  [LLM] Gemini validation OK: name={validated['name']}, mainAttr={validated['mainAttr']}")
+                print(f"  [LLM] Gemini validation OK: name={validated['name']}")
                 return validated
 
             print("  [LLM] Gemini validation FAILED for parsed JSON")
@@ -246,7 +183,7 @@ def _call_gemini_rest(user_prompt, timeout, max_retries):
     return None
 
 
-def _call_openai_compat(user_prompt, timeout, max_retries):
+def _call_openai_compat(user_prompt: str, timeout: int, max_retries: int):
     base_url = os.getenv("LLM_BASE_URL", "").rstrip("/")
     api_key = os.getenv("LLM_API_KEY", "")
     model = os.getenv("OPENAI_COMPAT_MODEL", "")
@@ -284,7 +221,7 @@ def _call_openai_compat(user_prompt, timeout, max_retries):
             raw = json.loads(_extract_json_text(text))
             validated = _validate(raw)
             if validated:
-                print(f"  [LLM] OpenAI-compatible validation OK: name={validated['name']}, mainAttr={validated['mainAttr']}")
+                print(f"  [LLM] OpenAI-compatible validation OK: name={validated['name']}")
                 return validated
 
             print("  [LLM] OpenAI-compatible validation FAILED for parsed JSON")
@@ -301,16 +238,28 @@ def _call_openai_compat(user_prompt, timeout, max_retries):
     return None
 
 
-def call_gemini_rest(spell_a_name, spell_a_attr, spell_a_gen,
-                     spell_b_name, spell_b_attr, spell_b_gen):
-    """按主 provider 优先、OpenAI-compatible 备援的策略生成融合法阵。"""
+def call_gemini_rest(
+    spell_a_name: str,
+    spell_a_attr_set: List[str],
+    spell_a_gen: int,
+    spell_b_name: str,
+    spell_b_attr_set: List[str],
+    spell_b_gen: int,
+    merged_attr_set: List[str],
+):
+    """按主 provider 优先、OpenAI-compatible 备援的策略生成融合法阵文本。"""
     timeout = int(os.getenv("LLM_TIMEOUT_SECONDS", "30"))
     max_retries = int(os.getenv("LLM_MAX_RETRIES", "1"))
     primary_provider = os.getenv("LLM_PROVIDER", "gemini_rest").strip().lower() or "gemini_rest"
 
     user_prompt = _build_user_prompt(
-        spell_a_name, spell_a_attr, spell_a_gen,
-        spell_b_name, spell_b_attr, spell_b_gen,
+        spell_a_name,
+        spell_a_attr_set,
+        spell_a_gen,
+        spell_b_name,
+        spell_b_attr_set,
+        spell_b_gen,
+        merged_attr_set,
     )
 
     print(f"  [LLM] Primary provider selected: {primary_provider}")

@@ -1,11 +1,12 @@
 /**
- * storage.js — localStorage 数据管理
+ * storage.js - localStorage 数据管理
  */
 const GameStorage = (() => {
     const STORAGE_KEY = 'alchemy-forge-data';
     const SEED_VERSION = 4;
 
     const DEFAULT_DATA = {
+        playerId: null,
         cards: [],
         currentSlotA: null,
         currentSlotB: null,
@@ -33,6 +34,29 @@ const GameStorage = (() => {
         return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
     }
 
+    function getPlayerId() {
+        const data = load();
+        if (data.playerId) return data.playerId;
+        data.playerId = `player_${generateId()}`;
+        save(data);
+        return data.playerId;
+    }
+
+    function normalizeStoredAttrSet(cardLike) {
+        if (typeof SpellDefs !== 'undefined' && SpellDefs.normalizeAttrSet) {
+            return SpellDefs.normalizeAttrSet(cardLike.attrSet, cardLike.mainAttr, cardLike.subAttr, cardLike.element);
+        }
+        return Array.isArray(cardLike.attrSet) ? [...cardLike.attrSet] : [];
+    }
+
+    function normalizeCardForRead(card) {
+        if (!card) return null;
+        if (typeof SpellDefs !== 'undefined' && SpellDefs.normalizeCard) {
+            return SpellDefs.normalizeCard(card);
+        }
+        return { ...card };
+    }
+
     async function seedIfNeeded() {
         const data = load();
         if (data.seedVersion >= SEED_VERSION) return;
@@ -44,6 +68,7 @@ const GameStorage = (() => {
             data.cards = data.cards.filter(c => c.type === 'text');
 
             seeds.forEach(seed => {
+                const attrSet = normalizeStoredAttrSet(seed);
                 data.cards.push({
                     id: generateId(),
                     name: seed.name,
@@ -51,11 +76,12 @@ const GameStorage = (() => {
                     status: seed.status || null,
                     videoUrl: seed.videoUrl || null,
                     spellImgUrl: seed.spellImgUrl || null,
-                    thumbnailUrl: seed.thumbnailUrl,
+                    thumbnailUrl: seed.thumbnailUrl || null,
                     thumbnail: null,
-                    element: seed.element,
-                    mainAttr: seed.mainAttr || seed.element || null,
-                    subAttr: seed.subAttr || null,
+                    attrSet,
+                    element: attrSet[0] || seed.element || seed.mainAttr || null,
+                    mainAttr: attrSet[0] || seed.mainAttr || seed.element || null,
+                    subAttr: attrSet[1] || seed.subAttr || null,
                     generation: seed.generation || null,
                     baseAtk: seed.baseAtk || null,
                     parentA: null,
@@ -64,7 +90,6 @@ const GameStorage = (() => {
                 });
             });
 
-            // Auto-assign first 4 spell cards to loadout
             const spells = data.cards.filter(c => c.type === 'spell');
             data.loadout = [
                 spells[0]?.id || null,
@@ -73,6 +98,7 @@ const GameStorage = (() => {
                 spells[3]?.id || null
             ];
 
+            if (!data.playerId) data.playerId = `player_${generateId()}`;
             data.seedVersion = SEED_VERSION;
             save(data);
             console.log(`[Storage] Seeded ${seeds.length} cards`);
@@ -81,22 +107,21 @@ const GameStorage = (() => {
         }
     }
 
-    // ---- Card CRUD ----
-
     function getCards() {
-        return load().cards;
+        return load().cards.map(normalizeCardForRead);
     }
 
     function getSpellCards() {
-        return load().cards.filter(c => c.type === 'spell');
+        return getCards().filter(c => c.type === 'spell');
     }
 
     function getCard(id) {
-        return load().cards.find(c => c.id === id) || null;
+        return getCards().find(c => c.id === id) || null;
     }
 
     function addCard(card) {
         const data = load();
+        const attrSet = normalizeStoredAttrSet(card);
         const newCard = {
             id: generateId(),
             name: card.name || '未命名',
@@ -106,9 +131,10 @@ const GameStorage = (() => {
             spellImgUrl: card.spellImgUrl || null,
             thumbnailUrl: card.thumbnailUrl || null,
             thumbnail: card.thumbnail || null,
-            element: card.element || card.mainAttr || null,
-            mainAttr: card.mainAttr || card.element || null,
-            subAttr: card.subAttr || null,
+            attrSet,
+            element: attrSet[0] || card.element || card.mainAttr || null,
+            mainAttr: attrSet[0] || card.mainAttr || card.element || null,
+            subAttr: attrSet[1] || card.subAttr || null,
             generation: card.generation || null,
             baseAtk: card.baseAtk || null,
             parentA: card.parentA || null,
@@ -117,7 +143,7 @@ const GameStorage = (() => {
         };
         data.cards.push(newCard);
         save(data);
-        return newCard;
+        return normalizeCardForRead(newCard);
     }
 
     function removeCard(id) {
@@ -125,11 +151,9 @@ const GameStorage = (() => {
         data.cards = data.cards.filter(c => c.id !== id);
         if (data.currentSlotA === id) data.currentSlotA = null;
         if (data.currentSlotB === id) data.currentSlotB = null;
-        data.loadout = data.loadout.map(l => l === id ? null : l);
+        data.loadout = data.loadout.map(slotId => slotId === id ? null : slotId);
         save(data);
     }
-
-    // ---- Slots ----
 
     function getSlot(slot) {
         const data = load();
@@ -156,8 +180,6 @@ const GameStorage = (() => {
         return data.currentSlotA !== null && data.currentSlotB !== null;
     }
 
-    // ---- Loadout ----
-
     function getLoadout() {
         const data = load();
         return (data.loadout || [null, null, null, null]).map(id => id ? getCard(id) : null);
@@ -173,8 +195,6 @@ const GameStorage = (() => {
     function getLoadoutIds() {
         return load().loadout || [null, null, null, null];
     }
-
-    // ---- Pending Generation ----
 
     function setPending(taskId, cardAId, cardBId) {
         const data = load();
@@ -192,8 +212,6 @@ const GameStorage = (() => {
         save(data);
     }
 
-    // ---- Tutorial ----
-
     function isTutorialDone() {
         return load().tutorialDone;
     }
@@ -203,8 +221,6 @@ const GameStorage = (() => {
         data.tutorialDone = true;
         save(data);
     }
-
-    // ---- Card thumbnail helpers ----
 
     function getCardThumb(card) {
         return card.thumbnailUrl || card.thumbnail || null;
@@ -241,21 +257,38 @@ const GameStorage = (() => {
 
         const lineHeight = 28;
         const startY = 125 - ((lines.length - 1) * lineHeight) / 2;
-        lines.forEach((l, i) => {
-            ctx.fillText(l, 90, startY + i * lineHeight);
+        lines.forEach((value, index) => {
+            ctx.fillText(value, 90, startY + index * lineHeight);
         });
 
         return c.toDataURL('image/png');
     }
 
     return {
-        load, save, generateId, seedIfNeeded,
-        getCards, getSpellCards, getCard, addCard, removeCard,
+        load,
+        save,
+        generateId,
+        getPlayerId,
+        seedIfNeeded,
+        getCards,
+        getSpellCards,
+        getCard,
+        addCard,
+        removeCard,
         deleteCard: removeCard,
-        getSlot, setSlot, clearSlots, areBothSlotsFilled,
-        getLoadout, setLoadoutSlot, getLoadoutIds,
-        setPending, getPending, clearPending,
-        isTutorialDone, markTutorialDone,
-        getCardThumb, generateTextThumbnail
+        getSlot,
+        setSlot,
+        clearSlots,
+        areBothSlotsFilled,
+        getLoadout,
+        setLoadoutSlot,
+        getLoadoutIds,
+        setPending,
+        getPending,
+        clearPending,
+        isTutorialDone,
+        markTutorialDone,
+        getCardThumb,
+        generateTextThumbnail
     };
 })();

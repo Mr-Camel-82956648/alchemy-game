@@ -215,15 +215,16 @@ const Collection = (() => {
             pointer-events: none;
         `;
 
-        const mainBadge = createAttrBadge(card.mainAttr);
-        if (mainBadge) attrs.appendChild(mainBadge);
-
-        const subBadge = createAttrBadge(card.subAttr);
-        if (subBadge) {
-            subBadge.style.opacity = '0.82';
-            subBadge.style.transform = 'scale(0.9)';
-            attrs.appendChild(subBadge);
-        }
+        const attrSet = SpellDefs.getCardAttrSet ? SpellDefs.getCardAttrSet(card) : [card.mainAttr, card.subAttr].filter(Boolean);
+        attrSet.forEach((attr, index) => {
+            const badge = createAttrBadge(attr);
+            if (!badge) return;
+            if (index > 0) {
+                badge.style.opacity = '0.82';
+                badge.style.transform = 'scale(0.9)';
+            }
+            attrs.appendChild(badge);
+        });
 
         if (attrs.childNodes.length > 0) item.appendChild(attrs);
     }

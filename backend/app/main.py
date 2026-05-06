@@ -7,6 +7,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from .routes.forge import router as forge_router
+from .routes.quota import router as quota_router
 
 env_path = Path(__file__).resolve().parents[2] / ".env"
 load_dotenv(env_path)
@@ -28,6 +29,7 @@ app.add_middleware(
 )
 
 app.include_router(forge_router)
+app.include_router(quota_router)
 
 
 @app.get("/")

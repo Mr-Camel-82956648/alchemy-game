@@ -638,15 +638,20 @@ const Battle = (() => {
     function buildEffectSpellData(index) {
         const cardData = spellCardData[index];
         if (cardData) {
+            const attrSet = SpellDefs.getCardAttrSet
+                ? SpellDefs.getCardAttrSet(cardData)
+                : [cardData.mainAttr, cardData.subAttr].filter(Boolean);
             return {
+                attrSet,
                 generation: cardData.generation,
                 baseAtk: cardData.baseAtk,
-                mainAttr: cardData.mainAttr || null,
-                subAttr: cardData.subAttr || null
+                mainAttr: attrSet[0] || cardData.mainAttr || null,
+                subAttr: attrSet[1] || cardData.subAttr || null
             };
         }
 
         return {
+            attrSet: [],
             generation: 1,
             baseAtk: null,
             mainAttr: null,
@@ -1423,7 +1428,7 @@ const Battle = (() => {
         const sizeScale = Number(profile.sizeScale) > 0 ? Number(profile.sizeScale) : 1;
         const speedScale = Number(profile.speedScale) > 0 ? Number(profile.speedScale) : 1;
 
-        monster.immuneAttrs = [...(profile.immuneAttrs || [])];
+        monster.attrSet = [...(profile.attrSet || [])];
         monster.movePattern = profile.movePattern || 'direct';
         monster.groupPattern = profile.groupPattern || 'cluster';
         monster.speed = (Number(monster.baseSpeed) || tierDef.speedRange[0])
@@ -1726,7 +1731,7 @@ const Battle = (() => {
             hp: def.hp,
             maxHp: def.hp,
             baseMaxHp: def.hp,
-            immuneAttrs: [],
+            attrSet: [],
             scale: 1,
             baseScale: 1,
             resistAbsorbStacks: 0,
@@ -1905,8 +1910,8 @@ const Battle = (() => {
                     if (hitDx * hitDx + hitDy * hitDy <= hitRadius * hitRadius) {
                         const effectDamage = getEffectDamageAtTarget(eff, m);
                         const hitResult = Combat.calcHitResult(
-                            eff.spellData || { mainAttr: eff.mainAttr, baseAtk: null },
-                            { immuneAttrs: m.immuneAttrs || [] },
+                            eff.spellData || { attrSet: eff.mainAttr ? [eff.mainAttr] : [], mainAttr: eff.mainAttr, baseAtk: null },
+                            { attrSet: m.attrSet || [] },
                             effectDamage
                         );
                         if (hitResult.absorbed) {
