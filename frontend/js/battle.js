@@ -207,7 +207,7 @@ const Battle = (() => {
         'frost-warden':     { category: 'ice',     assetBase: 'assets/monsters/ice/frost-warden',         frames: 6, framePrefix: 'frame_', scale: 1.04, flipDefault: false },
         'frost-wisp':       { category: 'ice',     assetBase: 'assets/monsters/ice/frost-wisp',           frames: 6, framePrefix: 'frame_', scale: 1.08, flipDefault: true },
         'alchemy-beholder': { category: 'thunder', assetBase: 'assets/monsters/thunder/alchemy-beholder', frames: 6, framePrefix: 'frame_', scale: 1.02, flipDefault: false },
-        'storm-idol':       { category: 'thunder', assetBase: 'assets/monsters/thunder/storm-idol',       frames: 6, framePrefix: 'frame_', scale: 1.04, flipDefault: true },
+        'storm-idol':       { category: 'thunder', assetBase: 'assets/monsters/_incoming/thunder__storm-idol', frames: 6, framePrefix: 'frame_', scale: 1.04, flipDefault: true },
         'frostshade-alpha':  { category: 'boss', assetBase: 'assets/monsters/boss/frostshade-alpha',  frames: 6, framePrefix: 'frame_', scale: 1.54, flipDefault: true },
         'frostshade-omega':  { category: 'boss', assetBase: 'assets/monsters/boss/frostshade-omega',  frames: 6, framePrefix: 'frame_', scale: 1.62, flipDefault: true },
         'stormshade-alpha':  { category: 'boss', assetBase: 'assets/monsters/boss/stormshade-alpha',  frames: 6, framePrefix: 'frame_', scale: 1.58, flipDefault: false },
