@@ -1674,13 +1674,6 @@ const Battle = (() => {
         monster.absorbFromWidth = previousWidth;
         monster.hitPauseUntil = Math.max(Number(monster.hitPauseUntil) || 0, now + MONSTER_ABSORB_PAUSE_MS);
         monster.flashEnd = Math.max(Number(monster.flashEnd) || 0, now + 160);
-        floatingTexts.push({
-            x: monster.x,
-            y: monster.y - 60,
-            text: '吸收',
-            color: color || '#999999',
-            startTime: now
-        });
     }
 
     function getMonsterContactRadius(monster) {
