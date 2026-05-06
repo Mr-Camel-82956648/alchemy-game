@@ -251,12 +251,12 @@ const Battle = (() => {
     const SOUL_WISP_FPS = 4;
     const SOUL_WISP_FRAME_MS = 1000 / SOUL_WISP_FPS;
     const SOUL_WISP_ASSET_BASE = 'assets/vfx/soul_wisp';
-    const MONSTER_SPEED_MULTIPLIER = 1.3;
+    const MONSTER_SPEED_MULTIPLIER = 1.17;
     const SOUL_WISP_ALPHA_MULTIPLIER = 1.2;
     const SOUL_WISP_SIZE_MULTIPLIER = 1.5;
 
     const CONFIG = {
-        playerSpeed: 10.4,
+        playerSpeed: 9.36,
         playerHP: 2.5,
         dashSpeed: 55,
         dashDuration: 160,
@@ -270,7 +270,7 @@ const Battle = (() => {
         spellMaxCharges: 6,
         spellChargeTime: 4000,
         battleDuration: 90,
-        soulGoal: 900,
+        soulGoal: 1800,
         spellSizes: [796, 597, 696, 895],
         spellDamages: [3, 2, 4, 2],
         spellColors: ['#ff6600', '#00ccff', '#cc88ff', '#44ff66'],
@@ -1080,15 +1080,11 @@ const Battle = (() => {
         }));
 
         return baseWaves.map((wave, index, waves) => {
-            const inheritedCycles = waves
-                .slice(0, index + 1)
-                .map(candidate => candidate.basePackCycle)
-                .reverse();
             const limits = getAccumulatedWaveLimits(waves, index);
             return {
                 ...wave,
                 ...limits,
-                packCycle: interleaveWavePackCycles(inheritedCycles)
+                packCycle: [...wave.basePackCycle]
             };
         });
     }
