@@ -3855,5 +3855,95 @@ const Battle = (() => {
         ctx.closePath();
     }
 
-    return { init, start, stop };
+    function ensurePreviewMonsterFrames(species) {
+        const spec = MOB_SPECIES[species];
+        if (!spec) return null;
+        if (!mobFrames[species]) {
+            const previewAssetRoot = typeof window !== 'undefined' && window.MONSTER_PREVIEW_ASSET_ROOT
+                ? String(window.MONSTER_PREVIEW_ASSET_ROOT)
+                : '';
+            mobFrames[species] = [];
+            for (let i = 1; i <= spec.frames; i++) {
+                const img = new Image();
+                img.src = `${previewAssetRoot}${spec.assetBase}/${spec.framePrefix}${String(i).padStart(2, '0')}.png`;
+                mobFrames[species].push(img);
+            }
+        }
+        return mobFrames[species];
+    }
+
+    function getMonsterPreviewCatalog(options = {}) {
+        const incomingOnly = options.incomingOnly !== false;
+        return Object.entries(MOB_SPECIES)
+            .map(([key, spec]) => ({
+                key,
+                name: key,
+                assetBase: spec.assetBase,
+                frames: spec.frames,
+                framePrefix: spec.framePrefix,
+                scale: spec.scale,
+                flipDefault: !!spec.flipDefault,
+                category: spec.category,
+                incoming: spec.assetBase.includes('/_incoming/')
+            }))
+            .filter(item => incomingOnly ? item.incoming : true)
+            .sort((a, b) => a.key.localeCompare(b.key));
+    }
+
+    function renderMonsterPreviewFrame(targetCtx, options = {}) {
+        const species = options.species;
+        const specDef = MOB_SPECIES[species];
+        if (!targetCtx || !specDef) return { ready: false, missing: !specDef };
+
+        ensurePreviewMonsterFrames(species);
+        const now = Number(options.now) || Date.now();
+        const frameIndex = Math.floor(now / ANIM_FRAME_MS_MOB) % Math.max(1, specDef.frames || 1);
+        const img = getMonsterFrame({ species, animFrame: frameIndex }, frameIndex);
+        const effectiveFlipDefault = options.flipDefaultOverride == null
+            ? !!specDef.flipDefault
+            : !!options.flipDefaultOverride;
+        const movingLeft = !!options.movingLeft;
+        const facing = effectiveFlipDefault ? !movingLeft : movingLeft;
+        const bob = options.disableBob ? 0 : Math.sin(now * 0.004 + (Number(options.bobOffset) || 0)) * 3;
+        const renderWidth = Number(options.renderWidth) || 220;
+        const sx = Number(options.x) || 0;
+        const sy = Number(options.y) || 0;
+
+        if (!img) {
+            return {
+                ready: false,
+                key: species,
+                frameIndex,
+                movingLeft,
+                effectiveFlipDefault,
+                facing
+            };
+        }
+
+        const prevCtx = ctx;
+        ctx = targetCtx;
+        try {
+            drawSilhouetteShadow(img, sx, sy, renderWidth, bob, facing, 0.25);
+            drawMonsterSprite(img, sx, sy, renderWidth, bob, facing, null);
+        } finally {
+            ctx = prevCtx;
+        }
+
+        return {
+            ready: true,
+            key: species,
+            frameIndex,
+            movingLeft,
+            effectiveFlipDefault,
+            facing
+        };
+    }
+
+    return {
+        init,
+        start,
+        stop,
+        getMonsterPreviewCatalog,
+        renderMonsterPreviewFrame
+    };
 })();

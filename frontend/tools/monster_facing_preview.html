@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Monster Facing Preview</title>
+<style>
+* { box-sizing: border-box; }
+body {
+    margin: 0;
+    background: #0f1114;
+    color: #e8e1d4;
+    font: 14px/1.4 "Consolas", "Microsoft YaHei", monospace;
+}
+.page {
+    max-width: 1680px;
+    margin: 0 auto;
+    padding: 20px 20px 28px;
+}
+.topbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 16px;
+}
+.title h1 {
+    margin: 0;
+    font-size: 24px;
+}
+.title p {
+    margin: 6px 0 0;
+    color: #9f9688;
+    font-size: 13px;
+}
+.controls {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px 16px;
+}
+.controls label {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    color: #ddd3c4;
+}
+.controls input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+}
+.btn {
+    border: 1px solid #544c42;
+    background: #211d18;
+    color: #f4ead8;
+    border-radius: 8px;
+    padding: 8px 12px;
+    font: 13px "Consolas", "Microsoft YaHei", monospace;
+    cursor: pointer;
+}
+.btn:hover {
+    background: #2a241d;
+}
+.layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 360px;
+    gap: 18px;
+}
+.grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+    gap: 16px;
+}
+.card {
+    background: linear-gradient(180deg, #191c22 0%, #121419 100%);
+    border: 1px solid #302c26;
+    border-radius: 14px;
+    overflow: hidden;
+    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.22);
+}
+.card-head {
+    padding: 12px 14px 10px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+.card-head h2 {
+    margin: 0;
+    font-size: 15px;
+}
+.card-head .sub {
+    margin-top: 4px;
+    color: #978f83;
+    font-size: 12px;
+    word-break: break-all;
+}
+.meta {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px 12px;
+    margin-top: 10px;
+    font-size: 12px;
+}
+.meta strong {
+    color: #f4ead8;
+}
+.canvas-wrap {
+    padding: 10px 12px 12px;
+}
+.preview-canvas {
+    display: block;
+    width: 100%;
+    height: auto;
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    background: #101317;
+}
+.card-actions {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 0 12px 12px;
+}
+.status {
+    color: #bdb4a6;
+    font-size: 12px;
+}
+.status code {
+    color: #fff2b8;
+}
+.sidebar {
+    background: #14171c;
+    border: 1px solid #302c26;
+    border-radius: 14px;
+    padding: 14px;
+    height: fit-content;
+    position: sticky;
+    top: 16px;
+}
+.sidebar h2 {
+    margin: 0 0 8px;
+    font-size: 16px;
+}
+.sidebar p {
+    margin: 0 0 10px;
+    color: #a39a8b;
+    font-size: 12px;
+}
+#export-output {
+    width: 100%;
+    min-height: 420px;
+    resize: vertical;
+    border-radius: 10px;
+    border: 1px solid #3b362f;
+    background: #0d1014;
+    color: #e7f2dd;
+    padding: 10px;
+    font: 12px/1.45 "Consolas", "Microsoft YaHei", monospace;
+}
+.sidebar .btn {
+    width: 100%;
+    margin-top: 10px;
+}
+@media (max-width: 1280px) {
+    .layout {
+        grid-template-columns: 1fr;
+    }
+    .sidebar {
+        position: static;
+    }
+}
+</style>
+</head>
+<body>
+<div class="page">
+    <div class="topbar">
+        <div class="title">
+            <h1>怪物朝向临时校验页</h1>
+            <p>本页只用于本地观察左右镜像、落地感和动画循环，不接入正式首页流程。</p>
+        </div>
+        <div class="controls">
+            <label><input type="checkbox" id="incoming-only" checked> 仅显示 `_incoming`</label>
+            <button class="btn" id="reset-toggles" type="button">全部恢复当前 flipDefault</button>
+        </div>
+    </div>
+
+    <div class="layout">
+        <div id="preview-grid" class="grid"></div>
+        <aside class="sidebar">
+            <h2>导出区</h2>
+            <p>每张卡切到你认为正确的预览状态后，这里会自动生成“保持 / 取反”的整理文本。</p>
+            <textarea id="export-output" spellcheck="false"></textarea>
+            <button class="btn" id="copy-export" type="button">复制当前结论</button>
+        </aside>
+    </div>
+</div>
+
+<script>
+window.MONSTER_PREVIEW_ASSET_ROOT = '../';
+</script>
+<script src="../js/spellDefs.js?v=ui-color-facing-fix1"></script>
+<script src="../js/battle.js?v=monster-facing-preview1"></script>
+<script src="./monster_facing_preview.js?v=monster-facing-preview1"></script>
+</body>
+</html>
