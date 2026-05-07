@@ -261,11 +261,9 @@ const Battle = (() => {
         dashSpeed: 55,
         dashDuration: 160,
         dashCooldown: 1500,
-        ultimateCost: 10,
+        ultimateCooldownMs: 15000,
         ultimateSize: 1591,
         ultimateDamage: 10,
-        killsToFull: 50,
-        energyPerKill: 1,
         wavePause: 1500,
         spellMaxCharges: 6,
         spellChargeTime: 4000,
@@ -416,7 +414,8 @@ const Battle = (() => {
 
     // State
     let monsters = [];
-    let energy = 0, killCount = 0, score = 0;
+    let score = 0;
+    let ultimateReadyAt = 0;
     let activeEffects = [];
     let floatingTexts = [];
     let activeSpellIndex = 0;
@@ -724,9 +723,10 @@ const Battle = (() => {
     }
 
     function tryUltimate() {
-        if (energy < CONFIG.ultimateCost) return;
+        const now = Date.now();
+        if (getUltimateCooldownRemainingMs(now) > 0) return;
         if (playerAnim.state === 'castUp') return;
-        energy -= CONFIG.ultimateCost;
+        ultimateReadyAt = now + CONFIG.ultimateCooldownMs;
         updateBars();
 
         const selectedSpellIndex = activeSpellIndex;
@@ -1231,6 +1231,7 @@ const Battle = (() => {
         lastAmuletDamageTick = shiftTimestamp(lastAmuletDamageTick, deltaMs);
         hitstopEnd = shiftTimestamp(hitstopEnd, deltaMs);
         cruciblePulseAt = shiftTimestamp(cruciblePulseAt, deltaMs);
+        ultimateReadyAt = shiftTimestamp(ultimateReadyAt, deltaMs);
         playerAnim.lastFrameTime = shiftTimestamp(playerAnim.lastFrameTime, deltaMs);
         shake.startTime = shiftTimestamp(shake.startTime, deltaMs);
         damageFlash.time = shiftTimestamp(damageFlash.time, deltaMs);
@@ -1302,6 +1303,10 @@ const Battle = (() => {
         if (battleClockStartedAt <= 0) return battleElapsedMs;
         if (isPaused) return battleElapsedMs;
         return battleElapsedMs + Math.max(0, now - battleClockStartedAt);
+    }
+
+    function getUltimateCooldownRemainingMs(now = Date.now()) {
+        return Math.max(0, (Number(ultimateReadyAt) || 0) - now);
     }
 
     function getCurrentWaveIndex() {
@@ -1986,7 +1991,8 @@ const Battle = (() => {
         playerAdvance = { lastX: 0, lastY: 0, dirX: 0, dirY: 0, speed: 0 };
         player.hp = CONFIG.playerHP;
         monsters = [];
-        energy = 0; killCount = 0; score = 0;
+        score = 0;
+        ultimateReadyAt = 0;
         activeEffects = []; floatingTexts = [];
         activeSoulWisps = [];
         particles = []; afterimages = []; lightningBolts = [];
@@ -2046,6 +2052,7 @@ const Battle = (() => {
         pausedFrameNow = 0;
         battleElapsedMs = 0;
         battleClockStartedAt = 0;
+        ultimateReadyAt = 0;
         Object.keys(keys).forEach(code => { keys[code] = false; });
         clearBattleTimeouts();
         cleanupBattleMedia();
@@ -2187,9 +2194,6 @@ const Battle = (() => {
                     });
                 }
                 if (deathElapsed > MONSTER_DEATH_FADE_MS) {
-                    killCount++;
-                    energy = Math.min(100, killCount * CONFIG.energyPerKill);
-                    updateBars();
                     monsters.splice(i, 1);
                 }
                 continue;
@@ -3592,11 +3596,16 @@ const Battle = (() => {
         }
 
         // Ultimate slot [R]
-        const ultStock = Math.floor(energy / CONFIG.ultimateCost);
-        const ultProgressRatio = ultStock > 0 ? 1 : Math.min(1, energy / CONFIG.ultimateCost);
+        const ultimateCooldownRemainingMs = getUltimateCooldownRemainingMs(now);
+        const ultReady = ultimateCooldownRemainingMs <= 0;
+        const ultProgressRatio = ultReady
+            ? 1
+            : Math.max(0, 1 - (ultimateCooldownRemainingMs / CONFIG.ultimateCooldownMs));
+        const ultCooldownText = ultReady
+            ? 'READY'
+            : `${(ultimateCooldownRemainingMs / 1000).toFixed(1)}s`;
         const ultCx = startX + 3 * (slotR * 2 + slotGap) + slotR + Math.round(30 * S) + ultSlotR;
         const ultCy = slotCY;
-        const ultReady = ultStock > 0;
         const selectedSpellColor = CONFIG.spellColors[activeSpellIndex] || '#ffcc00';
         const ultBindW = Math.round(40 * S);
         const ultBindH = Math.round(16 * S);
@@ -3616,16 +3625,16 @@ const Battle = (() => {
 
         ctx.beginPath();
         ctx.arc(ultCx, ultCy, ultSlotR, 0, Math.PI * 2);
-        ctx.fillStyle = ultReady ? 'rgba(60,45,0,0.7)' : 'rgba(15,12,8,0.8)';
+        ctx.fillStyle = ultReady ? 'rgba(72,54,12,0.82)' : 'rgba(15,12,8,0.84)';
         ctx.fill();
 
         ctx.save();
         ctx.shadowColor = selectedSpellColor;
-        ctx.shadowBlur = Math.round(10 * S);
+        ctx.shadowBlur = Math.round(ultReady ? 16 * S : 8 * S);
         ctx.beginPath();
         ctx.arc(ultCx, ultCy, ultSlotR + Math.round(6 * S), 0, Math.PI * 2);
         ctx.strokeStyle = selectedSpellColor;
-        ctx.globalAlpha = 0.45;
+        ctx.globalAlpha = ultReady ? 0.72 : 0.32;
         ctx.lineWidth = Math.max(2, Math.round(1.5 * S));
         ctx.stroke();
         ctx.restore();
@@ -3637,7 +3646,7 @@ const Battle = (() => {
         ctx.stroke();
         ctx.beginPath();
         ctx.arc(ultCx, ultCy, ultSlotR - ringW / 2, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * ultProgressRatio);
-        ctx.strokeStyle = ultReady ? '#ffcc00' : '#886600';
+        ctx.strokeStyle = ultReady ? '#ffcc00' : selectedSpellColor;
         ctx.stroke();
 
         if (ultReady) {
@@ -3657,8 +3666,8 @@ const Battle = (() => {
         ctx.textAlign = 'center';
         ctx.fillText('R', ultCx, ultCy - Math.round(4 * S));
         ctx.font = `bold ${Math.round(10 * S)}px "Consolas", monospace`;
-        ctx.fillStyle = ultReady ? 'rgba(255,236,164,0.98)' : 'rgba(210,200,182,0.74)';
-        ctx.fillText(ultReady ? `x${ultStock}` : `${Math.floor(energy)}/${CONFIG.ultimateCost}`, ultCx, ultCy + Math.round(16 * S));
+        ctx.fillStyle = ultReady ? 'rgba(255,236,164,0.98)' : 'rgba(210,200,182,0.86)';
+        ctx.fillText(ultCooldownText, ultCx, ultCy + Math.round(16 * S));
 
         // === Control hints (small white text, left & right bottom) ===
         const hintFont = `${Math.round(11 * S)}px "Consolas", monospace`;
@@ -3685,7 +3694,7 @@ const Battle = (() => {
         ctx.fillStyle = dashReady ? 'rgba(200,200,200,0.45)' : 'rgba(100,100,100,0.25)';
         ctx.fillText(`[Space] 闪避${dashReady ? '' : ' CD'}`, rx, ry); ry -= hintLine;
         ctx.fillStyle = ultReady ? 'rgba(255,220,80,0.72)' : hintAlpha;
-        ctx.fillText(`[R] Slot ${activeSpellIndex + 1} ${ultReady ? `x${ultStock}` : `${Math.floor(energy)}/${CONFIG.ultimateCost}`}`, rx, ry);
+        ctx.fillText(`[R] Slot ${activeSpellIndex + 1} ${ultCooldownText}`, rx, ry);
 
         ctx.restore();
     }
