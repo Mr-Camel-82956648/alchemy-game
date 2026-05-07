@@ -1,3 +1,4 @@
+// Local-only monster facing preview tool, kept for ongoing formal monster facing checks and not wired into the homepage.
 (function () {
     const CARD_W = 420;
     const CARD_H = 260;
