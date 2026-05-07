@@ -212,10 +212,10 @@ const Battle = (() => {
         'frostshade-omega':  { category: 'boss', assetBase: 'assets/monsters/boss/frostshade-omega',  frames: 6, framePrefix: 'frame_', scale: 1.62, flipDefault: true },
         'stormshade-alpha':  { category: 'boss', assetBase: 'assets/monsters/boss/stormshade-alpha',  frames: 6, framePrefix: 'frame_', scale: 1.58, flipDefault: false },
         'stormshade-omega':  { category: 'boss', assetBase: 'assets/monsters/boss/stormshade-omega',  frames: 6, framePrefix: 'frame_', scale: 1.68, flipDefault: false },
-        'cinderfrost-alpha': { category: 'boss', assetBase: 'assets/monsters/boss/cinderfrost-alpha', frames: 6, framePrefix: 'frame_', scale: 1.6,  flipDefault: true },
+        'cinderfrost-alpha': { category: 'boss', assetBase: 'assets/monsters/boss/cinderfrost-alpha', frames: 6, framePrefix: 'frame_', scale: 1.6,  flipDefault: false },
         'cinderfrost-omega': { category: 'boss', assetBase: 'assets/monsters/boss/cinderfrost-omega', frames: 6, framePrefix: 'frame_', scale: 1.68, flipDefault: true },
         'cinderstorm-alpha': { category: 'boss', assetBase: 'assets/monsters/boss/cinderstorm-alpha', frames: 6, framePrefix: 'frame_', scale: 1.58, flipDefault: false },
-        'cinderstorm-omega': { category: 'boss', assetBase: 'assets/monsters/boss/cinderstorm-omega', frames: 6, framePrefix: 'frame_', scale: 1.68, flipDefault: false }
+        'cinderstorm-omega': { category: 'boss', assetBase: 'assets/monsters/boss/cinderstorm-omega', frames: 6, framePrefix: 'frame_', scale: 1.68, flipDefault: true }
     };
 
     const SMALL_MONSTER_POOLS = {
