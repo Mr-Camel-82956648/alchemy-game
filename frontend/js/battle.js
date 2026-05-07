@@ -454,6 +454,8 @@ const Battle = (() => {
     let wavePauseStart = 0;
     let spawnQueue = [];
     let battleStartTime = 0;
+    let battleElapsedMs = 0;
+    let battleClockStartedAt = 0;
     let wavePlan = [];
     let currentWaveIndex = -1;
     let nextMonsterGroupId = 1;
@@ -727,16 +729,17 @@ const Battle = (() => {
         energy -= CONFIG.ultimateCost;
         updateBars();
 
-        const selectedVideoSrc = spellVideoSrcs[activeSpellIndex] || null;
+        const selectedSpellIndex = activeSpellIndex;
+        const selectedVideoSrc = spellVideoSrcs[selectedSpellIndex] || null;
         let sharedVideo = null;
 
-        const spellData = buildEffectSpellData(activeSpellIndex);
+        const spellData = buildEffectSpellData(selectedSpellIndex);
         const mainAttr = spellData.mainAttr;
         const effectColor = mainAttr ? SpellDefs.getElementColor(mainAttr) : '#ffcc00';
         const effectGlow = mainAttr ? SpellDefs.getElementGlow(mainAttr) : 'rgba(255,200,0,0.4)';
         const px = player.x, py = player.y;
-        const baseSpellSize = CONFIG.spellSizes[activeSpellIndex] || Math.max(...CONFIG.spellSizes);
-        const lightningColor = '#b366ff';
+        const baseSpellSize = CONFIG.spellSizes[selectedSpellIndex] || Math.max(...CONFIG.spellSizes);
+        const lightningColor = effectColor;
         const spriteScale = player.w / 960;
 
         // Chain barrage: concentric rings within viewport
@@ -1271,8 +1274,12 @@ const Battle = (() => {
 
     function pauseBattle() {
         if (isPaused) return;
+        const now = Date.now();
+        battleElapsedMs = getBattleElapsedMs(now);
+        battleClockStartedAt = 0;
+        gameTime = battleElapsedMs / 1000;
         isPaused = true;
-        pauseStartedAt = Date.now();
+        pauseStartedAt = now;
         pausedFrameNow = pauseStartedAt;
         pauseBattleTimeouts(pauseStartedAt);
         syncBattleMediaPlayback(true);
@@ -1284,10 +1291,17 @@ const Battle = (() => {
         const pauseDelta = Math.max(0, resumeAt - pauseStartedAt);
         shiftBattleTimestamps(pauseDelta);
         resumeBattleTimeouts(resumeAt);
+        battleClockStartedAt = resumeAt;
         pauseStartedAt = 0;
         pausedFrameNow = 0;
         isPaused = false;
         syncBattleMediaPlayback(false);
+    }
+
+    function getBattleElapsedMs(now = Date.now()) {
+        if (battleClockStartedAt <= 0) return battleElapsedMs;
+        if (isPaused) return battleElapsedMs;
+        return battleElapsedMs + Math.max(0, now - battleClockStartedAt);
     }
 
     function getCurrentWaveIndex() {
@@ -1989,6 +2003,8 @@ const Battle = (() => {
         waveState = 'idle';
         wavePauseStart = 0;
         battleStartTime = Date.now();
+        battleElapsedMs = 0;
+        battleClockStartedAt = battleStartTime;
         gameTime = 0;
         spawnQueue = [];
         nextMonsterGroupId = 1;
@@ -2028,6 +2044,8 @@ const Battle = (() => {
         isPaused = false;
         pauseStartedAt = 0;
         pausedFrameNow = 0;
+        battleElapsedMs = 0;
+        battleClockStartedAt = 0;
         Object.keys(keys).forEach(code => { keys[code] = false; });
         clearBattleTimeouts();
         cleanupBattleMedia();
@@ -2059,7 +2077,7 @@ const Battle = (() => {
     function update(now = Date.now()) {
         rechargeSpells(now);
 
-        gameTime = (now - battleStartTime) / 1000;
+        gameTime = getBattleElapsedMs(now) / 1000;
 
         if (checkWinCondition()) return;
         if (updateSoulWisps(now)) return;
@@ -3467,17 +3485,41 @@ const Battle = (() => {
 
         for (let i = 0; i < 4; i++) {
             const cx = startX + i * (slotR * 2 + slotGap);
-            const cy = slotCY;
             const isActive = i === activeSpellIndex;
-            const slotScale = isActive ? 1.08 : 0.96;
+            const cy = slotCY - (isActive ? Math.round(10 * S) : 0);
+            const slotScale = isActive ? 1.16 : 0.92;
             const slotRadius = Math.round(slotR * slotScale);
             const ringRadius = slotRadius - ringW / 2;
             const charges = spellCharges[i];
             const empty = charges <= 0;
+            const keyBadgeW = Math.round(22 * S);
+            const keyBadgeH = Math.round(16 * S);
+            const keyBadgeX = cx - keyBadgeW / 2;
+            const keyBadgeY = cy - slotRadius - Math.round(22 * S);
+
+            if (isActive) {
+                ctx.save();
+                ctx.beginPath();
+                ctx.arc(cx, cy, slotRadius + Math.round(10 * S), 0, Math.PI * 2);
+                ctx.fillStyle = `${CONFIG.spellColors[i]}22`;
+                ctx.fill();
+                ctx.restore();
+            }
+
+            roundRect(ctx, keyBadgeX, keyBadgeY, keyBadgeW, keyBadgeH, Math.round(8 * S));
+            ctx.fillStyle = isActive ? CONFIG.spellColors[i] : 'rgba(18,16,14,0.82)';
+            ctx.fill();
+            ctx.lineWidth = Math.max(2, Math.round(1.1 * S));
+            ctx.strokeStyle = isActive ? 'rgba(255,245,225,0.9)' : 'rgba(150,138,118,0.38)';
+            ctx.stroke();
+            ctx.fillStyle = isActive ? '#120d08' : 'rgba(214,204,188,0.9)';
+            ctx.font = `bold ${Math.round(10 * S)}px "Consolas", monospace`;
+            ctx.textAlign = 'center';
+            ctx.fillText(String(i + 1), cx, keyBadgeY + keyBadgeH - Math.round(4 * S));
 
             ctx.beginPath();
             ctx.arc(cx, cy, slotRadius, 0, Math.PI * 2);
-            ctx.fillStyle = isActive ? 'rgba(40,30,10,0.75)' : 'rgba(15,12,8,0.8)';
+            ctx.fillStyle = isActive ? 'rgba(54,40,14,0.88)' : 'rgba(12,10,8,0.82)';
             ctx.fill();
 
             const thumbImg = spellThumbImgs[i];
@@ -3487,15 +3529,15 @@ const Battle = (() => {
                 ctx.arc(cx, cy, slotRadius - ringW, 0, Math.PI * 2);
                 ctx.clip();
                 const thumbSize = (slotRadius - ringW) * 2;
-                ctx.filter = isActive ? 'none' : 'saturate(0.55) brightness(0.78)';
-                ctx.globalAlpha = empty ? 0.24 : (isActive ? 0.92 : 0.7);
+                ctx.filter = isActive ? 'none' : 'grayscale(0.42) saturate(0.38) brightness(0.68)';
+                ctx.globalAlpha = empty ? 0.18 : (isActive ? 0.97 : 0.52);
                 ctx.drawImage(thumbImg, cx - thumbSize / 2, cy - thumbSize / 2, thumbSize, thumbSize);
                 ctx.restore();
             } else {
                 ctx.beginPath();
                 ctx.arc(cx, cy, slotRadius * 0.5, 0, Math.PI * 2);
                 ctx.fillStyle = empty ? 'rgba(60,60,60,0.5)' : CONFIG.spellColors[i];
-                ctx.globalAlpha = empty ? 0.3 : (isActive ? 0.72 : 0.44);
+                ctx.globalAlpha = empty ? 0.24 : (isActive ? 0.84 : 0.34);
                 ctx.fill();
                 ctx.globalAlpha = 1;
             }
@@ -3522,11 +3564,11 @@ const Battle = (() => {
             if (isActive) {
                 ctx.save();
                 ctx.shadowColor = CONFIG.spellColors[i];
-                ctx.shadowBlur = Math.round(18 * S);
+                ctx.shadowBlur = Math.round(24 * S);
                 ctx.beginPath();
                 ctx.arc(cx, cy, ringRadius, 0, Math.PI * 2);
                 ctx.strokeStyle = CONFIG.spellColors[i];
-                ctx.lineWidth = Math.round(3 * S);
+                ctx.lineWidth = Math.round(4 * S);
                 ctx.stroke();
                 ctx.restore();
             }
@@ -3550,11 +3592,27 @@ const Battle = (() => {
         }
 
         // Ultimate slot [R]
-        const engRatio = Math.min(1, energy / 100);
+        const ultStock = Math.floor(energy / CONFIG.ultimateCost);
+        const ultProgressRatio = ultStock > 0 ? 1 : Math.min(1, energy / CONFIG.ultimateCost);
         const ultCx = startX + 3 * (slotR * 2 + slotGap) + slotR + Math.round(30 * S) + ultSlotR;
         const ultCy = slotCY;
-        const ultReady = energy >= CONFIG.ultimateCost;
+        const ultReady = ultStock > 0;
         const selectedSpellColor = CONFIG.spellColors[activeSpellIndex] || '#ffcc00';
+        const ultBindW = Math.round(40 * S);
+        const ultBindH = Math.round(16 * S);
+        const ultBindX = ultCx - ultBindW / 2;
+        const ultBindY = ultCy - ultSlotR - Math.round(22 * S);
+
+        roundRect(ctx, ultBindX, ultBindY, ultBindW, ultBindH, Math.round(8 * S));
+        ctx.fillStyle = selectedSpellColor;
+        ctx.fill();
+        ctx.lineWidth = Math.max(2, Math.round(1.1 * S));
+        ctx.strokeStyle = 'rgba(255,245,225,0.92)';
+        ctx.stroke();
+        ctx.fillStyle = '#120d08';
+        ctx.font = `bold ${Math.round(10 * S)}px "Consolas", monospace`;
+        ctx.textAlign = 'center';
+        ctx.fillText(`R-${activeSpellIndex + 1}`, ultCx, ultBindY + ultBindH - Math.round(4 * S));
 
         ctx.beginPath();
         ctx.arc(ultCx, ultCy, ultSlotR, 0, Math.PI * 2);
@@ -3578,7 +3636,7 @@ const Battle = (() => {
         ctx.strokeStyle = 'rgba(50,40,20,0.5)';
         ctx.stroke();
         ctx.beginPath();
-        ctx.arc(ultCx, ultCy, ultSlotR - ringW / 2, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * engRatio);
+        ctx.arc(ultCx, ultCy, ultSlotR - ringW / 2, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * ultProgressRatio);
         ctx.strokeStyle = ultReady ? '#ffcc00' : '#886600';
         ctx.stroke();
 
@@ -3594,10 +3652,13 @@ const Battle = (() => {
             ctx.restore();
         }
 
-        ctx.fillStyle = ultReady ? '#ffcc00' : 'rgba(210,200,182,0.72)';
-        ctx.font = `bold ${Math.round(15 * S)}px "Consolas", monospace`;
+        ctx.fillStyle = ultReady ? '#ffcc00' : 'rgba(220,210,190,0.88)';
+        ctx.font = `bold ${Math.round(18 * S)}px "Consolas", monospace`;
         ctx.textAlign = 'center';
-        ctx.fillText(`R-${activeSpellIndex + 1}`, ultCx, ultCy + Math.round(6 * S));
+        ctx.fillText('R', ultCx, ultCy - Math.round(4 * S));
+        ctx.font = `bold ${Math.round(10 * S)}px "Consolas", monospace`;
+        ctx.fillStyle = ultReady ? 'rgba(255,236,164,0.98)' : 'rgba(210,200,182,0.74)';
+        ctx.fillText(ultReady ? `x${ultStock}` : `${Math.floor(energy)}/${CONFIG.ultimateCost}`, ultCx, ultCy + Math.round(16 * S));
 
         // === Control hints (small white text, left & right bottom) ===
         const hintFont = `${Math.round(11 * S)}px "Consolas", monospace`;
@@ -3623,8 +3684,8 @@ const Battle = (() => {
         const dashReady = now - lastDashTime >= CONFIG.dashCooldown;
         ctx.fillStyle = dashReady ? 'rgba(200,200,200,0.45)' : 'rgba(100,100,100,0.25)';
         ctx.fillText(`[Space] 闪避${dashReady ? '' : ' CD'}`, rx, ry); ry -= hintLine;
-        ctx.fillStyle = ultReady ? 'rgba(255,220,80,0.6)' : hintAlpha;
-        ctx.fillText(`[R] 大招${ultReady ? ' ✦' : ''}`, rx, ry);
+        ctx.fillStyle = ultReady ? 'rgba(255,220,80,0.72)' : hintAlpha;
+        ctx.fillText(`[R] Slot ${activeSpellIndex + 1} ${ultReady ? `x${ultStock}` : `${Math.floor(energy)}/${CONFIG.ultimateCost}`}`, rx, ry);
 
         ctx.restore();
     }
