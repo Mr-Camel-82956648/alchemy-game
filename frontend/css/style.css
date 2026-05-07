@@ -1231,6 +1231,57 @@ body {
 .battle-result-screen .btn-overlay.secondary.icon-btn {
     background: none;
 }
+.battle-dev-panel[hidden] {
+    display: none !important;
+}
+.battle-dev-panel {
+    position: absolute;
+    top: 28px;
+    right: 28px;
+    z-index: 45;
+    min-width: 260px;
+    padding: 14px 16px;
+    border-radius: 16px;
+    border: 1px solid rgba(255, 214, 146, 0.28);
+    background: rgba(7, 8, 10, 0.84);
+    box-shadow: 0 14px 34px rgba(0,0,0,0.36);
+    backdrop-filter: blur(8px);
+    color: #ecd7ae;
+    font: 12px/1.4 "Consolas", monospace;
+}
+.battle-dev-title {
+    font-weight: 700;
+    letter-spacing: 1.2px;
+    color: #ffd88e;
+}
+.battle-dev-status {
+    margin-top: 6px;
+    color: rgba(236, 215, 174, 0.78);
+}
+.battle-dev-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 12px;
+}
+.battle-dev-btn {
+    flex: 1;
+    min-height: 38px;
+    border: 1px solid rgba(255, 214, 146, 0.34);
+    border-radius: 999px;
+    background: linear-gradient(180deg, rgba(138, 92, 32, 0.92), rgba(83, 54, 15, 0.92));
+    color: #fff1c9;
+    font: 700 13px/1 "Noto Serif SC", serif;
+    cursor: pointer;
+    transition: transform 0.18s ease, filter 0.18s ease;
+}
+.battle-dev-btn.secondary {
+    background: linear-gradient(180deg, rgba(76, 86, 102, 0.92), rgba(44, 51, 60, 0.92));
+    border-color: rgba(205, 220, 235, 0.24);
+}
+.battle-dev-btn:hover {
+    transform: translateY(-1px);
+    filter: brightness(1.08);
+}
 #btn-victory-return {
     right: 4%;
 }
@@ -1397,7 +1448,30 @@ body {
     opacity: 1;
     transform: translateY(0);
 }
-.reveal-name { display: none; }
+.reveal-name {
+    position: absolute;
+    left: 13%;
+    right: 13%;
+    bottom: 14%;
+    z-index: 3;
+    opacity: 0;
+    transform: translateY(14px);
+    transition: opacity 0.7s ease, transform 0.7s ease;
+    font-family: 'Noto Serif SC', serif;
+    font-size: 24px;
+    font-weight: 900;
+    letter-spacing: 3px;
+    text-align: center;
+    color: #d4c4a0;
+    text-shadow: 0 1px 4px rgba(0,0,0,0.92), 0 0 8px rgba(0,0,0,0.55);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.reveal-name.show {
+    opacity: 1;
+    transform: translateY(0);
+}
 
 .reveal-debug {
     min-width: 420px;

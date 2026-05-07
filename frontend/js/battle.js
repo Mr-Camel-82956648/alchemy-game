@@ -277,6 +277,7 @@ const Battle = (() => {
     };
 
     const DEFAULT_SLOT_ELEMENTS = ['fire', 'ice', 'thunder', 'blight'];
+    const DEV_BATTLE_LOCAL_HOSTS = new Set(['localhost', '127.0.0.1', '::1', '[::1]']);
 
     let canvas, ctx;
     let running = false;
@@ -487,10 +488,14 @@ const Battle = (() => {
     let pauseStartedAt = 0;
     let pausedFrameNow = 0;
     const battleTimeouts = new Set();
+    let devBattlePanel = null;
+    let devBattleStatus = null;
 
     function init() {
         canvas = document.getElementById('battle-canvas');
         ctx = canvas.getContext('2d');
+        devBattlePanel = document.getElementById('battle-dev-panel');
+        devBattleStatus = document.getElementById('battle-dev-status');
 
         maskCanvas = document.createElement('canvas');
         maskCanvas.width = EFFECT_SIZE;
@@ -548,6 +553,82 @@ const Battle = (() => {
         document.getElementById('btn-victory-return').addEventListener('click', onVictoryReturn);
         document.getElementById('btn-retry').addEventListener('click', onRetry);
         document.getElementById('btn-defeat-return').addEventListener('click', onDefeatReturn);
+        const devWinBtn = document.getElementById('btn-dev-battle-win');
+        const devLoseBtn = document.getElementById('btn-dev-battle-lose');
+        if (devWinBtn) devWinBtn.addEventListener('click', forceDevVictory);
+        if (devLoseBtn) devLoseBtn.addEventListener('click', forceDevDefeat);
+        updateDevBattlePanel();
+    }
+
+    function isLocalDevEnvironment() {
+        const hostname = String(window.location.hostname || '').toLowerCase();
+        return window.location.protocol === 'file:' || DEV_BATTLE_LOCAL_HOSTS.has(hostname);
+    }
+
+    function resolveDevBattleConfig() {
+        const params = new URLSearchParams(window.location.search);
+        const enabled = isLocalDevEnvironment() && params.get('devBattle') !== '0';
+        const autoResolveRaw = Number(params.get('autoResolveAfter') || 0);
+        const autoResolveAfter = Number.isFinite(autoResolveRaw) && autoResolveRaw > 0 ? autoResolveRaw : 0;
+        return {
+            enabled,
+            autoResolveAfter: enabled ? autoResolveAfter : 0
+        };
+    }
+
+    function updateDevBattlePanel(statusText) {
+        if (!devBattlePanel) return;
+        const config = resolveDevBattleConfig();
+        devBattlePanel.hidden = !config.enabled;
+        if (!config.enabled) return;
+
+        if (devBattleStatus) {
+            if (statusText) {
+                devBattleStatus.textContent = statusText;
+            } else if (config.autoResolveAfter > 0) {
+                devBattleStatus.textContent = `${config.autoResolveAfter} 秒后自动走胜利结算`;
+            } else {
+                devBattleStatus.textContent = '本地开发快速结算已启用';
+            }
+        }
+    }
+
+    function scheduleDevAutoResolve() {
+        const config = resolveDevBattleConfig();
+        updateDevBattlePanel();
+        if (!config.enabled || config.autoResolveAfter <= 0) return;
+
+        scheduleBattleTimeout(() => {
+            if (!running) return;
+            console.log('[Battle][DevResolve] auto victory triggered', {
+                autoResolveAfter: config.autoResolveAfter,
+                score,
+                soulGoal: CONFIG.soulGoal
+            });
+            forceDevVictory();
+        }, config.autoResolveAfter * 1000);
+    }
+
+    function forceDevVictory() {
+        if (!running) return;
+        updateDevBattlePanel('开发态：已触发直接胜利');
+        console.log('[Battle][DevResolve] forcing victory', {
+            score,
+            soulGoal: CONFIG.soulGoal,
+            hp: player.hp
+        });
+        onVictory();
+    }
+
+    function forceDevDefeat() {
+        if (!running) return;
+        updateDevBattlePanel('开发态：已触发直接失败');
+        console.log('[Battle][DevResolve] forcing defeat', {
+            score,
+            soulGoal: CONFIG.soulGoal,
+            hp: player.hp
+        });
+        onDefeat('time_out');
     }
 
     function loadSpellVideos() {
@@ -2055,6 +2136,7 @@ const Battle = (() => {
         updateScoreDisplay();
         document.getElementById('victory-overlay').style.display = 'none';
         document.getElementById('defeat-overlay').style.display = 'none';
+        scheduleDevAutoResolve();
 
         gameLoop();
     }
@@ -2083,6 +2165,7 @@ const Battle = (() => {
         particles = [];
         afterimages = [];
         lightningBolts = [];
+        updateDevBattlePanel();
         spawnQueue = [];
     }
 

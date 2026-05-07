@@ -20,6 +20,20 @@ const ForgeAPI = (() => {
         return true;
     }
 
+    function logPromptRoutingAudit(taskId, result, source) {
+        if (!result) return;
+        console.log('[ForgeAPI] prompt routing audit:', {
+            source,
+            taskId,
+            promptRoute: result.promptRoute || null,
+            promptRouteReason: result.promptRouteReason || null,
+            promptFallbackApplied: Boolean(result.promptFallbackApplied),
+            promptTemplate: result.promptTemplate || null,
+            promptModel: result.promptModel || null,
+            themeText: result.themeText || null
+        });
+    }
+
     function startForge(cardA, cardB) {
         const a = cardA ? SpellDefs.normalizeCard(cardA) : null;
         const b = cardB ? SpellDefs.normalizeCard(cardB) : null;
@@ -114,6 +128,7 @@ const ForgeAPI = (() => {
                 data.pendingGeneration.result = buildMockResult(cardA, cardB);
                 GameStorage.save(data);
                 console.log('[ForgeAPI] mock result written:', data.pendingGeneration.result.name);
+                logPromptRoutingAudit(taskId, data.pendingGeneration.result, 'mock');
             }
         }, 1500);
 
@@ -180,6 +195,7 @@ const ForgeAPI = (() => {
                             GameStorage.save(storageData);
                             console.log('[ForgeAPI] forge completed:', data.result.name, '(source=' + (data.result.source || '?') + ')');
                             console.log('[ForgeAPI] forge result payload:', data.result);
+                            logPromptRoutingAudit(taskId, data.result, 'poll');
                         }
                     } else if (data.status === 'failed') {
                         stopPolling();

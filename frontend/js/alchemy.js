@@ -27,9 +27,19 @@ const Alchemy = (() => {
     }
 
     function refreshSlots() {
+        resetSlotFlightState();
         updateSlotUI('A');
         updateSlotUI('B');
         updateStartButton();
+    }
+
+    function resetSlotFlightState() {
+        [els.slotA, els.slotB].forEach(slotEl => {
+            if (!slotEl) return;
+            slotEl.style.transition = '';
+            slotEl.style.transform = '';
+            slotEl.style.opacity = '';
+        });
     }
 
     function updateSlotUI(slot) {
@@ -97,8 +107,8 @@ const Alchemy = (() => {
         els.slotB.style.opacity = '0';
 
         setTimeout(() => {
-            els.slotA.style.cssText = '';
-            els.slotB.style.cssText = '';
+            els.slotA.style.transition = '';
+            els.slotB.style.transition = '';
             callback();
         }, 700);
     }
@@ -132,17 +142,25 @@ const Alchemy = (() => {
         const cardEl = document.getElementById('reveal-card');
         const thumb = document.getElementById('reveal-thumb');
         const title = document.getElementById('reveal-title');
+        const nameplate = document.getElementById('reveal-name');
         const debugTheme = document.getElementById('reveal-debug-theme');
         const debugVideo = document.getElementById('reveal-debug-video');
         const debugRoute = document.getElementById('reveal-debug-route');
+        const debugRouteReason = document.getElementById('reveal-debug-route-reason');
+        const debugFallback = document.getElementById('reveal-debug-fallback');
         const collectBtn = document.getElementById('btn-reveal-collect');
         const discardBtn = document.getElementById('btn-reveal-discard');
         const actions = document.querySelector('.reveal-actions');
 
         thumb.src = GameStorage.getCardThumb(card) || '';
+        thumb.alt = card.name || '炼成法阵';
+        if (nameplate) nameplate.textContent = card.name || '未命名法阵';
+        if (title) title.textContent = '炼成';
         if (debugTheme) debugTheme.textContent = truncateText(card.themeText || '无', 140);
         if (debugVideo) debugVideo.textContent = card.videoPrompt ? `存在 (${card.videoPrompt.length} chars)` : '不存在';
         if (debugRoute) debugRoute.textContent = card.promptRoute || '无';
+        if (debugRouteReason) debugRouteReason.textContent = truncateText(card.promptRouteReason || '无', 180);
+        if (debugFallback) debugFallback.textContent = card.promptFallbackApplied ? 'true' : 'false';
 
         console.log('[Reveal] finalized card:', {
             id: card.id,
@@ -154,10 +172,19 @@ const Alchemy = (() => {
             promptRoute: card.promptRoute || null,
             promptTemplate: card.promptTemplate || null
         });
+        console.log('[Reveal] prompt routing audit:', {
+            promptRoute: card.promptRoute || null,
+            promptRouteReason: card.promptRouteReason || null,
+            promptFallbackApplied: Boolean(card.promptFallbackApplied),
+            promptTemplate: card.promptTemplate || null,
+            promptModel: card.promptModel || null,
+            themeText: card.themeText || null
+        });
 
         // Reset all animation states
         cardEl.classList.remove('animate', 'settle');
         title.classList.remove('show');
+        if (nameplate) nameplate.classList.remove('show');
         actions.classList.remove('show');
 
         overlay.style.display = 'flex';
@@ -169,6 +196,7 @@ const Alchemy = (() => {
         // Sequenced reveals
         setTimeout(() => cardEl.classList.add('settle'), 3900);
         setTimeout(() => title.classList.add('show'), 4300);
+        setTimeout(() => nameplate?.classList.add('show'), 4300);
         setTimeout(() => actions.classList.add('show'), 5200);
 
         collectBtn.onclick = () => dismissReveal(false);
@@ -180,6 +208,7 @@ const Alchemy = (() => {
         const overlay = document.getElementById('page-reveal');
         const cardEl = document.getElementById('reveal-card');
         const title = document.getElementById('reveal-title');
+        const nameplate = document.getElementById('reveal-name');
         const actions = document.querySelector('.reveal-actions');
 
         if (discard && revealedCard && revealedCard.id !== '__debug__') {
@@ -191,6 +220,7 @@ const Alchemy = (() => {
         overlay.style.display = 'none';
         cardEl.classList.remove('animate', 'settle');
         title.classList.remove('show');
+        if (nameplate) nameplate.classList.remove('show');
         actions.classList.remove('show');
         refreshSlots();
     }
@@ -212,6 +242,15 @@ const Alchemy = (() => {
         stopPendingResultRetry();
         const r = pending.result;
         console.log('[Alchemy] finalizePendingResult:', r);
+        console.log('[Alchemy] forge audit:', {
+            taskId: pending.taskId,
+            promptRoute: r.promptRoute || null,
+            promptRouteReason: r.promptRouteReason || null,
+            promptFallbackApplied: Boolean(r.promptFallbackApplied),
+            promptTemplate: r.promptTemplate || null,
+            promptModel: r.promptModel || null,
+            themeText: r.themeText || null
+        });
         const thumbnail = GameStorage.generateTextThumbnail(r.name);
         const newCard = GameStorage.addCard({
             name: r.name,

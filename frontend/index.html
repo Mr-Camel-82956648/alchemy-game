@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>炼金法阵</title>
-    <link rel="stylesheet" href="css/style.css?v=forge-result-closure-fix1">
+    <link rel="stylesheet" href="css/style.css?v=forge-dev-qa1">
 </head>
 <body>
     <div id="app">
@@ -199,6 +199,14 @@
         <!-- ========== 页面C：割草战斗 ========== -->
         <div id="page-battle" class="page">
             <canvas id="battle-canvas"></canvas>
+            <div id="battle-dev-panel" class="battle-dev-panel" hidden>
+                <div class="battle-dev-title">DEV BATTLE</div>
+                <div id="battle-dev-status" class="battle-dev-status">本地开发快速结算已启用</div>
+                <div class="battle-dev-actions">
+                    <button id="btn-dev-battle-win" type="button" class="battle-dev-btn">直接胜利</button>
+                    <button id="btn-dev-battle-lose" type="button" class="battle-dev-btn secondary">直接失败</button>
+                </div>
+            </div>
 
             <div id="victory-overlay" class="battle-result-screen success-screen" style="display:none">
                 <div class="battle-result-vignette"></div>
@@ -241,6 +249,7 @@
                         <div class="reveal-inner">
                             <img id="reveal-thumb" class="reveal-thumb" src="" alt="">
                         </div>
+                        <div id="reveal-name" class="reveal-name">未命名法阵</div>
                     </div>
                 </div>
                 <div class="reveal-info">
@@ -249,6 +258,8 @@
                         <div><span class="reveal-debug-label">themeText</span><span id="reveal-debug-theme" class="reveal-debug-value">无</span></div>
                         <div><span class="reveal-debug-label">videoPrompt</span><span id="reveal-debug-video" class="reveal-debug-value">无</span></div>
                         <div><span class="reveal-debug-label">promptRoute</span><span id="reveal-debug-route" class="reveal-debug-value">无</span></div>
+                        <div><span class="reveal-debug-label">routeReason</span><span id="reveal-debug-route-reason" class="reveal-debug-value">无</span></div>
+                        <div><span class="reveal-debug-label">fallback</span><span id="reveal-debug-fallback" class="reveal-debug-value">false</span></div>
                     </div>
                 </div>
                 <div class="reveal-actions">
@@ -282,12 +293,12 @@
     <script src="js/spellDefs.js?v=forge-semantic-refactor1"></script>
     <script src="js/monsterDefs.js?v=phase5-final-pack2"></script>
     <script src="js/combat.js?v=phase3"></script>
-    <script src="js/forgeAPI.js?v=forge-result-closure-fix1"></script>
+    <script src="js/forgeAPI.js?v=forge-dev-qa1"></script>
     <script src="js/collection.js?v=forge-result-closure-fix1"></script>
     <script src="js/loadout.js?v=phase3"></script>
-    <script src="js/alchemy.js?v=forge-result-closure-fix1"></script>
-    <script src="js/battle.js?v=forge-result-closure-fix1"></script>
+    <script src="js/alchemy.js?v=forge-dev-qa1"></script>
+    <script src="js/battle.js?v=forge-dev-qa1"></script>
     <script src="js/uiTuner.js?v=phase6-dev-foundation1"></script>
-    <script src="js/main.js?v=forge-result-closure-fix1"></script>
+    <script src="js/main.js?v=forge-dev-qa1"></script>
 </body>
 </html>

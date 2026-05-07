@@ -1,3 +1,5 @@
+import json
+import logging
 import os
 import random
 import threading
@@ -8,6 +10,8 @@ from typing import Dict, Iterable, List, Optional
 from ..models import ForgeResult
 from .llm_client import call_forge_semantic_llm
 from .prompt_router_service import build_prompt_fallback, run_prompt_router
+
+logger = logging.getLogger("forge.service")
 
 ELEMENTS = ["fire", "ice", "thunder", "blight"]
 ELEMENT_LABELS = {
@@ -79,6 +83,19 @@ DEFAULT_OPENING_POOL = [
 
 _tasks: Dict[str, dict] = {}
 _lock = threading.Lock()
+
+
+def _json_log(payload: dict) -> str:
+    return json.dumps(payload, ensure_ascii=False, default=str, separators=(",", ":"))
+
+
+def _truncate_text(value: Optional[str], max_length: int = 220) -> Optional[str]:
+    text = str(value or "").strip()
+    if not text:
+        return None
+    if len(text) <= max_length:
+        return text
+    return f"{text[:max_length]}..."
 
 
 def calc_base_atk(generation: int) -> float:
@@ -183,9 +200,16 @@ def create_forge_task(
     with _lock:
         _tasks[task_id] = {"status": "pending", "result": None, "error": None}
 
-    print(f"[FORGE] Task created: {task_id}")
-    print(f"[FORGE]   slotA: {_summarize_input(spell_a)}")
-    print(f"[FORGE]   slotB: {_summarize_input(spell_b)}")
+    logger.info(
+        "forge.task_created %s",
+        _json_log(
+            {
+                "taskId": task_id,
+                "slotA": _summarize_input(spell_a),
+                "slotB": _summarize_input(spell_b),
+            }
+        ),
+    )
 
     thread = threading.Thread(
         target=_process_forge,
@@ -205,11 +229,22 @@ def _process_forge(task_id: str, spell_a: Optional[dict], spell_b: Optional[dict
     try:
         inputs = [item for item in (spell_a, spell_b) if item]
         input_state = _resolve_input_state(spell_a, spell_b)
+        logger.info(
+            "forge.task_started %s",
+            _json_log(
+                {
+                    "taskId": task_id,
+                    "inputState": input_state,
+                    "inputCount": len(inputs),
+                }
+            ),
+        )
 
         if input_state == "empty":
-            result = _build_opening_pool_result(input_state)
+            result = _build_opening_pool_result(task_id=task_id, input_state=input_state)
         else:
             result = _build_semantic_result(
+                task_id=task_id,
                 input_state=input_state,
                 spell_a=spell_a,
                 spell_b=spell_b,
@@ -221,26 +256,39 @@ def _process_forge(task_id: str, spell_a: Optional[dict], spell_b: Optional[dict
                 _tasks[task_id]["status"] = "completed"
                 _tasks[task_id]["result"] = result
 
-        print(
-            f"[FORGE] [{task_id}] COMPLETED - name={result.name}, "
-            f"attrSet={result.attrSet}, source={result.source}, inputState={result.inputState}"
+        logger.info(
+            "forge.task_completed %s",
+            _json_log(
+                {
+                    "taskId": task_id,
+                    "name": result.name,
+                    "attrSet": result.attrSet,
+                    "source": result.source,
+                    "inputState": result.inputState,
+                    "promptRoute": result.promptRoute,
+                    "promptRouteReason": result.promptRouteReason,
+                    "promptFallbackApplied": result.promptFallbackApplied,
+                    "promptTemplate": result.promptTemplate,
+                    "promptModel": result.promptModel,
+                }
+            ),
         )
     except Exception as exc:
         with _lock:
             if task_id in _tasks:
                 _tasks[task_id]["status"] = "failed"
                 _tasks[task_id]["error"] = str(exc)
-        print(f"[FORGE] [{task_id}] FAILED - {exc}")
+        logger.exception("forge.task_failed %s", _json_log({"taskId": task_id, "error": str(exc)}))
 
 
-def _build_opening_pool_result(input_state: str) -> ForgeResult:
+def _build_opening_pool_result(*, task_id: str, input_state: str) -> ForgeResult:
     seed = random.choice(DEFAULT_OPENING_POOL)
     attr_set = normalize_attr_set(seed["attrSet"])
     generation = int(seed.get("generation") or 1)
     main_attr = attr_set[0] if attr_set else None
     sub_attr = attr_set[1] if len(attr_set) > 1 else None
     theme_text = str(seed.get("themeText") or "").strip()
-    prompt_meta = _generate_video_prompt(theme_text)
+    prompt_meta = _generate_video_prompt(theme_text, task_id=task_id)
 
     return ForgeResult(
         name=seed["name"],
@@ -269,6 +317,7 @@ def _build_opening_pool_result(input_state: str) -> ForgeResult:
 
 def _build_semantic_result(
     *,
+    task_id: str,
     input_state: str,
     spell_a: Optional[dict],
     spell_b: Optional[dict],
@@ -307,7 +356,7 @@ def _build_semantic_result(
 
     name = llm_name or _generate_fallback_name(attr_set)
     theme_text = llm_theme_text or _build_theme_text_fallback(name=name, attr_set=attr_set, inputs=inputs)
-    prompt_meta = _generate_video_prompt(theme_text)
+    prompt_meta = _generate_video_prompt(theme_text, task_id=task_id)
 
     main_attr = attr_set[0] if attr_set else None
     sub_attr = attr_set[1] if len(attr_set) > 1 else None
@@ -338,11 +387,38 @@ def _build_semantic_result(
     )
 
 
-def _generate_video_prompt(theme_text: str) -> dict:
+def _generate_video_prompt(theme_text: str, *, task_id: str) -> dict:
     started = time.perf_counter()
-    try:
-        payload = run_prompt_router(theme_text)
+    cleaned_theme = str(theme_text or "").strip()
+    if not cleaned_theme:
+        elapsed_ms = int((time.perf_counter() - started) * 1000)
+        fallback_reason = "themeText empty: skipped glyph router"
+        logger.warning(
+            "forge.prompt_router_skipped %s",
+            _json_log(
+                {
+                    "taskId": task_id,
+                    "themeText": cleaned_theme,
+                    "enteredLocalFallback": True,
+                    "fallbackReason": fallback_reason,
+                }
+            ),
+        )
         return {
+            "videoPrompt": build_prompt_fallback(cleaned_theme),
+            "promptRoute": "local_fallback",
+            "promptRouteReason": fallback_reason,
+            "promptFallbackApplied": True,
+            "promptTemplate": None,
+            "promptModel": None,
+            "promptRouteElapsedMs": None,
+            "promptGenerationElapsedMs": None,
+            "promptTotalElapsedMs": elapsed_ms,
+        }
+
+    try:
+        payload = run_prompt_router(cleaned_theme, task_id=task_id)
+        prompt_meta = {
             "videoPrompt": payload.get("final_prompt"),
             "promptRoute": payload.get("route_selected"),
             "promptRouteReason": payload.get("route_reason"),
@@ -353,13 +429,40 @@ def _generate_video_prompt(theme_text: str) -> dict:
             "promptGenerationElapsedMs": payload.get("generation_elapsed_ms"),
             "promptTotalElapsedMs": payload.get("total_elapsed_ms"),
         }
+        logger.info(
+            "forge.prompt_router_result %s",
+            _json_log(
+                {
+                    "taskId": task_id,
+                    "themeText": _truncate_text(cleaned_theme),
+                    "promptRoute": prompt_meta["promptRoute"],
+                    "promptRouteReason": prompt_meta["promptRouteReason"],
+                    "promptFallbackApplied": prompt_meta["promptFallbackApplied"],
+                    "promptTemplate": prompt_meta["promptTemplate"],
+                    "promptModel": prompt_meta["promptModel"],
+                }
+            ),
+        )
+        return prompt_meta
     except Exception as exc:
         elapsed_ms = int((time.perf_counter() - started) * 1000)
-        print(f"[FORGE] Prompt router failed, using local fallback: {exc}")
+        fallback_reason = str(exc).strip() or "glyph router unavailable"
+        logger.warning(
+            "forge.prompt_router_local_fallback %s",
+            _json_log(
+                {
+                    "taskId": task_id,
+                    "themeText": _truncate_text(cleaned_theme),
+                    "enteredLocalFallback": True,
+                    "fallbackReason": fallback_reason,
+                    "elapsedMs": elapsed_ms,
+                }
+            ),
+        )
         return {
-            "videoPrompt": build_prompt_fallback(theme_text),
+            "videoPrompt": build_prompt_fallback(cleaned_theme),
             "promptRoute": "local_fallback",
-            "promptRouteReason": f"glyph router unavailable: {exc}",
+            "promptRouteReason": fallback_reason,
             "promptFallbackApplied": True,
             "promptTemplate": None,
             "promptModel": None,

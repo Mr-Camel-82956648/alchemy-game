@@ -60,7 +60,10 @@ def run_alchemy_glyph_router(
     logger = _RuntimeLogger(verbose=verbose)
 
     try:
-        settings = load_settings()
+        try:
+            settings = load_settings()
+        except Exception as exc:
+            raise RuntimeError(f"config_error:{exc}") from exc
         if verbose:
             logger.attach_log_file(settings.logs_dir)
         if save_output:
@@ -75,7 +78,10 @@ def run_alchemy_glyph_router(
         logger.info("theme", theme)
 
         route_started = time.perf_counter()
-        route = route_theme(theme, settings.cards_dir, client)
+        try:
+            route = route_theme(theme, settings.cards_dir, client)
+        except Exception as exc:
+            raise RuntimeError(f"route_stage_failed:{exc}") from exc
         route_elapsed_ms = _elapsed_ms(route_started)
 
         fallback_applied = False
@@ -95,8 +101,11 @@ def run_alchemy_glyph_router(
         logger.info("final_template", final_template)
 
         generation_started = time.perf_counter()
-        template_markdown = load_full_template(settings.full_templates_dir, final_template)
-        final_prompt = generate_prompt(theme, template_markdown, client)
+        try:
+            template_markdown = load_full_template(settings.full_templates_dir, final_template)
+            final_prompt = generate_prompt(theme, template_markdown, client)
+        except Exception as exc:
+            raise RuntimeError(f"generation_stage_failed:{exc}") from exc
         generation_elapsed_ms = _elapsed_ms(generation_started)
         total_elapsed_ms = _elapsed_ms(total_started)
 

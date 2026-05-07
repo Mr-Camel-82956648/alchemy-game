@@ -36,9 +36,32 @@ class LLMClient:
             response.raise_for_status()
             data = response.json()
             return _extract_content(data)
-        except Exception as exc:
-            logger.error("llm_request_failed=%s", exc)
-            raise
+        except requests.Timeout as exc:
+            logger.error(
+                "llm_request_timeout model=%s timeout_seconds=%s error=%s",
+                self.settings.model,
+                self.settings.timeout_seconds,
+                exc,
+            )
+            raise RuntimeError(f"llm_timeout:{exc}") from exc
+        except requests.HTTPError as exc:
+            status_code = exc.response.status_code if exc.response is not None else "unknown"
+            body_snippet = ""
+            if exc.response is not None and exc.response.text:
+                body_snippet = exc.response.text.strip().replace("\n", " ")[:200]
+            logger.error(
+                "llm_request_http_error model=%s status=%s body=%s",
+                self.settings.model,
+                status_code,
+                body_snippet,
+            )
+            raise RuntimeError(f"llm_http_error status={status_code} body={body_snippet}") from exc
+        except requests.RequestException as exc:
+            logger.error("llm_request_error model=%s error=%s", self.settings.model, exc)
+            raise RuntimeError(f"llm_request_error:{exc}") from exc
+        except ValueError as exc:
+            logger.error("llm_response_error model=%s error=%s", self.settings.model, exc)
+            raise RuntimeError(f"llm_response_error:{exc}") from exc
 
 
 def _extract_content(data: dict[str, Any]) -> str:
