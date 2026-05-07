@@ -197,9 +197,9 @@ const Battle = (() => {
 
     const MOB_SPECIES = {
         'plague-scavenger': { category: 'eclipse', assetBase: 'assets/monsters/_incoming/eclipse__plague-scavenger', frames: 6, framePrefix: 'frame_', scale: 1.02, flipDefault: true },
-        'slag-ooze':        { category: 'eclipse', assetBase: 'assets/monsters/_incoming/eclipse__slag-ooze',        frames: 6, framePrefix: 'frame_', scale: 1.18, flipDefault: false },
+        'slag-ooze':        { category: 'eclipse', assetBase: 'assets/monsters/_incoming/eclipse__slag-ooze',        frames: 6, framePrefix: 'frame_', scale: 1.18, flipDefault: true },
         'stitch-ghoul':     { category: 'eclipse', assetBase: 'assets/monsters/eclipse/stitch-ghoul',                frames: 5, framePrefix: 'frame_', scale: 1.0,  flipDefault: false },
-        'eclipse-wraith':   { category: 'eclipse', assetBase: 'assets/monsters/_incoming/eclipse__eclipse-wraith',   frames: 6, framePrefix: 'frame_', scale: 1.06, flipDefault: true },
+        'eclipse-wraith':   { category: 'eclipse', assetBase: 'assets/monsters/_incoming/eclipse__eclipse-wraith',   frames: 6, framePrefix: 'frame_', scale: 1.06, flipDefault: false },
         'ember-sprinter':   { category: 'fire',    assetBase: 'assets/monsters/fire/ember-sprinter',      frames: 5, framePrefix: 'frame_', scale: 1.0,  flipDefault: true },
         'furnace-thrall':   { category: 'fire',    assetBase: 'assets/monsters/fire/furnace-thrall',      frames: 6, framePrefix: 'frame_', scale: 1.26, flipDefault: true },
         'cinder-guard':     { category: 'fire',    assetBase: 'assets/monsters/_incoming/fire__cinder-guard', frames: 6, framePrefix: 'frame_', scale: 1.1,  flipDefault: false },
