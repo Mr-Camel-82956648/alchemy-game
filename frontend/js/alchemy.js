@@ -72,15 +72,19 @@ const Alchemy = (() => {
         els.startBtn.disabled = !ready;
     }
 
-    function onStart() {
+    async function onStart() {
         const cardA = GameStorage.getSlot('A');
         const cardB = GameStorage.getSlot('B');
 
-        animateCardsToCenter(() => {
-            ForgeAPI.startForge(cardA, cardB);
-            if (cardA && cardA.type === 'text') GameStorage.removeCard(cardA.id);
-            if (cardB && cardB.type === 'text') GameStorage.removeCard(cardB.id);
-            showForgePopup();
+        animateCardsToCenter(async () => {
+            const forgeStart = await ForgeAPI.startForge(cardA, cardB);
+            if (!forgeStart?.ok) {
+                console.warn('[Alchemy] forge start aborted:', forgeStart?.error || 'unknown error');
+                refreshSlots();
+                window.alert(forgeStart?.error || '炼金请求失败，未进入战斗。');
+                return;
+            }
+            showForgePopup(cardA, cardB);
         });
     }
 
@@ -99,11 +103,13 @@ const Alchemy = (() => {
         }, 700);
     }
 
-    function showForgePopup() {
+    function showForgePopup(cardA, cardB) {
         const popup = document.getElementById('forge-popup');
         const confirmBtn = document.getElementById('btn-forge-confirm');
         popup.style.display = 'flex';
         confirmBtn.onclick = () => {
+            if (cardA && cardA.type === 'text') GameStorage.removeCard(cardA.id);
+            if (cardB && cardB.type === 'text') GameStorage.removeCard(cardB.id);
             popup.style.display = 'none';
             App.switchPage('battle');
         };
@@ -126,11 +132,28 @@ const Alchemy = (() => {
         const cardEl = document.getElementById('reveal-card');
         const thumb = document.getElementById('reveal-thumb');
         const title = document.getElementById('reveal-title');
+        const debugTheme = document.getElementById('reveal-debug-theme');
+        const debugVideo = document.getElementById('reveal-debug-video');
+        const debugRoute = document.getElementById('reveal-debug-route');
         const collectBtn = document.getElementById('btn-reveal-collect');
         const discardBtn = document.getElementById('btn-reveal-discard');
         const actions = document.querySelector('.reveal-actions');
 
         thumb.src = GameStorage.getCardThumb(card) || '';
+        if (debugTheme) debugTheme.textContent = truncateText(card.themeText || '无', 140);
+        if (debugVideo) debugVideo.textContent = card.videoPrompt ? `存在 (${card.videoPrompt.length} chars)` : '不存在';
+        if (debugRoute) debugRoute.textContent = card.promptRoute || '无';
+
+        console.log('[Reveal] finalized card:', {
+            id: card.id,
+            name: card.name,
+            inputState: card.inputState || null,
+            source: card.source || null,
+            themeText: card.themeText || null,
+            hasVideoPrompt: Boolean(card.videoPrompt),
+            promptRoute: card.promptRoute || null,
+            promptTemplate: card.promptTemplate || null
+        });
 
         // Reset all animation states
         cardEl.classList.remove('animate', 'settle');
@@ -178,10 +201,17 @@ const Alchemy = (() => {
         pendingResultRetryTimer = null;
     }
 
+    function truncateText(text, maxLength) {
+        const value = String(text || '').trim();
+        if (!value) return '无';
+        return value.length > maxLength ? `${value.slice(0, maxLength)}...` : value;
+    }
+
     function finalizePendingResult(pending) {
         if (!pending?.result) return false;
         stopPendingResultRetry();
         const r = pending.result;
+        console.log('[Alchemy] finalizePendingResult:', r);
         const thumbnail = GameStorage.generateTextThumbnail(r.name);
         const newCard = GameStorage.addCard({
             name: r.name,
@@ -269,6 +299,7 @@ const Alchemy = (() => {
             return;
         }
 
+        console.log('[Alchemy] forge result not ready on battle return, retry scheduled:', pending.taskId);
         refreshSlots();
         schedulePendingResultRetry(pending.taskId);
     }

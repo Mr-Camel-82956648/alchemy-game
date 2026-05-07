@@ -19,6 +19,7 @@ const Collection = (() => {
         els.previewActions = document.getElementById('preview-actions');
         els.selectBtn = document.getElementById('btn-select-card');
         els.deleteBtn = document.getElementById('btn-delete-card');
+        els.clearSlotBtn = document.getElementById('btn-clear-slot');
         els.textModal = document.getElementById('text-input-modal');
         els.spellInput = document.getElementById('spell-input');
         els.spellConfirm = document.getElementById('btn-spell-confirm');
@@ -27,21 +28,29 @@ const Collection = (() => {
         els.closeBtn.addEventListener('click', close);
         els.selectBtn.addEventListener('click', onSelectCard);
         els.deleteBtn.addEventListener('click', onDeleteCard);
+        if (els.clearSlotBtn) els.clearSlotBtn.addEventListener('click', onClearSlot);
         els.spellConfirm.addEventListener('click', onSpellConfirm);
         els.spellCancel.addEventListener('click', onSpellCancel);
     }
 
     function open(slot) {
         activeSlot = slot;
-        selectedCardId = null;
+        selectedCardId = GameStorage.getSlot(slot)?.id || null;
         renderGrid();
-        resetPreview();
+        const currentCard = GameStorage.getSlot(slot);
+        if (currentCard) {
+            renderPreview(currentCard, { selected: true });
+            updateGridSelection(selectedCardId);
+        } else {
+            resetPreview();
+        }
         els.page.style.display = 'block';
         requestAnimationFrame(() => els.page.classList.add('active'));
     }
 
     function close() {
         resetPreview();
+        selectedCardId = null;
         els.page.classList.remove('active');
         setTimeout(() => { els.page.style.display = 'none'; }, 500);
     }
@@ -80,10 +89,25 @@ const Collection = (() => {
         selectedCardId = id;
         const card = GameStorage.getCard(id);
         if (!card) return;
+        updateGridSelection(id);
+        renderPreview(card, { selected: true });
+    }
 
-        els.grid.querySelectorAll('.card-item').forEach(el => {
-            el.classList.toggle('selected', el.dataset.id === id);
-        });
+    function resetPreview() {
+        els.previewEmpty.style.display = 'flex';
+        els.previewContent.style.display = 'none';
+        stopPreviewVideo();
+        els.previewText.textContent = '';
+        els.previewName.textContent = '';
+        els.previewActions.style.display = 'none';
+        if (els.previewHint) els.previewHint.style.display = 'block';
+    }
+
+    function renderPreview(card, { selected = false } = {}) {
+        if (!card) {
+            resetPreview();
+            return;
+        }
 
         els.previewEmpty.style.display = 'none';
         els.previewContent.style.display = 'block';
@@ -103,16 +127,21 @@ const Collection = (() => {
         els.previewName.textContent = card.name;
         els.previewActions.style.display = 'flex';
         if (els.previewHint) els.previewHint.style.display = 'none';
+
+        if (els.selectBtn) {
+            els.selectBtn.disabled = !selected;
+            els.selectBtn.style.opacity = selected ? '1' : '0.55';
+        }
+        if (els.clearSlotBtn) {
+            const hasCurrentSlotCard = Boolean(activeSlot && GameStorage.getSlot(activeSlot));
+            els.clearSlotBtn.style.display = hasCurrentSlotCard ? 'inline-flex' : 'none';
+        }
     }
 
-    function resetPreview() {
-        els.previewEmpty.style.display = 'flex';
-        els.previewContent.style.display = 'none';
-        stopPreviewVideo();
-        els.previewText.textContent = '';
-        els.previewName.textContent = '';
-        els.previewActions.style.display = 'none';
-        if (els.previewHint) els.previewHint.style.display = 'block';
+    function updateGridSelection(id) {
+        els.grid.querySelectorAll('.card-item').forEach(el => {
+            el.classList.toggle('selected', !!id && el.dataset.id === id);
+        });
     }
 
     function onSelectCard() {
@@ -130,7 +159,30 @@ const Collection = (() => {
         GameStorage.deleteCard(selectedCardId);
         selectedCardId = null;
         renderGrid();
-        resetPreview();
+        const slotCard = activeSlot ? GameStorage.getSlot(activeSlot) : null;
+        if (slotCard) {
+            renderPreview(slotCard);
+        } else {
+            resetPreview();
+        }
+        updateGridSelection(selectedCardId);
+        Alchemy.refreshSlots();
+    }
+
+    function onClearSlot() {
+        if (!activeSlot) return;
+        const currentCard = GameStorage.getSlot(activeSlot);
+        if (!currentCard) return;
+        GameStorage.clearSlot(activeSlot);
+        if (selectedCardId === currentCard.id) selectedCardId = null;
+        const nextCard = selectedCardId ? GameStorage.getCard(selectedCardId) : null;
+        updateGridSelection(selectedCardId);
+        if (nextCard) {
+            renderPreview(nextCard, { selected: true });
+        } else {
+            resetPreview();
+        }
+        Alchemy.refreshSlots();
     }
 
     function openTextModal() {
@@ -148,6 +200,7 @@ const Collection = (() => {
         if (activeSlot) {
             GameStorage.setSlot(activeSlot, newCard.id);
         }
+        selectedCardId = newCard.id;
         close();
         setTimeout(() => Alchemy.refreshSlots(), 300);
     }

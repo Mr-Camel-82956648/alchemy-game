@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>炼金法阵</title>
-    <link rel="stylesheet" href="css/style.css?v=phase6-polish1">
+    <link rel="stylesheet" href="css/style.css?v=forge-result-closure-fix1">
 </head>
 <body>
     <div id="app">
@@ -106,6 +106,7 @@
                                 <button id="btn-delete-card" class="icon-btn btn-delete-icon">
                                     <img src="assets/icon/xiaohui.png" alt="销毁">
                                 </button>
+                                <button id="btn-clear-slot" class="slot-clear-btn" type="button">清空当前槽位</button>
                             </div>
                         </div>
                     </div>
@@ -244,6 +245,11 @@
                 </div>
                 <div class="reveal-info">
                     <h2 id="reveal-title" class="reveal-title">炼成</h2>
+                    <div class="reveal-debug" id="reveal-debug">
+                        <div><span class="reveal-debug-label">themeText</span><span id="reveal-debug-theme" class="reveal-debug-value">无</span></div>
+                        <div><span class="reveal-debug-label">videoPrompt</span><span id="reveal-debug-video" class="reveal-debug-value">无</span></div>
+                        <div><span class="reveal-debug-label">promptRoute</span><span id="reveal-debug-route" class="reveal-debug-value">无</span></div>
+                    </div>
                 </div>
                 <div class="reveal-actions">
                     <button id="btn-reveal-collect" class="reveal-collect-btn">
@@ -272,16 +278,16 @@
     <!-- 预加载隐藏资源 -->
     <img id="img-player" src="assets/ui/player.webp" style="display:none">
 
-    <script src="js/storage.js?v=forge-semantic-refactor1"></script>
+    <script src="js/storage.js?v=forge-result-closure-fix1"></script>
     <script src="js/spellDefs.js?v=forge-semantic-refactor1"></script>
     <script src="js/monsterDefs.js?v=phase5-final-pack2"></script>
     <script src="js/combat.js?v=phase3"></script>
-    <script src="js/forgeAPI.js?v=forge-semantic-refactor1"></script>
-    <script src="js/collection.js?v=phase3"></script>
+    <script src="js/forgeAPI.js?v=forge-result-closure-fix1"></script>
+    <script src="js/collection.js?v=forge-result-closure-fix1"></script>
     <script src="js/loadout.js?v=phase3"></script>
-    <script src="js/alchemy.js?v=forge-semantic-refactor1"></script>
-    <script src="js/battle.js?v=ui-color-facing-fix1"></script>
+    <script src="js/alchemy.js?v=forge-result-closure-fix1"></script>
+    <script src="js/battle.js?v=forge-result-closure-fix1"></script>
     <script src="js/uiTuner.js?v=phase6-dev-foundation1"></script>
-    <script src="js/main.js?v=phase3"></script>
+    <script src="js/main.js?v=forge-result-closure-fix1"></script>
 </body>
 </html>

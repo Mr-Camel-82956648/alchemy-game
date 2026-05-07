@@ -25,8 +25,7 @@ const ForgeAPI = (() => {
         const b = cardB ? SpellDefs.normalizeCard(cardB) : null;
 
         if (USE_MOCK) return mockForge(a, b);
-        realForge(a, b);
-        return null;
+        return realForge(a, b);
     }
 
     function buildRequestSpell(card) {
@@ -118,14 +117,11 @@ const ForgeAPI = (() => {
             }
         }, 1500);
 
-        return taskId;
+        return Promise.resolve({ ok: true, taskId });
     }
 
     function realForge(cardA, cardB) {
-        const tempTaskId = 'task_' + Date.now();
-        GameStorage.setPending(tempTaskId, cardA?.id || null, cardB?.id || null);
-
-        fetch(`${API_BASE}/api/forge`, {
+        return fetch(`${API_BASE}/api/forge`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -144,17 +140,17 @@ const ForgeAPI = (() => {
             })
             .then(resp => {
                 const realTaskId = resp.taskId;
-                const data = GameStorage.load();
-                if (data.pendingGeneration && data.pendingGeneration.taskId === tempTaskId) {
-                    data.pendingGeneration.taskId = realTaskId;
-                    GameStorage.save(data);
-                }
+                GameStorage.setPending(realTaskId, cardA?.id || null, cardB?.id || null);
                 console.log('[ForgeAPI] task created:', realTaskId);
                 startPolling(realTaskId);
+                return { ok: true, taskId: realTaskId };
             })
             .catch(err => {
-                clearPendingTask(tempTaskId);
                 console.error('[ForgeAPI] POST /api/forge failed:', err);
+                return {
+                    ok: false,
+                    error: err?.message || '炼金请求失败'
+                };
             });
     }
 
@@ -183,6 +179,7 @@ const ForgeAPI = (() => {
                             storageData.pendingGeneration.result = data.result;
                             GameStorage.save(storageData);
                             console.log('[ForgeAPI] forge completed:', data.result.name, '(source=' + (data.result.source || '?') + ')');
+                            console.log('[ForgeAPI] forge result payload:', data.result);
                         }
                     } else if (data.status === 'failed') {
                         stopPolling();

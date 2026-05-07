@@ -38,20 +38,23 @@ const App = (() => {
     }
 
     function switchPage(target) {
-        if (target === currentPage) return;
+        if (target === currentPage) return Promise.resolve();
 
         const fadeMask = document.getElementById('fade-mask');
         fadeMask.classList.add('active');
 
-        setTimeout(() => {
-            if (currentPage === 'battle') Battle.stop();
-            showPage(target, false);
-
+        return new Promise(resolve => {
             setTimeout(() => {
-                fadeMask.classList.remove('active');
-                if (target === 'battle') Battle.start();
-            }, 100);
-        }, 500);
+                if (currentPage === 'battle') Battle.stop();
+                showPage(target, false);
+
+                setTimeout(() => {
+                    fadeMask.classList.remove('active');
+                    if (target === 'battle') Battle.start();
+                    resolve();
+                }, 100);
+            }, 500);
+        });
     }
 
     function showPage(name) {

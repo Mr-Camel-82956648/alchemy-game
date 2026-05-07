@@ -3803,8 +3803,9 @@ const Battle = (() => {
 
     function onVictoryReturn() {
         showBattleResultOverlay(null);
-        App.switchPage('alchemy');
-        Alchemy.onReturnFromBattle();
+        App.switchPage('alchemy').then(() => {
+            Alchemy.onReturnFromBattle();
+        });
     }
     function onRetry() {
         showBattleResultOverlay(null);

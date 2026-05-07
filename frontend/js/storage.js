@@ -192,6 +192,13 @@ const GameStorage = (() => {
         save(data);
     }
 
+    function clearSlot(slot) {
+        const data = load();
+        if (slot === 'A') data.currentSlotA = null;
+        else data.currentSlotB = null;
+        save(data);
+    }
+
     function clearSlots() {
         const data = load();
         data.currentSlotA = null;
@@ -302,6 +309,7 @@ const GameStorage = (() => {
         deleteCard: removeCard,
         getSlot,
         setSlot,
+        clearSlot,
         clearSlots,
         areBothSlotsFilled,
         getLoadout,
