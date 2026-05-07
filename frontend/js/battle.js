@@ -483,6 +483,9 @@ const Battle = (() => {
     let maskCanvas, maskCtx;
 
     let forgeCheckTimer = null;
+    let pauseStartedAt = 0;
+    let pausedFrameNow = 0;
+    const battleTimeouts = new Set();
 
     function init() {
         canvas = document.getElementById('battle-canvas');
@@ -580,8 +583,8 @@ const Battle = (() => {
         keys[e.code] = true;
         if (!running) return;
         if (e.code === 'Escape') {
-            isPaused = !isPaused;
-            syncBattleMediaPlayback(isPaused);
+            if (isPaused) resumeBattle();
+            else pauseBattle();
             return;
         }
         if (isPaused) return;
@@ -676,7 +679,7 @@ const Battle = (() => {
 
         // Delayed spell effect arrival
         const sizeJitter = 0.9 + Math.random() * 0.2;
-        setTimeout(() => {
+        scheduleBattleTimeout(() => {
             if (!running) return;
             const video = createBattleVideo(spellVideoSrcs[index]);
             if (video) video.play().catch(() => {});
@@ -724,7 +727,7 @@ const Battle = (() => {
         energy -= CONFIG.ultimateCost;
         updateBars();
 
-        const vidIdx = Math.floor(Math.random() * spellVideoSrcs.length);
+        const selectedVideoSrc = spellVideoSrcs[activeSpellIndex] || null;
         let sharedVideo = null;
 
         const spellData = buildEffectSpellData(activeSpellIndex);
@@ -732,7 +735,7 @@ const Battle = (() => {
         const effectColor = mainAttr ? SpellDefs.getElementColor(mainAttr) : '#ffcc00';
         const effectGlow = mainAttr ? SpellDefs.getElementGlow(mainAttr) : 'rgba(255,200,0,0.4)';
         const px = player.x, py = player.y;
-        const maxSubSize = Math.max(...CONFIG.spellSizes);
+        const baseSpellSize = CONFIG.spellSizes[activeSpellIndex] || Math.max(...CONFIG.spellSizes);
         const lightningColor = '#b366ff';
         const spriteScale = player.w / 960;
 
@@ -746,7 +749,7 @@ const Battle = (() => {
         const innerCount = Math.min(subCount - 1, 4 + Math.floor(Math.random() * 3));
         const rings = [
             { dist: 0, count: 1 },
-            { dist: maxSubSize * 0.55, count: innerCount },
+            { dist: baseSpellSize * 0.55, count: innerCount },
             // { dist: maxSubSize * 1.05, count: subCount - 1 - innerCount }
         ];
         const maxDist = CANVAS_W * 0.35;
@@ -757,7 +760,7 @@ const Battle = (() => {
             const ringDist = Math.min(ring.dist, maxDist);
             for (let j = 0; j < ring.count; j++) {
                 const i = subIndex++;
-                const size = maxSubSize * (0.55 + Math.random() * 0.4);
+                const size = baseSpellSize * (0.55 + Math.random() * 0.4);
                 let ox, oy;
                 if (ringDist === 0) {
                     ox = px;
@@ -773,10 +776,10 @@ const Battle = (() => {
                 const s = size;
                 const ex = ox, ey = oy;
 
-                setTimeout(() => {
+                scheduleBattleTimeout(() => {
                     if (!running) return;
-                    if (!sharedVideo && spellVideoSrcs[vidIdx]) {
-                        sharedVideo = createBattleVideo(spellVideoSrcs[vidIdx]);
+                    if (!sharedVideo && selectedVideoSrc) {
+                        sharedVideo = createBattleVideo(selectedVideoSrc);
                         sharedVideo.play().catch(() => {});
                     }
                     activeEffects.push({
@@ -1159,6 +1162,132 @@ const Battle = (() => {
             amuletVideo.pause();
             amuletVideo.currentTime = 0;
         }
+    }
+
+    function shiftTimestamp(value, deltaMs) {
+        const num = Number(value) || 0;
+        if (num <= 0) return value;
+        return num + deltaMs;
+    }
+
+    function scheduleBattleTimeout(callback, delayMs) {
+        const timeout = {
+            callback,
+            remainingMs: Math.max(0, Number(delayMs) || 0),
+            startedAt: Date.now(),
+            id: null
+        };
+
+        timeout.run = () => {
+            battleTimeouts.delete(timeout);
+            timeout.id = null;
+            if (!running) return;
+            callback();
+        };
+
+        if (!isPaused) {
+            timeout.id = setTimeout(timeout.run, timeout.remainingMs);
+        }
+        battleTimeouts.add(timeout);
+        return timeout;
+    }
+
+    function pauseBattleTimeouts(now) {
+        battleTimeouts.forEach(timeout => {
+            if (timeout.id == null) return;
+            clearTimeout(timeout.id);
+            timeout.id = null;
+            const elapsed = Math.max(0, now - timeout.startedAt);
+            timeout.remainingMs = Math.max(0, timeout.remainingMs - elapsed);
+        });
+    }
+
+    function resumeBattleTimeouts(now) {
+        battleTimeouts.forEach(timeout => {
+            if (timeout.id != null) return;
+            timeout.startedAt = now;
+            timeout.id = setTimeout(timeout.run, timeout.remainingMs);
+        });
+    }
+
+    function clearBattleTimeouts() {
+        battleTimeouts.forEach(timeout => {
+            if (timeout.id != null) clearTimeout(timeout.id);
+        });
+        battleTimeouts.clear();
+    }
+
+    function shiftBattleTimestamps(deltaMs) {
+        if (deltaMs <= 0) return;
+
+        battleStartTime = shiftTimestamp(battleStartTime, deltaMs);
+        wavePauseStart = shiftTimestamp(wavePauseStart, deltaMs);
+        lastDashTime = shiftTimestamp(lastDashTime, deltaMs);
+        dashStart = shiftTimestamp(dashStart, deltaMs);
+        lastAfterimageTime = shiftTimestamp(lastAfterimageTime, deltaMs);
+        lastAmuletDamageTick = shiftTimestamp(lastAmuletDamageTick, deltaMs);
+        hitstopEnd = shiftTimestamp(hitstopEnd, deltaMs);
+        cruciblePulseAt = shiftTimestamp(cruciblePulseAt, deltaMs);
+        playerAnim.lastFrameTime = shiftTimestamp(playerAnim.lastFrameTime, deltaMs);
+        shake.startTime = shiftTimestamp(shake.startTime, deltaMs);
+        damageFlash.time = shiftTimestamp(damageFlash.time, deltaMs);
+        spellLastChargeTime = spellLastChargeTime.map(value => shiftTimestamp(value, deltaMs));
+
+        wavePlan.forEach(wave => {
+            wave.startedAt = shiftTimestamp(wave.startedAt, deltaMs);
+            wave.nextPackAt = shiftTimestamp(wave.nextPackAt, deltaMs);
+        });
+
+        closeGapState.activeUntil = shiftTimestamp(closeGapState.activeUntil, deltaMs);
+        closeGapState.nextDispatchAt = shiftTimestamp(closeGapState.nextDispatchAt, deltaMs);
+
+        spawnQueue.forEach(item => {
+            item.spawnAt = shiftTimestamp(item.spawnAt, deltaMs);
+        });
+
+        activeEffects.forEach(effect => {
+            effect.startTime = shiftTimestamp(effect.startTime, deltaMs);
+        });
+        lightningBolts.forEach(bolt => {
+            bolt.startTime = shiftTimestamp(bolt.startTime, deltaMs);
+        });
+        floatingTexts.forEach(text => {
+            text.startTime = shiftTimestamp(text.startTime, deltaMs);
+        });
+        activeSoulWisps.forEach(wisp => {
+            wisp.bornAt = shiftTimestamp(wisp.bornAt, deltaMs);
+        });
+
+        monsters.forEach(monster => {
+            monster.lastFrameTime = shiftTimestamp(monster.lastFrameTime, deltaMs);
+            monster.spawnTime = shiftTimestamp(monster.spawnTime, deltaMs);
+            monster.deathStart = shiftTimestamp(monster.deathStart, deltaMs);
+            monster.flashEnd = shiftTimestamp(monster.flashEnd, deltaMs);
+            monster.hitSilhouetteEnd = shiftTimestamp(monster.hitSilhouetteEnd, deltaMs);
+            monster.hitPauseUntil = shiftTimestamp(monster.hitPauseUntil, deltaMs);
+            monster.absorbFeedbackStart = shiftTimestamp(monster.absorbFeedbackStart, deltaMs);
+        });
+    }
+
+    function pauseBattle() {
+        if (isPaused) return;
+        isPaused = true;
+        pauseStartedAt = Date.now();
+        pausedFrameNow = pauseStartedAt;
+        pauseBattleTimeouts(pauseStartedAt);
+        syncBattleMediaPlayback(true);
+    }
+
+    function resumeBattle() {
+        if (!isPaused) return;
+        const resumeAt = Date.now();
+        const pauseDelta = Math.max(0, resumeAt - pauseStartedAt);
+        shiftBattleTimestamps(pauseDelta);
+        resumeBattleTimeouts(resumeAt);
+        pauseStartedAt = 0;
+        pausedFrameNow = 0;
+        isPaused = false;
+        syncBattleMediaPlayback(false);
     }
 
     function getCurrentWaveIndex() {
@@ -1744,7 +1873,7 @@ const Battle = (() => {
         text.style.animation = 'none';
         void text.offsetWidth;
         text.style.animation = '';
-        setTimeout(() => { el.style.display = 'none'; }, 2500);
+        scheduleBattleTimeout(() => { el.style.display = 'none'; }, 2500);
     }
 
     function showWaveAnnouncement(label) {
@@ -1755,7 +1884,7 @@ const Battle = (() => {
         text.style.animation = 'none';
         void text.offsetWidth;
         text.style.animation = '';
-        setTimeout(() => { el.style.display = 'none'; }, 2500);
+        scheduleBattleTimeout(() => { el.style.display = 'none'; }, 2500);
     }
 
     function spawnMonster(tier, angleOverride, distOverride, speciesOverride, groupMeta) {
@@ -1831,6 +1960,7 @@ const Battle = (() => {
             forgeCheckTimer = null;
         }
         cleanupBattleMedia();
+        clearBattleTimeouts();
 
         canvas.width = CANVAS_W;
         canvas.height = CANVAS_H;
@@ -1866,6 +1996,8 @@ const Battle = (() => {
         wavePlan = buildWavePlan();
         currentWaveIndex = -1;
         lastAmuletDamageTick = 0;
+        pauseStartedAt = 0;
+        pausedFrameNow = 0;
         running = true;
         activateWave(0, battleStartTime);
 
@@ -1880,7 +2012,6 @@ const Battle = (() => {
         document.getElementById('victory-overlay').style.display = 'none';
         document.getElementById('defeat-overlay').style.display = 'none';
 
-        forgeCheckTimer = setInterval(checkForgeStatus, 5000);
         gameLoop();
     }
 
@@ -1895,7 +2026,10 @@ const Battle = (() => {
             forgeCheckTimer = null;
         }
         isPaused = false;
+        pauseStartedAt = 0;
+        pausedFrameNow = 0;
         Object.keys(keys).forEach(code => { keys[code] = false; });
+        clearBattleTimeouts();
         cleanupBattleMedia();
         floatingTexts = [];
         activeSoulWisps = [];
@@ -1908,22 +2042,21 @@ const Battle = (() => {
     function gameLoop() {
         if (!running) return;
         if (isPaused) {
-            draw();
+            draw(pausedFrameNow || Date.now());
             animFrameId = requestAnimationFrame(gameLoop);
             return;
         }
-        if (Date.now() < hitstopEnd) {
-            draw();
+        const now = Date.now();
+        if (now < hitstopEnd) {
+            draw(now);
         } else {
-            update();
-            draw();
+            update(now);
+            draw(now);
         }
         animFrameId = requestAnimationFrame(gameLoop);
     }
 
-    function update() {
-        const now = Date.now();
-
+    function update(now = Date.now()) {
         rechargeSpells(now);
 
         gameTime = (now - battleStartTime) / 1000;
@@ -2438,8 +2571,7 @@ const Battle = (() => {
     }
 
     // ---- Drawing ----
-    function draw() {
-        const now = Date.now();
+    function draw(now = Date.now()) {
         ctx.clearRect(0, 0, CANVAS_W, CANVAS_H);
 
         // Screen shake offset
@@ -3337,11 +3469,14 @@ const Battle = (() => {
             const cx = startX + i * (slotR * 2 + slotGap);
             const cy = slotCY;
             const isActive = i === activeSpellIndex;
+            const slotScale = isActive ? 1.08 : 0.96;
+            const slotRadius = Math.round(slotR * slotScale);
+            const ringRadius = slotRadius - ringW / 2;
             const charges = spellCharges[i];
             const empty = charges <= 0;
 
             ctx.beginPath();
-            ctx.arc(cx, cy, slotR, 0, Math.PI * 2);
+            ctx.arc(cx, cy, slotRadius, 0, Math.PI * 2);
             ctx.fillStyle = isActive ? 'rgba(40,30,10,0.75)' : 'rgba(15,12,8,0.8)';
             ctx.fill();
 
@@ -3349,17 +3484,18 @@ const Battle = (() => {
             if (thumbImg && thumbImg.complete && thumbImg.naturalWidth) {
                 ctx.save();
                 ctx.beginPath();
-                ctx.arc(cx, cy, slotR - ringW, 0, Math.PI * 2);
+                ctx.arc(cx, cy, slotRadius - ringW, 0, Math.PI * 2);
                 ctx.clip();
-                const thumbSize = (slotR - ringW) * 2;
-                ctx.globalAlpha = empty ? 0.3 : 0.85;
+                const thumbSize = (slotRadius - ringW) * 2;
+                ctx.filter = isActive ? 'none' : 'saturate(0.55) brightness(0.78)';
+                ctx.globalAlpha = empty ? 0.24 : (isActive ? 0.92 : 0.7);
                 ctx.drawImage(thumbImg, cx - thumbSize / 2, cy - thumbSize / 2, thumbSize, thumbSize);
                 ctx.restore();
             } else {
                 ctx.beginPath();
-                ctx.arc(cx, cy, slotR * 0.5, 0, Math.PI * 2);
+                ctx.arc(cx, cy, slotRadius * 0.5, 0, Math.PI * 2);
                 ctx.fillStyle = empty ? 'rgba(60,60,60,0.5)' : CONFIG.spellColors[i];
-                ctx.globalAlpha = empty ? 0.4 : 0.6;
+                ctx.globalAlpha = empty ? 0.3 : (isActive ? 0.72 : 0.44);
                 ctx.fill();
                 ctx.globalAlpha = 1;
             }
@@ -3369,16 +3505,16 @@ const Battle = (() => {
                 const elapsed = now - spellLastChargeTime[i];
                 const ratio = Math.min(1, elapsed / CONFIG.spellChargeTime);
                 ctx.beginPath();
-                ctx.arc(cx, cy, slotR - ringW / 2, 0, Math.PI * 2);
+                ctx.arc(cx, cy, ringRadius, 0, Math.PI * 2);
                 ctx.strokeStyle = 'rgba(50,40,30,0.6)';
                 ctx.stroke();
                 ctx.beginPath();
-                ctx.arc(cx, cy, slotR - ringW / 2, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * ratio);
+                ctx.arc(cx, cy, ringRadius, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * ratio);
                 ctx.strokeStyle = CONFIG.spellColors[i];
                 ctx.stroke();
             } else {
                 ctx.beginPath();
-                ctx.arc(cx, cy, slotR - ringW / 2, 0, Math.PI * 2);
+                ctx.arc(cx, cy, ringRadius, 0, Math.PI * 2);
                 ctx.strokeStyle = isActive ? CONFIG.spellColors[i] : 'rgba(100,90,70,0.4)';
                 ctx.stroke();
             }
@@ -3386,11 +3522,11 @@ const Battle = (() => {
             if (isActive) {
                 ctx.save();
                 ctx.shadowColor = CONFIG.spellColors[i];
-                ctx.shadowBlur = Math.round(10 * S);
+                ctx.shadowBlur = Math.round(18 * S);
                 ctx.beginPath();
-                ctx.arc(cx, cy, slotR - ringW / 2, 0, Math.PI * 2);
+                ctx.arc(cx, cy, ringRadius, 0, Math.PI * 2);
                 ctx.strokeStyle = CONFIG.spellColors[i];
-                ctx.lineWidth = Math.round(2 * S);
+                ctx.lineWidth = Math.round(3 * S);
                 ctx.stroke();
                 ctx.restore();
             }
@@ -3398,7 +3534,7 @@ const Battle = (() => {
             // Charges dots only (no key label below)
             const dotRows = 2;
             const dotsPerRow = Math.ceil(CONFIG.spellMaxCharges / dotRows);
-            const dotY2 = cy + slotR + Math.round(10 * S);
+            const dotY2 = cy + slotRadius + Math.round(10 * S);
             const dotSpacing = Math.round(10 * S);
             for (let c = 0; c < CONFIG.spellMaxCharges; c++) {
                 const row = Math.floor(c / dotsPerRow);
@@ -3418,11 +3554,23 @@ const Battle = (() => {
         const ultCx = startX + 3 * (slotR * 2 + slotGap) + slotR + Math.round(30 * S) + ultSlotR;
         const ultCy = slotCY;
         const ultReady = energy >= CONFIG.ultimateCost;
+        const selectedSpellColor = CONFIG.spellColors[activeSpellIndex] || '#ffcc00';
 
         ctx.beginPath();
         ctx.arc(ultCx, ultCy, ultSlotR, 0, Math.PI * 2);
         ctx.fillStyle = ultReady ? 'rgba(60,45,0,0.7)' : 'rgba(15,12,8,0.8)';
         ctx.fill();
+
+        ctx.save();
+        ctx.shadowColor = selectedSpellColor;
+        ctx.shadowBlur = Math.round(10 * S);
+        ctx.beginPath();
+        ctx.arc(ultCx, ultCy, ultSlotR + Math.round(6 * S), 0, Math.PI * 2);
+        ctx.strokeStyle = selectedSpellColor;
+        ctx.globalAlpha = 0.45;
+        ctx.lineWidth = Math.max(2, Math.round(1.5 * S));
+        ctx.stroke();
+        ctx.restore();
 
         ctx.lineWidth = ringW;
         ctx.beginPath();
@@ -3446,10 +3594,10 @@ const Battle = (() => {
             ctx.restore();
         }
 
-        ctx.fillStyle = ultReady ? '#ffcc00' : '#666';
-        ctx.font = `bold ${Math.round(18 * S)}px "Consolas", monospace`;
+        ctx.fillStyle = ultReady ? '#ffcc00' : 'rgba(210,200,182,0.72)';
+        ctx.font = `bold ${Math.round(15 * S)}px "Consolas", monospace`;
         ctx.textAlign = 'center';
-        ctx.fillText('R', ultCx, ultCy + Math.round(7 * S));
+        ctx.fillText(`R-${activeSpellIndex + 1}`, ultCx, ultCy + Math.round(6 * S));
 
         // === Control hints (small white text, left & right bottom) ===
         const hintFont = `${Math.round(11 * S)}px "Consolas", monospace`;
