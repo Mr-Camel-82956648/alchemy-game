@@ -27,17 +27,17 @@ const SpellDefs = (() => {
     };
 
     const ELEMENT_COLORS = {
-        fire: '#ff6600',
-        ice: '#00ccff',
-        thunder: '#cc88ff',
-        blight: '#44ff66'
+        fire: '#CB4446',
+        ice: '#508EB5',
+        thunder: '#FFC653',
+        blight: '#2B9E57'
     };
 
     const ELEMENT_GLOWS = {
-        fire: 'rgba(255,100,0,0.6)',
-        ice: 'rgba(0,200,255,0.6)',
-        thunder: 'rgba(200,150,255,0.6)',
-        blight: 'rgba(0,255,80,0.6)'
+        fire: 'rgba(203,68,70,0.6)',
+        ice: 'rgba(80,142,181,0.6)',
+        thunder: 'rgba(255,198,83,0.6)',
+        blight: 'rgba(43,158,87,0.6)'
     };
 
     function calcBaseAtk(generation) {

@@ -91,7 +91,7 @@ const Battle = (() => {
             framePrefix: 'frame_',
             frames: 6,
             scale: 0.98,
-            flipDefault: false,
+            flipDefault: true,
             roster: 'small'
         },
         'frost-wisp': {
@@ -204,7 +204,7 @@ const Battle = (() => {
         'furnace-thrall':   { category: 'fire',    assetBase: 'assets/monsters/fire/furnace-thrall',      frames: 6, framePrefix: 'frame_', scale: 1.26, flipDefault: true },
         'cinder-guard':     { category: 'fire',    assetBase: 'assets/monsters/_incoming/fire__cinder-guard', frames: 6, framePrefix: 'frame_', scale: 1.1,  flipDefault: false },
         'bone-cage-brute':  { category: 'ice',     assetBase: 'assets/monsters/ice/bone-cage-brute',      frames: 6, framePrefix: 'frame_', scale: 1.34, flipDefault: false },
-        'frost-warden':     { category: 'ice',     assetBase: 'assets/monsters/_incoming/ice__frost-warden', frames: 6, framePrefix: 'frame_', scale: 1.04, flipDefault: false },
+        'frost-warden':     { category: 'ice',     assetBase: 'assets/monsters/_incoming/ice__frost-warden', frames: 6, framePrefix: 'frame_', scale: 1.04, flipDefault: true },
         'frost-wisp':       { category: 'ice',     assetBase: 'assets/monsters/_incoming/ice__frost-wisp',   frames: 6, framePrefix: 'frame_', scale: 1.08, flipDefault: true },
         'alchemy-beholder': { category: 'thunder', assetBase: 'assets/monsters/thunder/alchemy-beholder', frames: 6, framePrefix: 'frame_', scale: 1.02, flipDefault: false },
         'storm-idol':       { category: 'thunder', assetBase: 'assets/monsters/_incoming/thunder__storm-idol', frames: 6, framePrefix: 'frame_', scale: 1.04, flipDefault: true },
@@ -271,12 +271,12 @@ const Battle = (() => {
         soulGoal: 1800,
         spellSizes: [796, 597, 696, 895],
         spellDamages: [3, 2, 4, 2],
-        spellColors: ['#ff6600', '#00ccff', '#cc88ff', '#44ff66'],
-        spellGlows: ['rgba(255,100,0,0.6)', 'rgba(0,200,255,0.6)', 'rgba(200,150,255,0.6)', 'rgba(0,255,80,0.6)'],
         spellNames: ['火焰风暴', '冰霜之刃', '雷电裁决', '毒雾缠绕'],
         groundBrightness: 0.59,
         groundSaturation: 0.62
     };
+
+    const DEFAULT_SLOT_ELEMENTS = ['fire', 'ice', 'thunder', 'blight'];
 
     let canvas, ctx;
     let running = false;
@@ -654,6 +654,28 @@ const Battle = (() => {
         };
     }
 
+    function getSpellUiElement(index) {
+        const fallbackElement = DEFAULT_SLOT_ELEMENTS[index] || DEFAULT_SLOT_ELEMENTS[0];
+        const cardData = spellCardData[index];
+        if (!cardData) return fallbackElement;
+        const attrSet = SpellDefs.getCardAttrSet
+            ? SpellDefs.getCardAttrSet(cardData)
+            : [cardData.mainAttr, cardData.subAttr].filter(Boolean);
+        return attrSet[0] || cardData.mainAttr || fallbackElement;
+    }
+
+    function getSpellUiColor(index) {
+        return SpellDefs.getElementColor
+            ? SpellDefs.getElementColor(getSpellUiElement(index))
+            : '#aaaaaa';
+    }
+
+    function getSpellUiGlow(index) {
+        return SpellDefs.getElementGlow
+            ? SpellDefs.getElementGlow(getSpellUiElement(index))
+            : 'rgba(170,170,170,0.6)';
+    }
+
     function castSpell(index, wx, wy) {
         if (spellCharges[index] <= 0) return;
         spellCharges[index]--;
@@ -690,8 +712,8 @@ const Battle = (() => {
             activeEffects.push({
                 x: wx, y: wy,
                 size: CONFIG.spellSizes[index] * sizeJitter,
-                color: mainAttr ? SpellDefs.getElementColor(mainAttr) : CONFIG.spellColors[index],
-                glowColor: mainAttr ? SpellDefs.getElementGlow(mainAttr) : CONFIG.spellGlows[index],
+                color: mainAttr ? SpellDefs.getElementColor(mainAttr) : getSpellUiColor(index),
+                glowColor: mainAttr ? SpellDefs.getElementGlow(mainAttr) : getSpellUiGlow(index),
                 damage: CONFIG.spellDamages[index],
                 mainAttr: mainAttr,
                 spellData: spellData,
@@ -735,8 +757,8 @@ const Battle = (() => {
 
         const spellData = buildEffectSpellData(selectedSpellIndex);
         const mainAttr = spellData.mainAttr;
-        const effectColor = mainAttr ? SpellDefs.getElementColor(mainAttr) : '#ffcc00';
-        const effectGlow = mainAttr ? SpellDefs.getElementGlow(mainAttr) : 'rgba(255,200,0,0.4)';
+        const effectColor = mainAttr ? SpellDefs.getElementColor(mainAttr) : getSpellUiColor(selectedSpellIndex);
+        const effectGlow = mainAttr ? SpellDefs.getElementGlow(mainAttr) : getSpellUiGlow(selectedSpellIndex);
         const px = player.x, py = player.y;
         const baseSpellSize = CONFIG.spellSizes[selectedSpellIndex] || Math.max(...CONFIG.spellSizes);
         const lightningColor = effectColor;
@@ -3490,6 +3512,7 @@ const Battle = (() => {
         for (let i = 0; i < 4; i++) {
             const cx = startX + i * (slotR * 2 + slotGap);
             const isActive = i === activeSpellIndex;
+            const spellSlotColor = getSpellUiColor(i);
             const cy = slotCY - (isActive ? Math.round(10 * S) : 0);
             const slotScale = isActive ? 1.16 : 0.92;
             const slotRadius = Math.round(slotR * slotScale);
@@ -3505,13 +3528,13 @@ const Battle = (() => {
                 ctx.save();
                 ctx.beginPath();
                 ctx.arc(cx, cy, slotRadius + Math.round(10 * S), 0, Math.PI * 2);
-                ctx.fillStyle = `${CONFIG.spellColors[i]}22`;
+                ctx.fillStyle = `${spellSlotColor}22`;
                 ctx.fill();
                 ctx.restore();
             }
 
             roundRect(ctx, keyBadgeX, keyBadgeY, keyBadgeW, keyBadgeH, Math.round(8 * S));
-            ctx.fillStyle = isActive ? CONFIG.spellColors[i] : 'rgba(18,16,14,0.82)';
+            ctx.fillStyle = isActive ? spellSlotColor : 'rgba(18,16,14,0.82)';
             ctx.fill();
             ctx.lineWidth = Math.max(2, Math.round(1.1 * S));
             ctx.strokeStyle = isActive ? 'rgba(255,245,225,0.9)' : 'rgba(150,138,118,0.38)';
@@ -3540,7 +3563,7 @@ const Battle = (() => {
             } else {
                 ctx.beginPath();
                 ctx.arc(cx, cy, slotRadius * 0.5, 0, Math.PI * 2);
-                ctx.fillStyle = empty ? 'rgba(60,60,60,0.5)' : CONFIG.spellColors[i];
+                ctx.fillStyle = empty ? 'rgba(60,60,60,0.5)' : spellSlotColor;
                 ctx.globalAlpha = empty ? 0.24 : (isActive ? 0.84 : 0.34);
                 ctx.fill();
                 ctx.globalAlpha = 1;
@@ -3556,22 +3579,22 @@ const Battle = (() => {
                 ctx.stroke();
                 ctx.beginPath();
                 ctx.arc(cx, cy, ringRadius, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * ratio);
-                ctx.strokeStyle = CONFIG.spellColors[i];
+                ctx.strokeStyle = spellSlotColor;
                 ctx.stroke();
             } else {
                 ctx.beginPath();
                 ctx.arc(cx, cy, ringRadius, 0, Math.PI * 2);
-                ctx.strokeStyle = isActive ? CONFIG.spellColors[i] : 'rgba(100,90,70,0.4)';
+                ctx.strokeStyle = isActive ? spellSlotColor : 'rgba(100,90,70,0.4)';
                 ctx.stroke();
             }
 
             if (isActive) {
                 ctx.save();
-                ctx.shadowColor = CONFIG.spellColors[i];
+                ctx.shadowColor = spellSlotColor;
                 ctx.shadowBlur = Math.round(24 * S);
                 ctx.beginPath();
                 ctx.arc(cx, cy, ringRadius, 0, Math.PI * 2);
-                ctx.strokeStyle = CONFIG.spellColors[i];
+                ctx.strokeStyle = spellSlotColor;
                 ctx.lineWidth = Math.round(4 * S);
                 ctx.stroke();
                 ctx.restore();
@@ -3588,7 +3611,7 @@ const Battle = (() => {
                 const rowCount = Math.min(dotsPerRow, CONFIG.spellMaxCharges - row * dotsPerRow);
                 const dotsX = cx - (rowCount - 1) * dotSpacing / 2;
                 const dotY = dotY2 + row * Math.round(10 * S);
-                ctx.fillStyle = c < charges ? CONFIG.spellColors[i] : 'rgba(60,60,60,0.5)';
+                ctx.fillStyle = c < charges ? spellSlotColor : 'rgba(60,60,60,0.5)';
                 ctx.beginPath();
                 ctx.arc(dotsX + col * dotSpacing, dotY, Math.round(3.5 * S), 0, Math.PI * 2);
                 ctx.fill();
@@ -3606,7 +3629,7 @@ const Battle = (() => {
             : `${(ultimateCooldownRemainingMs / 1000).toFixed(1)}s`;
         const ultCx = startX + 3 * (slotR * 2 + slotGap) + slotR + Math.round(30 * S) + ultSlotR;
         const ultCy = slotCY;
-        const selectedSpellColor = CONFIG.spellColors[activeSpellIndex] || '#ffcc00';
+        const selectedSpellColor = getSpellUiColor(activeSpellIndex);
         const ultBindW = Math.round(40 * S);
         const ultBindH = Math.round(16 * S);
         const ultBindX = ultCx - ultBindW / 2;
