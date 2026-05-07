@@ -133,7 +133,11 @@ const SpellDefs = (() => {
         card.promptTotalElapsedMs = Number.isFinite(Number(card.promptTotalElapsedMs))
             ? Number(card.promptTotalElapsedMs)
             : null;
+        card.taskId = card.taskId || null;
         card.inputState = card.inputState || null;
+        card.inputSummary = typeof card.inputSummary === 'string' && card.inputSummary.trim()
+            ? card.inputSummary.trim()
+            : null;
         card.source = card.source || null;
 
         const parsedGeneration = Number(card.generation);

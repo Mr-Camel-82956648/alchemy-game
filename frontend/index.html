@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>炼金法阵</title>
-    <link rel="stylesheet" href="css/style.css?v=forge-dev-qa1">
+    <link rel="stylesheet" href="css/style.css?v=forge-settlement-sync1">
 </head>
 <body>
     <div id="app">
@@ -69,6 +69,17 @@
                     <button id="btn-forge-confirm" class="icon-btn forge-confirm-btn">
                         <img src="assets/icon/queren.png" alt="确认">
                     </button>
+                </div>
+
+                <div id="settlement-wait-overlay" class="settlement-wait-overlay" hidden>
+                    <div class="settlement-wait-panel">
+                        <div id="settlement-wait-title" class="settlement-wait-title">炼金结果生成中</div>
+                        <div id="settlement-wait-copy" class="settlement-wait-copy">正在等待当前 forge task 完成后进入 reveal。</div>
+                        <div class="settlement-wait-meta">
+                            <div><span class="settlement-wait-label">taskId</span><span id="settlement-wait-task" class="settlement-wait-value">无</span></div>
+                            <div><span class="settlement-wait-label">input</span><span id="settlement-wait-input" class="settlement-wait-value">无</span></div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -260,6 +271,10 @@
                         <div><span class="reveal-debug-label">promptRoute</span><span id="reveal-debug-route" class="reveal-debug-value">无</span></div>
                         <div><span class="reveal-debug-label">routeReason</span><span id="reveal-debug-route-reason" class="reveal-debug-value">无</span></div>
                         <div><span class="reveal-debug-label">fallback</span><span id="reveal-debug-fallback" class="reveal-debug-value">false</span></div>
+                        <div><span class="reveal-debug-label">taskId</span><span id="reveal-debug-task" class="reveal-debug-value">无</span></div>
+                        <div><span class="reveal-debug-label">inputState</span><span id="reveal-debug-input-state" class="reveal-debug-value">无</span></div>
+                        <div><span class="reveal-debug-label">source</span><span id="reveal-debug-source" class="reveal-debug-value">无</span></div>
+                        <div><span class="reveal-debug-label">inputSummary</span><span id="reveal-debug-input-summary" class="reveal-debug-value">无</span></div>
                     </div>
                 </div>
                 <div class="reveal-actions">
@@ -289,16 +304,16 @@
     <!-- 预加载隐藏资源 -->
     <img id="img-player" src="assets/ui/player.webp" style="display:none">
 
-    <script src="js/storage.js?v=forge-result-closure-fix1"></script>
-    <script src="js/spellDefs.js?v=forge-semantic-refactor1"></script>
+    <script src="js/storage.js?v=forge-settlement-sync1"></script>
+    <script src="js/spellDefs.js?v=forge-settlement-sync1"></script>
     <script src="js/monsterDefs.js?v=phase5-final-pack2"></script>
     <script src="js/combat.js?v=phase3"></script>
-    <script src="js/forgeAPI.js?v=forge-dev-qa1"></script>
+    <script src="js/forgeAPI.js?v=forge-settlement-sync1"></script>
     <script src="js/collection.js?v=forge-result-closure-fix1"></script>
     <script src="js/loadout.js?v=phase3"></script>
-    <script src="js/alchemy.js?v=forge-dev-qa1"></script>
-    <script src="js/battle.js?v=forge-dev-qa1"></script>
+    <script src="js/alchemy.js?v=forge-settlement-sync1"></script>
+    <script src="js/battle.js?v=forge-settlement-sync1"></script>
     <script src="js/uiTuner.js?v=phase6-dev-foundation1"></script>
-    <script src="js/main.js?v=forge-dev-qa1"></script>
+    <script src="js/main.js?v=forge-settlement-sync1"></script>
 </body>
 </html>

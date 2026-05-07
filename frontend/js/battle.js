@@ -611,8 +611,14 @@ const Battle = (() => {
 
     function forceDevVictory() {
         if (!running) return;
+        const pending = GameStorage.getPending();
         updateDevBattlePanel('开发态：已触发直接胜利');
         console.log('[Battle][DevResolve] forcing victory', {
+            taskId: pending?.taskId || null,
+            pendingStatus: pending?.status || null,
+            hasResult: Boolean(pending?.result),
+            inputState: pending?.inputState || null,
+            inputSummary: pending?.inputSummary || null,
             score,
             soulGoal: CONFIG.soulGoal,
             hp: player.hp
@@ -622,8 +628,12 @@ const Battle = (() => {
 
     function forceDevDefeat() {
         if (!running) return;
+        const pending = GameStorage.getPending();
         updateDevBattlePanel('开发态：已触发直接失败');
         console.log('[Battle][DevResolve] forcing defeat', {
+            taskId: pending?.taskId || null,
+            pendingStatus: pending?.status || null,
+            hasResult: Boolean(pending?.result),
             score,
             soulGoal: CONFIG.soulGoal,
             hp: player.hp
@@ -3885,6 +3895,14 @@ const Battle = (() => {
     }
 
     function onVictoryReturn() {
+        const pending = GameStorage.getPending();
+        console.log('[Battle] victory return requested:', {
+            taskId: pending?.taskId || null,
+            pendingStatus: pending?.status || null,
+            hasResult: Boolean(pending?.result),
+            inputState: pending?.inputState || null,
+            inputSummary: pending?.inputSummary || null
+        });
         showBattleResultOverlay(null);
         App.switchPage('alchemy').then(() => {
             Alchemy.onReturnFromBattle();

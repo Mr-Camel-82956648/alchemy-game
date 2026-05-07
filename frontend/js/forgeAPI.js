@@ -25,6 +25,8 @@ const ForgeAPI = (() => {
         console.log('[ForgeAPI] prompt routing audit:', {
             source,
             taskId,
+            inputState: result.inputState || null,
+            inputSummary: result.inputSummary || null,
             promptRoute: result.promptRoute || null,
             promptRouteReason: result.promptRouteReason || null,
             promptFallbackApplied: Boolean(result.promptFallbackApplied),
@@ -32,6 +34,42 @@ const ForgeAPI = (() => {
             promptModel: result.promptModel || null,
             themeText: result.themeText || null
         });
+    }
+
+    function buildInputState(cardA, cardB) {
+        const inputs = [cardA, cardB].filter(Boolean);
+        return inputs.length === 0 ? 'empty' : (inputs.length === 1 ? 'single' : 'dual');
+    }
+
+    function describeInputCard(card) {
+        if (!card) return null;
+        const normalized = SpellDefs.normalizeCard(card);
+        const name = String(normalized?.name || '').trim();
+        if (name) return name;
+        const attrs = SpellDefs.getCardAttrSet(normalized)
+            .map(attr => SpellDefs.getElementLabel ? SpellDefs.getElementLabel(attr) : attr)
+            .filter(Boolean);
+        return attrs.join('/') || '未命名输入';
+    }
+
+    function buildInputSummary(cardA, cardB) {
+        const left = describeInputCard(cardA);
+        const right = describeInputCard(cardB);
+        if (!left && !right) return '空输入';
+        if (left && right) return `${left} + ${right}`;
+        return left || right || '未知输入';
+    }
+
+    function buildPendingMetadata(taskId, cardA, cardB) {
+        return {
+            taskId,
+            cardAId: cardA?.id || null,
+            cardBId: cardB?.id || null,
+            inputState: buildInputState(cardA, cardB),
+            inputSummary: buildInputSummary(cardA, cardB),
+            source: null,
+            requestedAt: Date.now()
+        };
     }
 
     function startForge(cardA, cardB) {
@@ -119,16 +157,13 @@ const ForgeAPI = (() => {
 
     function mockForge(cardA, cardB) {
         const taskId = 'task_' + Date.now();
-        GameStorage.setPending(taskId, cardA?.id || null, cardB?.id || null);
+        GameStorage.setPending(taskId, buildPendingMetadata(taskId, cardA, cardB));
 
         setTimeout(() => {
-            const data = GameStorage.load();
-            if (data.pendingGeneration && data.pendingGeneration.taskId === taskId) {
-                data.pendingGeneration.status = 'done';
-                data.pendingGeneration.result = buildMockResult(cardA, cardB);
-                GameStorage.save(data);
-                console.log('[ForgeAPI] mock result written:', data.pendingGeneration.result.name);
-                logPromptRoutingAudit(taskId, data.pendingGeneration.result, 'mock');
+            const pending = GameStorage.writePendingResult(taskId, buildMockResult(cardA, cardB));
+            if (pending?.result) {
+                console.log('[ForgeAPI] mock result written:', pending.result.name);
+                logPromptRoutingAudit(taskId, pending.result, 'mock');
             }
         }, 1500);
 
@@ -155,8 +190,13 @@ const ForgeAPI = (() => {
             })
             .then(resp => {
                 const realTaskId = resp.taskId;
-                GameStorage.setPending(realTaskId, cardA?.id || null, cardB?.id || null);
-                console.log('[ForgeAPI] task created:', realTaskId);
+                const pendingMeta = buildPendingMetadata(realTaskId, cardA, cardB);
+                GameStorage.setPending(realTaskId, pendingMeta);
+                console.log('[ForgeAPI] task created:', {
+                    taskId: realTaskId,
+                    inputState: pendingMeta.inputState,
+                    inputSummary: pendingMeta.inputSummary
+                });
                 startPolling(realTaskId);
                 return { ok: true, taskId: realTaskId };
             })
@@ -188,14 +228,11 @@ const ForgeAPI = (() => {
                 .then(data => {
                     if (data.status === 'completed' && data.result) {
                         stopPolling();
-                        const storageData = GameStorage.load();
-                        if (storageData.pendingGeneration && storageData.pendingGeneration.taskId === taskId) {
-                            storageData.pendingGeneration.status = 'done';
-                            storageData.pendingGeneration.result = data.result;
-                            GameStorage.save(storageData);
-                            console.log('[ForgeAPI] forge completed:', data.result.name, '(source=' + (data.result.source || '?') + ')');
-                            console.log('[ForgeAPI] forge result payload:', data.result);
-                            logPromptRoutingAudit(taskId, data.result, 'poll');
+                        const pending = GameStorage.writePendingResult(taskId, data.result);
+                        if (pending?.result) {
+                            console.log('[ForgeAPI] forge completed:', pending.result.name, '(source=' + (pending.result.source || '?') + ')');
+                            console.log('[ForgeAPI] forge result payload:', pending.result);
+                            logPromptRoutingAudit(taskId, pending.result, 'poll');
                         }
                     } else if (data.status === 'failed') {
                         stopPolling();

@@ -6,6 +6,7 @@ const Alchemy = (() => {
     let pendingResultRetryTimer = null;
     const PENDING_RESULT_RETRY_MS = 1000;
     const MAX_PENDING_RESULT_RETRIES = 180;
+    let activeSettlementTaskId = null;
 
     function init() {
         els.page = document.getElementById('page-alchemy');
@@ -15,6 +16,11 @@ const Alchemy = (() => {
         els.loadoutBtn = document.getElementById('btn-loadout');
         els.forgeReturnBtn = document.getElementById('btn-forge-return');
         els.cauldronResult = document.getElementById('cauldron-result');
+        els.settlementOverlay = document.getElementById('settlement-wait-overlay');
+        els.settlementTitle = document.getElementById('settlement-wait-title');
+        els.settlementCopy = document.getElementById('settlement-wait-copy');
+        els.settlementTask = document.getElementById('settlement-wait-task');
+        els.settlementInput = document.getElementById('settlement-wait-input');
 
         els.slotA.addEventListener('click', () => Collection.open('A'));
         els.slotB.addEventListener('click', () => Collection.open('B'));
@@ -83,6 +89,8 @@ const Alchemy = (() => {
     }
 
     async function onStart() {
+        stopPendingResultRetry();
+        hideSettlementWaiting();
         const cardA = GameStorage.getSlot('A');
         const cardB = GameStorage.getSlot('B');
 
@@ -127,6 +135,7 @@ const Alchemy = (() => {
 
     function onForgeReturn() {
         stopPendingResultRetry();
+        hideSettlementWaiting();
         const popup = document.getElementById('forge-popup');
         if (popup) popup.style.display = 'none';
         ForgeAPI.stopPolling();
@@ -135,6 +144,24 @@ const Alchemy = (() => {
     }
 
     let revealedCard = null;
+
+    function showSettlementWaiting(pending, copyText) {
+        if (!els.settlementOverlay) return;
+        const summary = pending?.inputSummary || '未知输入';
+        els.settlementOverlay.hidden = false;
+        if (els.settlementTitle) els.settlementTitle.textContent = '炼金结果生成中';
+        if (els.settlementCopy) {
+            els.settlementCopy.textContent = copyText || '本次 battle 已胜利，正在等待当前 forge task 完成后进入 reveal。';
+        }
+        if (els.settlementTask) els.settlementTask.textContent = pending?.taskId || '无';
+        if (els.settlementInput) els.settlementInput.textContent = `${summary} (${pending?.inputState || 'unknown'})`;
+    }
+
+    function hideSettlementWaiting() {
+        activeSettlementTaskId = null;
+        if (!els.settlementOverlay) return;
+        els.settlementOverlay.hidden = true;
+    }
 
     function showReveal(card) {
         revealedCard = card;
@@ -148,6 +175,10 @@ const Alchemy = (() => {
         const debugRoute = document.getElementById('reveal-debug-route');
         const debugRouteReason = document.getElementById('reveal-debug-route-reason');
         const debugFallback = document.getElementById('reveal-debug-fallback');
+        const debugTask = document.getElementById('reveal-debug-task');
+        const debugInputState = document.getElementById('reveal-debug-input-state');
+        const debugSource = document.getElementById('reveal-debug-source');
+        const debugInputSummary = document.getElementById('reveal-debug-input-summary');
         const collectBtn = document.getElementById('btn-reveal-collect');
         const discardBtn = document.getElementById('btn-reveal-discard');
         const actions = document.querySelector('.reveal-actions');
@@ -161,11 +192,17 @@ const Alchemy = (() => {
         if (debugRoute) debugRoute.textContent = card.promptRoute || '无';
         if (debugRouteReason) debugRouteReason.textContent = truncateText(card.promptRouteReason || '无', 180);
         if (debugFallback) debugFallback.textContent = card.promptFallbackApplied ? 'true' : 'false';
+        if (debugTask) debugTask.textContent = card.taskId || '无';
+        if (debugInputState) debugInputState.textContent = card.inputState || '无';
+        if (debugSource) debugSource.textContent = card.source || '无';
+        if (debugInputSummary) debugInputSummary.textContent = card.inputSummary || '无';
 
         console.log('[Reveal] finalized card:', {
+            taskId: card.taskId || null,
             id: card.id,
             name: card.name,
             inputState: card.inputState || null,
+            inputSummary: card.inputSummary || null,
             source: card.source || null,
             themeText: card.themeText || null,
             hasVideoPrompt: Boolean(card.videoPrompt),
@@ -178,6 +215,10 @@ const Alchemy = (() => {
             promptFallbackApplied: Boolean(card.promptFallbackApplied),
             promptTemplate: card.promptTemplate || null,
             promptModel: card.promptModel || null,
+            taskId: card.taskId || null,
+            inputState: card.inputState || null,
+            inputSummary: card.inputSummary || null,
+            source: card.source || null,
             themeText: card.themeText || null
         });
 
@@ -205,6 +246,7 @@ const Alchemy = (() => {
 
     function dismissReveal(discard) {
         stopPendingResultRetry();
+        hideSettlementWaiting();
         const overlay = document.getElementById('page-reveal');
         const cardEl = document.getElementById('reveal-card');
         const title = document.getElementById('reveal-title');
@@ -226,6 +268,7 @@ const Alchemy = (() => {
     }
 
     function stopPendingResultRetry() {
+        activeSettlementTaskId = null;
         if (!pendingResultRetryTimer) return;
         clearTimeout(pendingResultRetryTimer);
         pendingResultRetryTimer = null;
@@ -237,13 +280,26 @@ const Alchemy = (() => {
         return value.length > maxLength ? `${value.slice(0, maxLength)}...` : value;
     }
 
-    function finalizePendingResult(pending) {
+    function finalizePendingResult(pending, trigger = 'unknown') {
         if (!pending?.result) return false;
+        if (activeSettlementTaskId && pending.taskId !== activeSettlementTaskId) {
+            console.warn('[Alchemy] finalize skipped for stale task:', {
+                activeSettlementTaskId,
+                pendingTaskId: pending.taskId,
+                trigger
+            });
+            return false;
+        }
         stopPendingResultRetry();
+        hideSettlementWaiting();
         const r = pending.result;
-        console.log('[Alchemy] finalizePendingResult:', r);
+        console.log('[Alchemy] finalizePendingResult:', { trigger, ...r });
         console.log('[Alchemy] forge audit:', {
+            trigger,
             taskId: pending.taskId,
+            inputState: r.inputState || null,
+            inputSummary: r.inputSummary || null,
+            source: r.source || null,
             promptRoute: r.promptRoute || null,
             promptRouteReason: r.promptRouteReason || null,
             promptFallbackApplied: Boolean(r.promptFallbackApplied),
@@ -269,12 +325,14 @@ const Alchemy = (() => {
             promptRouteElapsedMs: r.promptRouteElapsedMs ?? null,
             promptGenerationElapsedMs: r.promptGenerationElapsedMs ?? null,
             promptTotalElapsedMs: r.promptTotalElapsedMs ?? null,
+            taskId: r.taskId || pending.taskId,
             element: r.element || r.mainAttr,
             mainAttr: r.mainAttr || r.element,
             subAttr: r.subAttr || null,
             generation: r.generation || 1,
             baseAtk: r.baseAtk || SpellDefs.calcBaseAtk(r.generation || 1),
             inputState: r.inputState || null,
+            inputSummary: r.inputSummary || pending.inputSummary || null,
             source: r.source || null,
             parentA: pending.cardAId,
             parentB: pending.cardBId
@@ -286,41 +344,69 @@ const Alchemy = (() => {
     }
 
     function writePendingResult(taskId, result) {
-        const data = GameStorage.load();
-        if (!data.pendingGeneration || data.pendingGeneration.taskId !== taskId) return null;
-        data.pendingGeneration.status = 'done';
-        data.pendingGeneration.result = result;
-        GameStorage.save(data);
-        return data.pendingGeneration;
+        return GameStorage.writePendingResult(taskId, result);
     }
 
     async function syncPendingResult(taskId) {
         const pending = GameStorage.getPending();
         if (!pending || pending.taskId !== taskId) return null;
-        if (pending.status === 'done' && pending.result) return pending;
+        if (pending.status === 'done' && pending.result) {
+            console.log('[Alchemy] syncPendingResult: already ready in storage', {
+                taskId,
+                inputState: pending.inputState || null,
+                inputSummary: pending.inputSummary || null
+            });
+            return pending;
+        }
 
         const status = await ForgeAPI.checkStatus(taskId);
-        if (!status) return GameStorage.getPending();
+        if (!status) {
+            console.log('[Alchemy] syncPendingResult: status not available yet', { taskId });
+            return GameStorage.getPending();
+        }
         if (status.status === 'completed' && status.result) {
+            console.log('[Alchemy] syncPendingResult: backend completed', {
+                taskId,
+                inputState: status.result.inputState || pending.inputState || null,
+                source: status.result.source || null
+            });
             return writePendingResult(taskId, status.result);
         }
         if (status.status === 'failed') {
+            console.error('[Alchemy] syncPendingResult: backend failed', { taskId, error: status.error });
             GameStorage.clearPending();
             return null;
         }
         return GameStorage.getPending();
     }
 
-    function schedulePendingResultRetry(taskId, attempt = 0) {
+    function schedulePendingResultRetry(taskId, attempt = 0, trigger = 'retry_wait') {
         stopPendingResultRetry();
-        if (!taskId || attempt >= MAX_PENDING_RESULT_RETRIES) return;
+        activeSettlementTaskId = taskId;
+        if (!taskId || attempt >= MAX_PENDING_RESULT_RETRIES) {
+            console.error('[Alchemy] pending result wait timed out:', { taskId, trigger, attempt });
+            showSettlementWaiting(GameStorage.getPending(), '本次结算等待超时，请查看控制台日志。');
+            return;
+        }
         pendingResultRetryTimer = setTimeout(async () => {
-            const resolved = await syncPendingResult(taskId);
-            if (resolved && resolved.status === 'done' && resolved.result) {
-                finalizePendingResult(resolved);
+            const currentPending = GameStorage.getPending();
+            if (!currentPending || currentPending.taskId !== taskId) {
+                console.warn('[Alchemy] pending result retry aborted: task changed or cleared', { taskId, trigger });
+                hideSettlementWaiting();
                 return;
             }
-            schedulePendingResultRetry(taskId, attempt + 1);
+            const resolved = await syncPendingResult(taskId);
+            if (resolved && resolved.status === 'done' && resolved.result) {
+                finalizePendingResult(resolved, trigger);
+                return;
+            }
+            if (activeSettlementTaskId === taskId) {
+                showSettlementWaiting(
+                    GameStorage.getPending(),
+                    '本次 battle 已胜利，正在等待当前 forge task 完成后进入 reveal。'
+                );
+            }
+            schedulePendingResultRetry(taskId, attempt + 1, trigger);
         }, PENDING_RESULT_RETRY_MS);
     }
 
@@ -328,19 +414,53 @@ const Alchemy = (() => {
         stopPendingResultRetry();
         const pending = GameStorage.getPending();
         if (!pending) {
+            hideSettlementWaiting();
             refreshSlots();
             return;
         }
 
+        activeSettlementTaskId = pending.taskId;
+        console.log('[Alchemy] onReturnFromBattle:', {
+            taskId: pending.taskId,
+            pendingStatus: pending.status || null,
+            hasResult: Boolean(pending.result),
+            inputState: pending.inputState || null,
+            inputSummary: pending.inputSummary || null
+        });
+        if (pending.status === 'done' && pending.result) {
+            finalizePendingResult(pending, 'battle_return_storage_ready');
+            return;
+        }
+        refreshSlots();
+        showSettlementWaiting(
+            pending,
+            '本次 battle 已胜利，正在检查当前 forge task 是否已经完成。'
+        );
+
         const resolved = await syncPendingResult(pending.taskId);
         if (resolved && resolved.status === 'done' && resolved.result) {
-            finalizePendingResult(resolved);
+            finalizePendingResult(resolved, 'battle_return_ready');
+            return;
+        }
+        const latestPending = GameStorage.getPending();
+        if (!latestPending || latestPending.taskId !== pending.taskId) {
+            console.warn('[Alchemy] pending forge task disappeared before reveal handoff:', {
+                taskId: pending.taskId
+            });
+            hideSettlementWaiting();
             return;
         }
 
-        console.log('[Alchemy] forge result not ready on battle return, retry scheduled:', pending.taskId);
-        refreshSlots();
-        schedulePendingResultRetry(pending.taskId);
+        showSettlementWaiting(
+            latestPending,
+            '本次 battle 已胜利，但 forge 结果尚未完成。正在等待当前任务完成后进入 reveal。'
+        );
+        console.log('[Alchemy] battle returned before forge result ready; waiting for same task:', {
+            taskId: latestPending.taskId,
+            inputState: latestPending.inputState || null,
+            inputSummary: latestPending.inputSummary || null
+        });
+        schedulePendingResultRetry(latestPending.taskId, 0, 'battle_return_wait');
     }
 
     return { init, refreshSlots, onReturnFromBattle };

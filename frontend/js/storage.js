@@ -94,7 +94,9 @@ const GameStorage = (() => {
                     promptRouteElapsedMs: seed.promptRouteElapsedMs || null,
                     promptGenerationElapsedMs: seed.promptGenerationElapsedMs || null,
                     promptTotalElapsedMs: seed.promptTotalElapsedMs || null,
+                    taskId: seed.taskId || null,
                     inputState: seed.inputState || null,
+                    inputSummary: seed.inputSummary || null,
                     source: seed.source || null,
                     parentA: null,
                     parentB: null,
@@ -159,7 +161,9 @@ const GameStorage = (() => {
             promptRouteElapsedMs: card.promptRouteElapsedMs || null,
             promptGenerationElapsedMs: card.promptGenerationElapsedMs || null,
             promptTotalElapsedMs: card.promptTotalElapsedMs || null,
+            taskId: card.taskId || null,
             inputState: card.inputState || null,
+            inputSummary: card.inputSummary || null,
             source: card.source || null,
             parentA: card.parentA || null,
             parentB: card.parentB || null,
@@ -227,10 +231,40 @@ const GameStorage = (() => {
         return load().loadout || [null, null, null, null];
     }
 
-    function setPending(taskId, cardAId, cardBId) {
+    function setPending(taskId, cardAIdOrMeta, cardBId) {
         const data = load();
-        data.pendingGeneration = { taskId, cardAId, cardBId, status: 'generating' };
+        const meta = (cardAIdOrMeta && typeof cardAIdOrMeta === 'object' && !Array.isArray(cardAIdOrMeta))
+            ? cardAIdOrMeta
+            : { cardAId: cardAIdOrMeta ?? null, cardBId: cardBId ?? null };
+        data.pendingGeneration = {
+            taskId,
+            cardAId: meta.cardAId ?? null,
+            cardBId: meta.cardBId ?? null,
+            inputState: meta.inputState ?? null,
+            inputSummary: meta.inputSummary ?? null,
+            source: meta.source ?? null,
+            requestedAt: meta.requestedAt ?? Date.now(),
+            status: meta.status || 'generating',
+            result: meta.result || null
+        };
         save(data);
+    }
+
+    function writePendingResult(taskId, result) {
+        const data = load();
+        if (!data.pendingGeneration || data.pendingGeneration.taskId !== taskId) return null;
+
+        const pending = data.pendingGeneration;
+        data.pendingGeneration.status = 'done';
+        data.pendingGeneration.result = {
+            ...(result || {}),
+            taskId,
+            inputState: result?.inputState || pending.inputState || null,
+            inputSummary: result?.inputSummary || pending.inputSummary || null,
+            source: result?.source || pending.source || null
+        };
+        save(data);
+        return data.pendingGeneration;
     }
 
     function getPending() {
@@ -316,6 +350,7 @@ const GameStorage = (() => {
         setLoadoutSlot,
         getLoadoutIds,
         setPending,
+        writePendingResult,
         getPending,
         clearPending,
         isTutorialDone,

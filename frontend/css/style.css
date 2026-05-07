@@ -350,6 +350,64 @@ body {
     height: 80px;
     width: auto;
 }
+.settlement-wait-overlay[hidden] {
+    display: none !important;
+}
+.settlement-wait-overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 70;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(7, 6, 6, 0.72);
+    backdrop-filter: blur(6px);
+}
+.settlement-wait-panel {
+    width: min(620px, 82%);
+    padding: 26px 30px;
+    border-radius: 22px;
+    border: 1px solid rgba(223, 204, 164, 0.22);
+    background: rgba(17, 13, 11, 0.86);
+    box-shadow: 0 18px 42px rgba(0,0,0,0.4);
+    color: #e8d7b0;
+}
+.settlement-wait-title {
+    font-family: 'Noto Serif SC', serif;
+    font-size: 34px;
+    font-weight: 900;
+    letter-spacing: 4px;
+    color: #d8bd7e;
+}
+.settlement-wait-copy {
+    margin-top: 12px;
+    color: rgba(234, 221, 193, 0.84);
+    font-size: 16px;
+    line-height: 1.6;
+}
+.settlement-wait-meta {
+    margin-top: 18px;
+    padding-top: 16px;
+    border-top: 1px solid rgba(223, 204, 164, 0.14);
+    color: #ead7ab;
+    font: 13px/1.5 "Consolas", monospace;
+}
+.settlement-wait-meta > div {
+    display: flex;
+    gap: 14px;
+    align-items: flex-start;
+}
+.settlement-wait-meta > div + div {
+    margin-top: 8px;
+}
+.settlement-wait-label {
+    flex: 0 0 88px;
+    color: rgba(236, 220, 184, 0.7);
+}
+.settlement-wait-value {
+    flex: 1;
+    word-break: break-word;
+}
 
 /* ============================================
    页面B：收藏夹
