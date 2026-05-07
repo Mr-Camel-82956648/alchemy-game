@@ -4,32 +4,43 @@ from pydantic import BaseModel, Field
 
 
 class SpellInput(BaseModel):
-    id: str
-    name: str
+    id: Optional[str] = None
+    type: Optional[str] = None
+    name: Optional[str] = None
     attrSet: List[str] = Field(default_factory=list)
     mainAttr: Optional[str] = None
+    themeText: Optional[str] = None
     generation: Optional[int] = 1
 
 
 class ForgeRequest(BaseModel):
     playerId: str
-    spellA: SpellInput
-    spellB: SpellInput
+    spellA: Optional[SpellInput] = None
+    spellB: Optional[SpellInput] = None
 
 
 class ForgeResult(BaseModel):
     name: str
     attrSet: List[str] = Field(default_factory=list)
-    mainAttr: str
+    themeText: Optional[str] = None
+    mainAttr: Optional[str] = None
     subAttr: Optional[str] = None
-    element: str
+    element: Optional[str] = None
     generation: int
     baseAtk: float
+    videoPrompt: Optional[str] = None
+    promptRoute: Optional[str] = None
+    promptRouteReason: Optional[str] = None
+    promptFallbackApplied: bool = False
+    promptTemplate: Optional[str] = None
+    promptModel: Optional[str] = None
+    promptRouteElapsedMs: Optional[int] = None
+    promptGenerationElapsedMs: Optional[int] = None
+    promptTotalElapsedMs: Optional[int] = None
     videoUrl: Optional[str] = None
     status: str = "partial"
-    visualDesc: Optional[str] = None
-    fusionPrompt: Optional[str] = None
     source: str
+    inputState: Optional[str] = None
 
 
 class ForgeStatusResponse(BaseModel):

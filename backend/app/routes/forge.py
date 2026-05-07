@@ -7,18 +7,41 @@ from ..services.quota_service import QuotaExceededError, consume_quota_or_raise,
 router = APIRouter(prefix="/api")
 
 
-def _resolve_attr_set(spell):
-    if spell.attrSet:
-        return spell.attrSet
-    if spell.mainAttr:
-        return [spell.mainAttr]
-    return []
+def _resolve_spell_payload(spell, slot: str):
+    if spell is None:
+        return None
+
+    attr_set = list(spell.attrSet or [])
+    if not attr_set and spell.mainAttr:
+        attr_set = [spell.mainAttr]
+
+    name = (spell.name or "").strip()
+    theme_text = (spell.themeText or "").strip()
+    spell_type = (spell.type or "").strip() or None
+
+    if not any([name, theme_text, attr_set]):
+        return None
+
+    return {
+        "slot": slot,
+        "id": spell.id,
+        "type": spell_type,
+        "name": name,
+        "attr_set": attr_set,
+        "theme_text": theme_text,
+        "generation": spell.generation or 1,
+    }
 
 
 @router.post("/forge", response_model=ForgeCreateResponse)
 def start_forge(req: ForgeRequest):
+    spell_a = _resolve_spell_payload(req.spellA, "A")
+    spell_b = _resolve_spell_payload(req.spellB, "B")
+    has_any_input = bool(spell_a or spell_b)
+
     try:
-        consume_quota_or_raise(req.playerId)
+        if has_any_input:
+            consume_quota_or_raise(req.playerId)
     except QuotaExceededError as exc:
         quota = get_quota_snapshot(req.playerId)
         raise HTTPException(
@@ -30,14 +53,7 @@ def start_forge(req: ForgeRequest):
             },
         ) from exc
 
-    task_id = create_forge_task(
-        spell_a_name=req.spellA.name,
-        spell_a_attr_set=_resolve_attr_set(req.spellA),
-        spell_a_gen=req.spellA.generation or 1,
-        spell_b_name=req.spellB.name,
-        spell_b_attr_set=_resolve_attr_set(req.spellB),
-        spell_b_gen=req.spellB.generation or 1,
-    )
+    task_id = create_forge_task(spell_a=spell_a, spell_b=spell_b)
     return ForgeCreateResponse(taskId=task_id, status="pending")
 
 

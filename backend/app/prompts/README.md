@@ -6,4 +6,4 @@
 Conventions:
 - Keep long AI prompts here instead of embedding them in Python modules.
 - Keep UI copy and battle tips outside this directory.
-- Use explicit placeholder names such as `{spell_a_name}`.
+- Use explicit placeholder names such as `{input_state}` and `{inputs_json}`.

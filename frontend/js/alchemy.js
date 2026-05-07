@@ -66,15 +66,13 @@ const Alchemy = (() => {
     }
 
     function updateStartButton() {
-        const ready = GameStorage.areBothSlotsFilled();
+        const ready = true;
         els.startBtn.classList.toggle('disabled', !ready);
         els.startBtn.classList.toggle('ready', ready);
         els.startBtn.disabled = !ready;
     }
 
     function onStart() {
-        if (!GameStorage.areBothSlotsFilled()) return;
-
         const cardA = GameStorage.getSlot('A');
         const cardB = GameStorage.getSlot('B');
 
@@ -192,11 +190,23 @@ const Alchemy = (() => {
             videoUrl: r.videoUrl,
             thumbnail,
             attrSet: r.attrSet || [],
+            themeText: r.themeText || r.visualDesc || null,
+            videoPrompt: r.videoPrompt || r.fusionPrompt || null,
+            promptRoute: r.promptRoute || null,
+            promptRouteReason: r.promptRouteReason || null,
+            promptFallbackApplied: Boolean(r.promptFallbackApplied),
+            promptTemplate: r.promptTemplate || null,
+            promptModel: r.promptModel || null,
+            promptRouteElapsedMs: r.promptRouteElapsedMs ?? null,
+            promptGenerationElapsedMs: r.promptGenerationElapsedMs ?? null,
+            promptTotalElapsedMs: r.promptTotalElapsedMs ?? null,
             element: r.element || r.mainAttr,
             mainAttr: r.mainAttr || r.element,
             subAttr: r.subAttr || null,
             generation: r.generation || 1,
             baseAtk: r.baseAtk || SpellDefs.calcBaseAtk(r.generation || 1),
+            inputState: r.inputState || null,
+            source: r.source || null,
             parentA: pending.cardAId,
             parentB: pending.cardBId
         });

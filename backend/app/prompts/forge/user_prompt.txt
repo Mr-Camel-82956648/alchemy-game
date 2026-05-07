@@ -1,27 +1,19 @@
-请根据以下两张父技能，生成一个新的法阵名字、中文视觉描述，以及英文视频生成提示词。
+请根据下面的输入结构，为炼金炉输出统一语义结果。
 
-父技能 A：
-- 名称：{spell_a_name}
-- 属性集合：{spell_a_attr_set}
-- 世代：{spell_a_gen}
+输入状态：{input_state}
+允许属性：{allowed_attrs}
 
-父技能 B：
-- 名称：{spell_b_name}
-- 属性集合：{spell_b_attr_set}
-- 世代：{spell_b_gen}
-
-这次合成后端已经确定的目标属性集合是：{merged_attr_set}
+输入 JSON：
+{inputs_json}
 
 请注意：
-- 你不需要再决定属性集合，属性集合已经由后端规则计算完成。
-- 你的职责是把两个父技能的视觉意象融合成一个新的法阵概念。
-- 请优先抓取以下层面：
-  - 形体或主体
-  - 材质与颜色
-  - 运动方式
-  - 氛围与能量感
+- 只有至少一个输入非空时才会调用你；不要假装存在缺失的输入。
+- text 输入必须参与 `attrSet` 推断，不能视为空属性。
+- spell 输入已有的 `attrSet`、名字、`themeText` 都是语义证据。
+- `themeText` 不是最终视频 prompt，而是交给下游 prompt 路由器的上游主题文本。
+- 如果只有一个输入，就围绕这个输入做重构与延展，不要硬凑“双输入融合”口吻。
 
 输出必须是严格 JSON，只包含：
 - name
-- visualDesc
-- fusionPrompt
+- attrSet
+- themeText

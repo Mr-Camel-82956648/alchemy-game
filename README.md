@@ -33,7 +33,9 @@ uvicorn app.main:app --reload --port 18001
 - 战斗命中规则是“技能 `attrSet` 与怪物 `attrSet` 有交集才命中”，否则走吸收成长反馈。
 - 当前正式战斗流程按“单属性怪优先出场”假设收口；双属性怪数据仍保留，暂不作为当前扩机制目标。
 - 后端 forge 已接入最小每日配额实现，请求需要 `playerId`；超额返回 `429 quota_exhausted`。
-- forge 的 LLM 只负责 `name / visualDesc / fusionPrompt`，属性集合和数值由后端规则决定。
+- 炼金炉入口已支持 A/B 双槽的 `0 / 1 / 2` 输入态：双空走固定开局结果池，单输入与双输入走统一 forge 语义链路。
+- forge 语义 LLM 的正式输出已收敛为 `name / attrSet / themeText`；`generation / baseAtk` 仍由 rulebase 负责。
+- 最终 `videoPrompt` 不再来自旧的 `fusionPrompt`，而是由内嵌模块B `backend/alchemy_glyph_router/` 基于 `themeText` 生成。
 
 ## 当前最应该看的文档
 

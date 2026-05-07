@@ -93,6 +93,7 @@ const SpellDefs = (() => {
     }
 
     function normalizeCard(raw) {
+        if (!raw) return null;
         const card = { ...raw };
 
         if (!card.status) {
@@ -110,6 +111,30 @@ const SpellDefs = (() => {
         card.mainAttr = card.attrSet[0] || legacyMainAttr || null;
         card.subAttr = card.attrSet[1] || legacySubAttr || null;
         card.element = card.mainAttr || legacyElement || null;
+
+        const themeText = typeof card.themeText === 'string' ? card.themeText.trim() : '';
+        const legacyVisualDesc = typeof card.visualDesc === 'string' ? card.visualDesc.trim() : '';
+        const videoPrompt = typeof card.videoPrompt === 'string' ? card.videoPrompt.trim() : '';
+        const legacyFusionPrompt = typeof card.fusionPrompt === 'string' ? card.fusionPrompt.trim() : '';
+
+        card.themeText = themeText || legacyVisualDesc || null;
+        card.videoPrompt = videoPrompt || legacyFusionPrompt || null;
+        card.promptRoute = card.promptRoute || null;
+        card.promptRouteReason = card.promptRouteReason || null;
+        card.promptFallbackApplied = Boolean(card.promptFallbackApplied);
+        card.promptTemplate = card.promptTemplate || null;
+        card.promptModel = card.promptModel || null;
+        card.promptRouteElapsedMs = Number.isFinite(Number(card.promptRouteElapsedMs))
+            ? Number(card.promptRouteElapsedMs)
+            : null;
+        card.promptGenerationElapsedMs = Number.isFinite(Number(card.promptGenerationElapsedMs))
+            ? Number(card.promptGenerationElapsedMs)
+            : null;
+        card.promptTotalElapsedMs = Number.isFinite(Number(card.promptTotalElapsedMs))
+            ? Number(card.promptTotalElapsedMs)
+            : null;
+        card.inputState = card.inputState || null;
+        card.source = card.source || null;
 
         const parsedGeneration = Number(card.generation);
         card.generation = Number.isFinite(parsedGeneration) && parsedGeneration > 0 ? Math.floor(parsedGeneration) : 1;

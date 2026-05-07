@@ -1,13 +1,21 @@
 import os
 import random
 import threading
+import time
 import uuid
 from typing import Dict, Iterable, List, Optional
 
 from ..models import ForgeResult
-from .llm_client import call_gemini_rest
+from .llm_client import call_forge_semantic_llm
+from .prompt_router_service import build_prompt_fallback, run_prompt_router
 
 ELEMENTS = ["fire", "ice", "thunder", "blight"]
+ELEMENT_LABELS = {
+    "fire": "火焰",
+    "ice": "寒冰",
+    "thunder": "雷电",
+    "blight": "蚀毒",
+}
 
 ELEMENT_PREFIXES = {
     "fire": ["烈焰", "炎煌", "赤焰", "焚天", "灼光", "炎阳"],
@@ -22,6 +30,52 @@ ELEMENT_SUFFIXES = {
     "blight": ["蚀", "毒", "瘴", "蛊"],
 }
 NAME_TAILS = ["阵", "印", "环", "轮", "契", "咒"]
+
+ATTR_KEYWORDS = {
+    "fire": [
+        "fire", "flame", "ember", "blaze", "burn", "magma", "lava", "pyro",
+        "火", "炎", "焰", "熔", "岩浆", "爆燃", "灼", "赤", "烬", "热",
+    ],
+    "ice": [
+        "ice", "frost", "snow", "freeze", "frozen", "glacier", "crystal",
+        "冰", "霜", "雪", "寒", "冻", "凌", "晶", "冷",
+    ],
+    "thunder": [
+        "thunder", "lightning", "storm", "bolt", "shock", "spark",
+        "雷", "电", "霆", "闪", "暴风", "风暴", "惊雷",
+    ],
+    "blight": [
+        "blight", "poison", "venom", "toxic", "plague", "rot", "decay", "corrupt",
+        "毒", "瘴", "蚀", "腐", "枯", "腐朽", "疫", "污",
+    ],
+}
+
+DEFAULT_OPENING_POOL = [
+    {
+        "name": "熔岩法阵",
+        "attrSet": ["fire"],
+        "themeText": "一枚熔岩主题的炼金法阵贴地展开，中心像被压缩的熔火核心般稳定脉动，边界清晰，热辉与碎火在受控范围内流转。",
+        "generation": 1,
+    },
+    {
+        "name": "冰凌法阵",
+        "attrSet": ["ice"],
+        "themeText": "一枚冰凌主题的炼金法阵贴地成形，中央凝出锐利冰晶与寒雾旋纹，整体冷冽、收束、带有清晰的俯视技能边界。",
+        "generation": 1,
+    },
+    {
+        "name": "星环法阵",
+        "attrSet": ["thunder"],
+        "themeText": "一枚星环雷电主题的炼金法阵在地面亮起，圆环与电弧彼此咬合，中心能量核短促跃动，呈现明亮而克制的放电感。",
+        "generation": 1,
+    },
+    {
+        "name": "剧毒法阵",
+        "attrSet": ["blight"],
+        "themeText": "一枚剧毒蚀雾主题的炼金法阵在地面缓慢展开，边界内弥散低伏毒烟与幽绿腐蚀辉光，整体压抑、阴蚀且受控。",
+        "generation": 1,
+    },
+]
 
 _tasks: Dict[str, dict] = {}
 _lock = threading.Lock()
@@ -41,10 +95,14 @@ def normalize_attr(value: Optional[str]) -> Optional[str]:
 
     aliases = {
         "poison": "blight",
+        "venom": "blight",
+        "toxic": "blight",
         "blight": "blight",
         "fire": "fire",
         "ice": "ice",
+        "frost": "ice",
         "thunder": "thunder",
+        "lightning": "thunder",
     }
     return aliases.get(key, key)
 
@@ -61,29 +119,26 @@ def normalize_attr_set(*groups: Iterable[str]) -> List[str]:
             candidates = list(group)
         for raw in candidates:
             attr = normalize_attr(raw)
-            if not attr or attr in seen:
+            if not attr or attr in seen or attr not in ELEMENTS:
                 continue
             seen.add(attr)
             normalized.append(attr)
     return normalized[:3]
 
 
-def merge_attr_sets(attr_set_a: Iterable[str], attr_set_b: Iterable[str], max_attrs: int = 3) -> List[str]:
+def merge_attr_sets(*attr_sets: Iterable[str], max_attrs: int = 3) -> List[str]:
     counts: Dict[str, int] = {}
     first_seen: Dict[str, int] = {}
     cursor = 0
 
-    for group in (attr_set_a, attr_set_b):
+    for group in attr_sets:
         for attr in normalize_attr_set(group):
             counts[attr] = counts.get(attr, 0) + 1
             if attr not in first_seen:
                 first_seen[attr] = cursor
                 cursor += 1
 
-    ranked = sorted(
-        counts.keys(),
-        key=lambda attr: (-counts[attr], first_seen[attr]),
-    )
+    ranked = sorted(counts.keys(), key=lambda attr: (-counts[attr], first_seen[attr]))
     return ranked[:max_attrs]
 
 
@@ -99,32 +154,29 @@ def _generate_fallback_name(attr_set: List[str]) -> str:
     return prefix + suffix + tail
 
 
-def _is_mechanical_name(name: str, parent_a: str, parent_b: str) -> bool:
+def _is_mechanical_name(name: str, parent_names: List[str]) -> bool:
     if not name:
         return True
 
-    bad_patterns = ["之阵", "融合", "合成"]
+    bad_patterns = ["之阵", "融合", "合成", "+"]
     for pattern in bad_patterns:
-        if pattern in name and (parent_a in name or parent_b in name):
+        if pattern in name:
             return True
-    if "路" in name and (parent_a in name or parent_b in name):
-        return True
-    if name == parent_a or name == parent_b:
-        return True
-    if len(parent_a) >= 3 and parent_a in name:
-        return True
-    if len(parent_b) >= 3 and parent_b in name:
-        return True
+
+    for parent_name in parent_names:
+        if not parent_name:
+            continue
+        if name == parent_name:
+            return True
+        if len(parent_name) >= 3 and parent_name in name:
+            return True
     return False
 
 
 def create_forge_task(
-    spell_a_name: str,
-    spell_a_attr_set: List[str],
-    spell_a_gen: int,
-    spell_b_name: str,
-    spell_b_attr_set: List[str],
-    spell_b_gen: int,
+    *,
+    spell_a: Optional[dict],
+    spell_b: Optional[dict],
 ) -> str:
     task_id = f"task_{uuid.uuid4().hex[:12]}"
 
@@ -132,20 +184,12 @@ def create_forge_task(
         _tasks[task_id] = {"status": "pending", "result": None, "error": None}
 
     print(f"[FORGE] Task created: {task_id}")
-    print(f"[FORGE]   parentA: {spell_a_name} (attrs={spell_a_attr_set}, gen={spell_a_gen})")
-    print(f"[FORGE]   parentB: {spell_b_name} (attrs={spell_b_attr_set}, gen={spell_b_gen})")
+    print(f"[FORGE]   slotA: {_summarize_input(spell_a)}")
+    print(f"[FORGE]   slotB: {_summarize_input(spell_b)}")
 
     thread = threading.Thread(
         target=_process_forge,
-        args=(
-            task_id,
-            spell_a_name,
-            spell_a_attr_set,
-            spell_a_gen,
-            spell_b_name,
-            spell_b_attr_set,
-            spell_b_gen,
-        ),
+        args=(task_id, spell_a, spell_b),
         daemon=True,
     )
     thread.start()
@@ -157,79 +201,234 @@ def get_task_status(task_id: str) -> Optional[dict]:
         return _tasks.get(task_id)
 
 
-def _process_forge(
-    task_id: str,
-    spell_a_name: str,
-    spell_a_attr_set: List[str],
-    spell_a_gen: int,
-    spell_b_name: str,
-    spell_b_attr_set: List[str],
-    spell_b_gen: int,
-):
-    use_real_llm = os.getenv("FORGE_USE_REAL_LLM", "false").lower() == "true"
-    generation = max(spell_a_gen, spell_b_gen) + 1
-    merged_attr_set = merge_attr_sets(spell_a_attr_set, spell_b_attr_set)
-    if not merged_attr_set:
-        merged_attr_set = [random.choice(ELEMENTS)]
+def _process_forge(task_id: str, spell_a: Optional[dict], spell_b: Optional[dict]):
+    try:
+        inputs = [item for item in (spell_a, spell_b) if item]
+        input_state = _resolve_input_state(spell_a, spell_b)
 
-    source = "fallback"
-    llm_result = None
-
-    if use_real_llm:
-        provider = os.getenv("LLM_PROVIDER", "gemini_rest")
-        model = os.getenv("LLM_MODEL", "gemini-2.0-flash")
-        print(f"[FORGE] [{task_id}] LLM enabled - provider={provider}, model={model}")
-
-        llm_result = call_gemini_rest(
-            spell_a_name,
-            spell_a_attr_set,
-            spell_a_gen,
-            spell_b_name,
-            spell_b_attr_set,
-            spell_b_gen,
-            merged_attr_set,
-        )
-
-        if llm_result:
-            source = "llm"
-            if _is_mechanical_name(llm_result["name"], spell_a_name, spell_b_name):
-                print(f"[FORGE] [{task_id}] Name warning: '{llm_result['name']}' flagged as mechanical-style, but preserved under llm-first policy")
-            print(f"[FORGE] [{task_id}] LLM SUCCESS - name={llm_result['name']}, source=llm")
+        if input_state == "empty":
+            result = _build_opening_pool_result(input_state)
         else:
-            print(f"[FORGE] [{task_id}] LLM FAILED - falling back to local naming")
-    else:
-        print(f"[FORGE] [{task_id}] FORGE_USE_REAL_LLM=false - using local naming")
+            result = _build_semantic_result(
+                input_state=input_state,
+                spell_a=spell_a,
+                spell_b=spell_b,
+                inputs=inputs,
+            )
 
-    if llm_result:
-        name = llm_result["name"]
-        visual_desc = llm_result.get("visualDesc", "")
-        fusion_prompt = llm_result.get("fusionPrompt", "")
-    else:
-        name = _generate_fallback_name(merged_attr_set)
-        visual_desc = None
-        fusion_prompt = None
+        with _lock:
+            if task_id in _tasks:
+                _tasks[task_id]["status"] = "completed"
+                _tasks[task_id]["result"] = result
 
-    main_attr = merged_attr_set[0]
-    sub_attr = merged_attr_set[1] if len(merged_attr_set) > 1 else None
+        print(
+            f"[FORGE] [{task_id}] COMPLETED - name={result.name}, "
+            f"attrSet={result.attrSet}, source={result.source}, inputState={result.inputState}"
+        )
+    except Exception as exc:
+        with _lock:
+            if task_id in _tasks:
+                _tasks[task_id]["status"] = "failed"
+                _tasks[task_id]["error"] = str(exc)
+        print(f"[FORGE] [{task_id}] FAILED - {exc}")
 
-    result = ForgeResult(
-        name=name,
-        attrSet=merged_attr_set,
+
+def _build_opening_pool_result(input_state: str) -> ForgeResult:
+    seed = random.choice(DEFAULT_OPENING_POOL)
+    attr_set = normalize_attr_set(seed["attrSet"])
+    generation = int(seed.get("generation") or 1)
+    main_attr = attr_set[0] if attr_set else None
+    sub_attr = attr_set[1] if len(attr_set) > 1 else None
+    theme_text = str(seed.get("themeText") or "").strip()
+    prompt_meta = _generate_video_prompt(theme_text)
+
+    return ForgeResult(
+        name=seed["name"],
+        attrSet=attr_set,
+        themeText=theme_text,
         mainAttr=main_attr,
         subAttr=sub_attr,
         element=main_attr,
         generation=generation,
         baseAtk=calc_base_atk(generation),
+        videoPrompt=prompt_meta["videoPrompt"],
+        promptRoute=prompt_meta["promptRoute"],
+        promptRouteReason=prompt_meta["promptRouteReason"],
+        promptFallbackApplied=prompt_meta["promptFallbackApplied"],
+        promptTemplate=prompt_meta["promptTemplate"],
+        promptModel=prompt_meta["promptModel"],
+        promptRouteElapsedMs=prompt_meta["promptRouteElapsedMs"],
+        promptGenerationElapsedMs=prompt_meta["promptGenerationElapsedMs"],
+        promptTotalElapsedMs=prompt_meta["promptTotalElapsedMs"],
         videoUrl=None,
         status="partial",
-        visualDesc=visual_desc,
-        fusionPrompt=fusion_prompt,
-        source=source,
+        source="opening_pool",
+        inputState=input_state,
     )
 
-    with _lock:
-        if task_id in _tasks:
-            _tasks[task_id]["status"] = "completed"
-            _tasks[task_id]["result"] = result
 
-    print(f"[FORGE] [{task_id}] COMPLETED - name={name}, attrSet={merged_attr_set}, source={source}")
+def _build_semantic_result(
+    *,
+    input_state: str,
+    spell_a: Optional[dict],
+    spell_b: Optional[dict],
+    inputs: List[dict],
+) -> ForgeResult:
+    use_real_llm = os.getenv("FORGE_USE_REAL_LLM", "false").lower() == "true"
+    parent_names = [str(item.get("name") or "").strip() for item in inputs if item.get("name")]
+    generation = max(int(item.get("generation") or 1) for item in inputs) + 1 if inputs else 1
+
+    llm_result = None
+    if use_real_llm:
+        provider = os.getenv("LLM_PROVIDER", "gemini_rest")
+        model = os.getenv("LLM_MODEL", "gemini-2.0-flash")
+        print(f"[FORGE] LLM enabled - provider={provider}, model={model}, inputState={input_state}")
+        llm_result = call_forge_semantic_llm(input_state=input_state, spell_a=spell_a, spell_b=spell_b)
+        if llm_result:
+            print(f"[FORGE] LLM SUCCESS - name={llm_result.get('name')}, attrSet={llm_result.get('attrSet')}")
+        else:
+            print("[FORGE] LLM FAILED - falling back to local semantic generation")
+    else:
+        print("[FORGE] FORGE_USE_REAL_LLM=false - using local semantic fallback")
+
+    llm_attr_set = normalize_attr_set(*(llm_result.get("attrSet") or []) if llm_result else [])
+    fallback_attr_set = _infer_attr_set_by_keywords(inputs)
+    attr_set = llm_attr_set or fallback_attr_set
+    if not attr_set:
+        merged_existing_attrs = merge_attr_sets(*(item.get("attr_set") or [] for item in inputs))
+        attr_set = merged_existing_attrs or [random.choice(ELEMENTS)]
+
+    llm_name = str(llm_result.get("name") or "").strip() if llm_result else ""
+    llm_theme_text = str(llm_result.get("themeText") or "").strip() if llm_result else ""
+
+    if llm_name and _is_mechanical_name(llm_name, parent_names):
+        print(f"[FORGE] Name warning: '{llm_name}' flagged as mechanical-style, fallback applied")
+        llm_name = ""
+
+    name = llm_name or _generate_fallback_name(attr_set)
+    theme_text = llm_theme_text or _build_theme_text_fallback(name=name, attr_set=attr_set, inputs=inputs)
+    prompt_meta = _generate_video_prompt(theme_text)
+
+    main_attr = attr_set[0] if attr_set else None
+    sub_attr = attr_set[1] if len(attr_set) > 1 else None
+    source = "llm" if llm_result else "fallback"
+
+    return ForgeResult(
+        name=name,
+        attrSet=attr_set,
+        themeText=theme_text,
+        mainAttr=main_attr,
+        subAttr=sub_attr,
+        element=main_attr,
+        generation=generation,
+        baseAtk=calc_base_atk(generation),
+        videoPrompt=prompt_meta["videoPrompt"],
+        promptRoute=prompt_meta["promptRoute"],
+        promptRouteReason=prompt_meta["promptRouteReason"],
+        promptFallbackApplied=prompt_meta["promptFallbackApplied"],
+        promptTemplate=prompt_meta["promptTemplate"],
+        promptModel=prompt_meta["promptModel"],
+        promptRouteElapsedMs=prompt_meta["promptRouteElapsedMs"],
+        promptGenerationElapsedMs=prompt_meta["promptGenerationElapsedMs"],
+        promptTotalElapsedMs=prompt_meta["promptTotalElapsedMs"],
+        videoUrl=None,
+        status="partial",
+        source=source,
+        inputState=input_state,
+    )
+
+
+def _generate_video_prompt(theme_text: str) -> dict:
+    started = time.perf_counter()
+    try:
+        payload = run_prompt_router(theme_text)
+        return {
+            "videoPrompt": payload.get("final_prompt"),
+            "promptRoute": payload.get("route_selected"),
+            "promptRouteReason": payload.get("route_reason"),
+            "promptFallbackApplied": bool(payload.get("fallback_applied", False)),
+            "promptTemplate": payload.get("final_template"),
+            "promptModel": payload.get("model"),
+            "promptRouteElapsedMs": payload.get("route_elapsed_ms"),
+            "promptGenerationElapsedMs": payload.get("generation_elapsed_ms"),
+            "promptTotalElapsedMs": payload.get("total_elapsed_ms"),
+        }
+    except Exception as exc:
+        elapsed_ms = int((time.perf_counter() - started) * 1000)
+        print(f"[FORGE] Prompt router failed, using local fallback: {exc}")
+        return {
+            "videoPrompt": build_prompt_fallback(theme_text),
+            "promptRoute": "local_fallback",
+            "promptRouteReason": f"glyph router unavailable: {exc}",
+            "promptFallbackApplied": True,
+            "promptTemplate": None,
+            "promptModel": None,
+            "promptRouteElapsedMs": None,
+            "promptGenerationElapsedMs": None,
+            "promptTotalElapsedMs": elapsed_ms,
+        }
+
+
+def _infer_attr_set_by_keywords(inputs: List[dict]) -> List[str]:
+    text = " ".join(
+        filter(
+            None,
+            (
+                str(item.get("name") or "").lower()
+                + " "
+                + str(item.get("theme_text") or "").lower()
+                for item in inputs
+            ),
+        )
+    )
+    if not text:
+        return []
+
+    first_seen = {}
+    scores = {}
+    for attr, keywords in ATTR_KEYWORDS.items():
+        score = 0
+        for keyword in keywords:
+            index = text.find(keyword.lower())
+            if index == -1:
+                continue
+            score += 1
+            first_seen[attr] = min(first_seen.get(attr, index), index)
+        if score > 0:
+            scores[attr] = score
+
+    ranked = sorted(scores.keys(), key=lambda attr: (-scores[attr], first_seen.get(attr, 10**9)))
+    return ranked[:3]
+
+
+def _build_theme_text_fallback(*, name: str, attr_set: List[str], inputs: List[dict]) -> str:
+    attr_text = "、".join(ELEMENT_LABELS.get(attr, attr) for attr in attr_set) or "混沌"
+    input_names = "、".join(str(item.get("name") or "").strip() for item in inputs if item.get("name"))
+    if input_names:
+        return (
+            f"{name}围绕{input_names}的意象重构为一枚{attr_text}主题的炼金法阵，"
+            "俯视视角下边界清晰，中心主体凝聚，能量在范围内受控流动并完成一次明确释放。"
+        )
+    return (
+        f"{name}是一枚{attr_text}主题的炼金法阵，俯视视角下边界清晰，"
+        "中央能量核稳定脉动，主体、材质与辉光都被严格收束在技能范围内。"
+    )
+
+
+def _resolve_input_state(spell_a: Optional[dict], spell_b: Optional[dict]) -> str:
+    if spell_a and spell_b:
+        return "dual"
+    if spell_a or spell_b:
+        return "single"
+    return "empty"
+
+
+def _summarize_input(spell: Optional[dict]) -> str:
+    if not spell:
+        return "empty"
+    return (
+        f"type={spell.get('type') or 'spell'}, "
+        f"name={spell.get('name') or '-'}, "
+        f"attrs={normalize_attr_set(spell.get('attr_set') or [])}, "
+        f"gen={spell.get('generation') or 1}"
+    )

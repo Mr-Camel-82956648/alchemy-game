@@ -4,8 +4,10 @@
 
 - 提供异步 forge 接口：`POST /api/forge` + `GET /api/forge/status/{taskId}`
 - 提供最小每日配额接口：`GET /api/player/quota` + `POST /api/admin/quota/reset`
-- 按 `attrSet` 规则合并父技能属性集合，并返回兼容字段 `mainAttr / subAttr / element`
-- LLM 仅负责创意字段 `name / visualDesc / fusionPrompt`，属性与数值由后端规则决定
+- 支持炼金炉 A/B 双槽的 `0 / 1 / 2` 输入态
+- forge 语义 LLM 负责输出 `name / attrSet / themeText`
+- rulebase 负责 `generation / baseAtk / 兼容字段 / fallback / opening pool`
+- 内嵌模块B `backend/alchemy_glyph_router/`，通过稳定 Python API `run_alchemy_glyph_router(...)` 把 `themeText` 转成最终 `videoPrompt`
 
 ## 启动
 
@@ -31,13 +33,19 @@ LLM_TIMEOUT_SECONDS=30
 LLM_MAX_RETRIES=1
 FORGE_DAILY_QUOTA=5
 FORGE_QUOTA_TIMEZONE=Asia/Shanghai
+
+# 模块B / OpenAI-compatible 配置
+LLM_BASE_URL=
+LLM_API_KEY=
+OPENAI_COMPAT_MODEL=
+LOG_LEVEL=INFO
 ```
 
 说明：
 
-- `FORGE_USE_REAL_LLM=false` 时，forge 直接走本地 fallback 命名
-- `FORGE_QUOTA_TIMEZONE` 默认是 `Asia/Shanghai`
-- 在缺少系统时区数据的环境里，quota 服务会自动回退到固定 `UTC+08:00`
+- `FORGE_USE_REAL_LLM=false` 时，forge 语义阶段直接走本地 fallback
+- 模块B 会优先通过 `run_alchemy_glyph_router(theme, save_output=False, verbose=False)` 生成 `videoPrompt`
+- 模块B失败时不会阻断 forge 主流程，后端会回退到本地 `videoPrompt`
 
 ## 接口
 
@@ -50,20 +58,22 @@ FORGE_QUOTA_TIMEZONE=Asia/Shanghai
   "playerId": "player_xxx",
   "spellA": {
     "id": "spell_a",
+    "type": "spell",
     "name": "赤焰印",
     "attrSet": ["fire"],
     "mainAttr": "fire",
+    "themeText": "火焰主题的炼金法阵，中心像被压缩的熔火核心般稳定脉动。",
     "generation": 1
   },
-  "spellB": {
-    "id": "spell_b",
-    "name": "寒潮轮",
-    "attrSet": ["ice"],
-    "mainAttr": "ice",
-    "generation": 1
-  }
+  "spellB": null
 }
 ```
+
+说明：
+
+- `spellA / spellB` 允许为 `null`
+- 双空输入会直接走固定开局结果池
+- 单输入与双输入进入统一 forge 语义链路
 
 成功响应：
 
@@ -74,25 +84,6 @@ FORGE_QUOTA_TIMEZONE=Asia/Shanghai
 }
 ```
 
-超额响应：
-
-```json
-{
-  "detail": {
-    "code": "quota_exhausted",
-    "message": "今日实时合成次数已用尽",
-    "quota": {
-      "playerId": "player_xxx",
-      "quotaDate": "2026-05-06",
-      "dailyLimit": 5,
-      "used": 5,
-      "remaining": 0,
-      "resetAt": "2026-05-07T00:00:00+08:00"
-    }
-  }
-}
-```
-
 ### GET /api/forge/status/{taskId}
 
 ```json
@@ -100,18 +91,27 @@ FORGE_QUOTA_TIMEZONE=Asia/Shanghai
   "taskId": "task_xxx",
   "status": "completed",
   "result": {
-    "name": "焚天寒环",
+    "name": "焚霜裂环",
     "attrSet": ["fire", "ice"],
+    "themeText": "火焰与寒霜在边界清晰的炼金阵内相互撕扯，中央裂环向上抬升并完成一次受控释放。",
     "mainAttr": "fire",
     "subAttr": "ice",
     "element": "fire",
     "generation": 2,
     "baseAtk": 130.0,
+    "videoPrompt": "最终中文视频 prompt",
+    "promptRoute": "C",
+    "promptRouteReason": "主题核心是地面内部向上破土生成事件",
+    "promptFallbackApplied": false,
+    "promptTemplate": "C_eruption_full",
+    "promptModel": "gpt-5.4",
+    "promptRouteElapsedMs": 3280,
+    "promptGenerationElapsedMs": 12425,
+    "promptTotalElapsedMs": 15707,
     "videoUrl": null,
     "status": "partial",
-    "visualDesc": null,
-    "fusionPrompt": null,
-    "source": "fallback"
+    "source": "llm",
+    "inputState": "dual"
   },
   "error": null
 }
@@ -125,18 +125,7 @@ FORGE_QUOTA_TIMEZONE=Asia/Shanghai
 GET /api/player/quota?playerId=player_xxx
 ```
 
-响应字段：
-
-- `playerId`
-- `quotaDate`
-- `dailyLimit`
-- `used`
-- `remaining`
-- `resetAt`
-
 ### POST /api/admin/quota/reset
-
-请求体：
 
 ```json
 {
@@ -149,26 +138,35 @@ GET /api/player/quota?playerId=player_xxx
 
 ## Forge 规则摘要
 
-- 父技能先规范为 `attrSet`
-- 后端按出现频次和首次出现顺序合并为目标 `attrSet`
+- 双空：直接从固定开局结果池中选择一个明确结果
+- 单输入 / 双输入：调用 forge 语义 LLM 输出 `name / attrSet / themeText`
+- `attrSet` 合法值只允许 `fire / ice / thunder / blight`
+- forge LLM 返回非法 `attrSet` 时，先做关键词 rulebase 兜底，再退到已有 spell 属性，最后才随机
 - `mainAttr = attrSet[0]`
 - `subAttr = attrSet[1]`，不存在则为 `null`
-- `generation = max(parentA.gen, parentB.gen) + 1`
+- `element = mainAttr`
+- 单/双输入 `generation = max(parent.gen) + 1`
+- 双空固定开局候选当前为 Gen1
 - `baseAtk = 100 * (1 + 0.3 * (generation - 1))`
 
-## Prompt / LLM 说明
+## 模块B接入说明
 
-- prompt 文件位于 `app/prompts/forge/`
-- system prompt 与 user prompt 都已改为中文说明
-- LLM 必须返回严格 JSON，且只允许这三个字段：
-  - `name`
-  - `visualDesc`
-  - `fusionPrompt`
-- 后端不会再接受 LLM 直接决定 `mainAttr / subAttr`
+- 当前只依赖其稳定入口：`run_alchemy_glyph_router(theme, save_output=False, verbose=False)`
+- 宿主 backend 不直接耦合其私有模板、路由或生成实现
+- 成功时保留：
+  - `promptRoute`
+  - `promptRouteReason`
+  - `promptFallbackApplied`
+  - `promptTemplate`
+  - `promptModel`
+  - `promptRouteElapsedMs`
+  - `promptGenerationElapsedMs`
+  - `promptTotalElapsedMs`
+- 失败时使用本地 `videoPrompt` 回退，并把 `promptRoute` 记为 `local_fallback`
 
 ## 已知限制
 
 - 任务状态仍保存在进程内存中，重启后丢失
 - `videoUrl` 仍为 `null`
-- 前端目前只接入了最小 quota gate，没有独立配额 UI
-- 旧文档中若仍写 `LLM 输出 mainAttr/subAttr`，以当前 README 和 `docs/forge-schema.md` 为准
+- 前端目前没有新增复杂配额 UI
+- 视频 API / CLI / MP4 仍未接入

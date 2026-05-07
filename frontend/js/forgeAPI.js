@@ -21,8 +21,8 @@ const ForgeAPI = (() => {
     }
 
     function startForge(cardA, cardB) {
-        const a = SpellDefs.normalizeCard(cardA);
-        const b = SpellDefs.normalizeCard(cardB);
+        const a = cardA ? SpellDefs.normalizeCard(cardA) : null;
+        const b = cardB ? SpellDefs.normalizeCard(cardB) : null;
 
         if (USE_MOCK) return mockForge(a, b);
         realForge(a, b);
@@ -30,42 +30,83 @@ const ForgeAPI = (() => {
     }
 
     function buildRequestSpell(card) {
+        if (!card) return null;
         const normalized = SpellDefs.normalizeCard(card);
         return {
             id: normalized.id,
+            type: normalized.type,
             name: normalized.name,
             attrSet: SpellDefs.getCardAttrSet(normalized),
             mainAttr: normalized.mainAttr,
+            themeText: normalized.themeText || null,
             generation: normalized.generation || 1
         };
     }
 
     function buildMockResult(cardA, cardB) {
-        const generation = Math.max(cardA.generation || 1, cardB.generation || 1) + 1;
-        const attrSet = SpellDefs.mergeAttrSets(
-            SpellDefs.getCardAttrSet(cardA),
-            SpellDefs.getCardAttrSet(cardB)
-        );
+        const inputs = [cardA, cardB].filter(Boolean);
+        const inputState = inputs.length === 0 ? 'empty' : (inputs.length === 1 ? 'single' : 'dual');
+
+        if (inputState === 'empty') {
+            return {
+                name: '熔岩法阵',
+                attrSet: ['fire'],
+                themeText: '一枚熔岩主题的炼金法阵贴地展开，中心像被压缩的熔火核心般稳定脉动。',
+                mainAttr: 'fire',
+                subAttr: null,
+                element: 'fire',
+                generation: 1,
+                baseAtk: SpellDefs.calcBaseAtk(1),
+                videoPrompt: '标准等距2.5D游戏俯视视角，纯黑背景，仅展示一个独立技能特效资产。熔岩主题法阵贴地展开，中心熔火核心稳定脉动。',
+                promptRoute: 'local_fallback',
+                promptRouteReason: 'mock fallback',
+                promptFallbackApplied: true,
+                promptTemplate: null,
+                promptModel: null,
+                promptRouteElapsedMs: null,
+                promptGenerationElapsedMs: null,
+                promptTotalElapsedMs: 0,
+                videoUrl: null,
+                status: 'partial',
+                source: 'opening_pool',
+                inputState
+            };
+        }
+
+        const generation = Math.max(...inputs.map(card => card.generation || 1)) + 1;
+        const attrSet = SpellDefs.mergeAttrSets(...inputs.map(card => SpellDefs.getCardAttrSet(card)));
         const mainAttr = attrSet[0] || SpellDefs.ELEMENTS[0];
         const subAttr = attrSet[1] || null;
+        const names = inputs.map(card => card.name).join(' / ');
 
         return {
-            name: `${cardA.name}${cardB.name}`.slice(0, 6) || '新法阵',
+            name: names.replace(/\s*\/\s*/g, '').slice(0, 6) || '新法阵',
             attrSet,
+            themeText: `${names} 的语义被重铸为一枚新法阵，边界清晰，中心主体凝聚，能量在技能范围内受控流动。`,
             mainAttr,
             subAttr,
             element: mainAttr,
             generation,
             baseAtk: SpellDefs.calcBaseAtk(generation),
+            videoPrompt: `标准等距2.5D游戏俯视视角，纯黑背景，仅展示一个独立技能特效资产。${names} 的语义被重铸为一枚新法阵。`,
+            promptRoute: 'local_fallback',
+            promptRouteReason: 'mock fallback',
+            promptFallbackApplied: true,
+            promptTemplate: null,
+            promptModel: null,
+            promptRouteElapsedMs: null,
+            promptGenerationElapsedMs: null,
+            promptTotalElapsedMs: 0,
             videoUrl: null,
             status: 'partial',
-            source: 'fallback'
+            source: 'fallback',
+            inputState
         };
     }
 
     function mockForge(cardA, cardB) {
         const taskId = 'task_' + Date.now();
-        GameStorage.setPending(taskId, cardA.id, cardB.id);
+        GameStorage.setPending(taskId, cardA?.id || null, cardB?.id || null);
 
         setTimeout(() => {
             const data = GameStorage.load();
@@ -82,7 +123,7 @@ const ForgeAPI = (() => {
 
     function realForge(cardA, cardB) {
         const tempTaskId = 'task_' + Date.now();
-        GameStorage.setPending(tempTaskId, cardA.id, cardB.id);
+        GameStorage.setPending(tempTaskId, cardA?.id || null, cardB?.id || null);
 
         fetch(`${API_BASE}/api/forge`, {
             method: 'POST',
