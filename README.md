@@ -33,10 +33,14 @@ uvicorn app.main:app --reload --port 18001
   关闭本地 battle 开发按钮。这个参数同样只对本地环境有效；设置后会隐藏 battle 开发面板，同时也会让 `autoResolveAfter` 失效。
 - `http://localhost:18001/api/debug/llm-config`
   当前后端配置调试入口，用于确认 forge 与 glyph router 实际命中的 provider、model、base_url 与脱敏 key 摘要。
+- `http://localhost:18001/api/debug/pixverse/config`
+  PixVerse 最小后端闭环的配置快照入口，用于核对 `base_url / model / quality / aspect_ratio / generate_audio_switch` 等运行时值。
+- `http://localhost:18001/api/debug/pixverse/tasks`
+  PixVerse 调试任务列表入口，用于查看本地 video task、关联 forge task、PixVerse `video_id`、当前状态与 MP4 URL。
 
 ## 当前开发阶段
 
-当前主线已经收口到“机制重构 + 最小配额后端 + 中文 forge 文档”阶段，后续继续开发前，默认先以本文和 `docs/` 根目录文档为准，不再以旧 phase / handover 稿作为当前真相源。
+当前主线已进入“阶段二第一步：PixVerse 文生视频最小后端闭环”阶段。在继续开发前，默认先以本文和 `docs/` 根目录文档为准，不再以旧 phase / handover 稿作为当前真相源。
 
 当前唯一正式敏感配置文件是 `backend/.env`，模板文件是 `backend/.env.example`。后续本地联调只维护这一份真实配置，不再使用项目根目录 `.env` 或 glyph router 子目录 `.env`。
 
@@ -49,6 +53,7 @@ uvicorn app.main:app --reload --port 18001
 - 炼金炉入口已支持 A/B 双槽的 `0 / 1 / 2` 输入态：双空走固定开局结果池，单输入与双输入走统一 forge 语义链路。
 - forge 语义 LLM 的正式输出已收敛为 `name / attrSet / themeText`；`generation / baseAtk` 仍由 rulebase 负责。
 - 最终 `videoPrompt` 不再来自旧的 `fusionPrompt`，而是由内嵌模块B `backend/alchemy_glyph_router/` 基于 `themeText` 生成。
+- PixVerse 第一版只打通 `videoPrompt -> 提交任务 -> 轮询状态 -> MP4 URL`，暂不自动回填正式战斗资源替换。
 
 ## 当前最应该看的文档
 

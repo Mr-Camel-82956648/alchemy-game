@@ -271,5 +271,73 @@ const ForgeAPI = (() => {
         }
     }
 
-    return { startForge, checkStatus, stopPolling, USE_MOCK };
+    async function startPixVerseFromForge(forgeTaskId) {
+        if (USE_MOCK) {
+            return {
+                ok: true,
+                task: {
+                    videoTaskId: 'vtask_mock',
+                    forgeTaskId,
+                    pixverseVideoId: 123456,
+                    status: 'succeeded',
+                    providerStatus: 1,
+                    resultUrl: 'https://example.com/mock.mp4',
+                    error: null,
+                    submitAttempts: 1,
+                    pollCount: 1
+                }
+            };
+        }
+
+        try {
+            const res = await fetch(`${API_BASE}/api/video/pixverse/from-forge/${encodeURIComponent(forgeTaskId)}`, {
+                method: 'POST'
+            });
+            const data = await res.json().catch(() => null);
+            if (!res.ok) {
+                const message = data?.detail || `HTTP ${res.status}`;
+                throw new Error(message);
+            }
+            console.log('[ForgeAPI] PixVerse task started:', data);
+            return { ok: true, task: data };
+        } catch (err) {
+            console.error('[ForgeAPI] startPixVerseFromForge failed:', err);
+            return {
+                ok: false,
+                error: err?.message || 'PixVerse 任务启动失败'
+            };
+        }
+    }
+
+    async function checkPixVerseStatus(videoTaskId) {
+        if (USE_MOCK) {
+            return {
+                videoTaskId,
+                forgeTaskId: 'task_mock',
+                pixverseVideoId: 123456,
+                status: 'succeeded',
+                providerStatus: 1,
+                resultUrl: 'https://example.com/mock.mp4',
+                error: null
+            };
+        }
+
+        try {
+            const res = await fetch(`${API_BASE}/api/video/pixverse/status/${encodeURIComponent(videoTaskId)}`);
+            if (!res.ok) return null;
+            return await res.json();
+        } catch (e) {
+            console.warn('[ForgeAPI] checkPixVerseStatus failed:', e);
+            return null;
+        }
+    }
+
+    return {
+        startForge,
+        checkStatus,
+        stopPolling,
+        startPixVerseFromForge,
+        checkPixVerseStatus,
+        USE_MOCK
+    };
 })();

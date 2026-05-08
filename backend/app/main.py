@@ -9,6 +9,7 @@ from alchemy_glyph_router.env_config import build_runtime_snapshot, ensure_repo_
 from .routes.debug import router as debug_router
 from .routes.forge import router as forge_router
 from .routes.quota import router as quota_router
+from .routes.video import router as video_router
 
 ensure_repo_env_loaded()
 
@@ -31,6 +32,7 @@ app.add_middleware(
 app.include_router(forge_router)
 app.include_router(quota_router)
 app.include_router(debug_router)
+app.include_router(video_router)
 
 runtime_logger = logging.getLogger("forge.runtime")
 

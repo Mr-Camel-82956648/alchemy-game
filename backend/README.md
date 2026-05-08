@@ -8,6 +8,7 @@
 - forge 语义 LLM 负责输出 `name / attrSet / themeText`
 - rulebase 负责 `generation / baseAtk / 兼容字段 / fallback / opening pool`
 - 内嵌模块B `backend/alchemy_glyph_router/`，通过稳定 Python API `run_alchemy_glyph_router(...)` 把 `themeText` 转成最终 `videoPrompt`
+- 提供 PixVerse 最小后端闭环：从现有 `videoPrompt` 提交文生视频、轮询状态并拿到 MP4 URL
 
 ## 启动
 
@@ -46,13 +47,13 @@ LOG_LEVEL=INFO
 FORGE_DAILY_QUOTA=5
 FORGE_QUOTA_TIMEZONE=Asia/Shanghai
 
-# PixVerse Video API (Phase 2 Reserved)
-PIXVERSE_BASE_URL=
+# PixVerse Video API
+PIXVERSE_BASE_URL=https://app-api.pixverseai.cn/openapi/v2
 PIXVERSE_API_KEY=
 PIXVERSE_MODEL=c1
 PIXVERSE_QUALITY=360p
 PIXVERSE_ASPECT_RATIO=1:1
-PIXVERSE_GENERATE_AUDIO=true
+PIXVERSE_GENERATE_AUDIO_SWITCH=true
 PIXVERSE_DURATION_SECONDS=1
 PIXVERSE_WATERMARK=false
 PIXVERSE_SEED=1320994540
@@ -70,7 +71,9 @@ PIXVERSE_TIMEOUT_SECONDS=120
 - glyph router 当前仍只使用 Primary LLM 区块，但也只读 `backend/.env`
 - 当 `LLM_PROVIDER=openai_compat` 且未设置 `OPENAI_COMPAT_MODEL` 时，仍兼容回退到 `LLM_MODEL`
 - `FORGE_USE_REAL_LLM=false` 时，forge 语义阶段直接走本地 fallback
-- PixVerse 配置目前只做 Phase 2 预留，本轮未接入视频 API
+- PixVerse 当前已接入第一版最小闭环：`POST /openapi/v2/video/text/generate` + `GET /openapi/v2/video/result/{video_id}`
+- `PIXVERSE_BASE_URL` 推荐直接填 `https://app-api.pixverseai.cn/openapi/v2`，这样代码层只需拼接文档中的相对路径
+- `PIXVERSE_GENERATE_AUDIO_SWITCH` 对应文档真实字段 `generate_audio_switch`
 
 更完整的接手说明见 [../docs/llm-env-alignment.md](../docs/llm-env-alignment.md)。
 
@@ -191,15 +194,66 @@ GET /api/player/quota?playerId=player_xxx
   - `promptTotalElapsedMs`
 - 失败时使用本地 `videoPrompt` 回退，并把 `promptRoute` 记为 `local_fallback`
 
+## PixVerse 调试接口
+
+### POST /api/video/pixverse/from-forge/{forgeTaskId}
+
+- 从已完成的 forge task 读取 `videoPrompt`
+- 创建本地 `videoTaskId`
+- 后台提交 PixVerse 文生视频任务并自动轮询
+
+成功响应示例：
+
+```json
+{
+  "videoTaskId": "vtask_xxx",
+  "forgeTaskId": "task_xxx",
+  "pixverseVideoId": 123456,
+  "traceId": "uuid-for-submit",
+  "lastPollTraceId": null,
+  "status": "polling",
+  "providerStatus": 5,
+  "providerErrCode": 0,
+  "providerErrMsg": "Success",
+  "error": null,
+  "resultUrl": null,
+  "promptSummary": "焚霜裂环",
+  "promptLength": 187,
+  "submitAttempts": 1,
+  "pollCount": 0,
+  "createdAt": 1746670000000,
+  "updatedAt": 1746670000000,
+  "finishedAt": null,
+  "events": []
+}
+```
+
+### GET /api/video/pixverse/status/{videoTaskId}
+
+- 查询单个本地视频任务状态
+- `status` 为本地状态：`queued / submitting / polling / succeeded / failed`
+- `providerStatus` 为 PixVerse 轮询状态：`1 / 5 / 7 / 8`
+- 只有 `status=succeeded` 且 `providerStatus=1` 时，`resultUrl` 才可用
+
+### GET /api/debug/pixverse/config
+
+- 查看当前 PixVerse 运行时配置快照与字段来源
+
+### GET /api/debug/pixverse/tasks
+
+- 查看最近 PixVerse 本地任务列表
+- 支持 `?forgeTaskId=task_xxx` 过滤某次 forge 对应的视频任务
+
 ## 已知限制
 
 - 任务状态仍保存在进程内存中，重启后丢失
-- `videoUrl` 仍为 `null`
+- forge 结果里的 `videoUrl` 仍不自动回填，当前 MP4 URL 先保存在独立 PixVerse 任务里
 - 前端目前没有新增复杂配额 UI
-- 视频 API / CLI / MP4 仍未接入
+- 当前只接入 PixVerse 文生视频最小闭环，未接 webhook、图生视频、模板、lipsync、sound effect、多镜头或正式战斗替换
 
 ## 调试与验证
 
 - 启动后端时会输出一条 `llm.runtime_snapshot` 日志，包含 `forge`、`forgeFallback`、`glyphRouter` 的脱敏配置摘要
 - 可访问 `GET /api/debug/llm-config` 查看当前运行时实际命中的 provider、model、base_url、apiKeyHint、变量来源，以及是否检测到被忽略的旧 `.env` 文件
 - 本地联调时可直接打开 `http://localhost:18001/api/debug/llm-config` 做运行时配置核对
+- PixVerse 会输出 `pixverse.task_created / submit_attempt / submit_success / poll_result / task_completed / task_failed` 这些日志，方便观察提交、`video_id`、轮询状态和最终 URL

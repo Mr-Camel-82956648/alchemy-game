@@ -4,8 +4,11 @@
 const Alchemy = (() => {
     const els = {};
     let pendingResultRetryTimer = null;
+    let pixVerseDebugPollTimer = null;
+    let activePixVerseDebugTaskId = null;
     const PENDING_RESULT_RETRY_MS = 1000;
     const MAX_PENDING_RESULT_RETRIES = 180;
+    const PIXVERSE_DEBUG_POLL_MS = 3000;
     let activeSettlementTaskId = null;
 
     function init() {
@@ -21,12 +24,24 @@ const Alchemy = (() => {
         els.settlementCopy = document.getElementById('settlement-wait-copy');
         els.settlementTask = document.getElementById('settlement-wait-task');
         els.settlementInput = document.getElementById('settlement-wait-input');
+        els.revealPixVerseTask = document.getElementById('reveal-debug-pixverse-task');
+        els.revealPixVerseStatus = document.getElementById('reveal-debug-pixverse-status');
+        els.revealPixVerseUrl = document.getElementById('reveal-debug-pixverse-url');
+        els.revealPixVerseError = document.getElementById('reveal-debug-pixverse-error');
+        els.revealPixVerseStartBtn = document.getElementById('btn-reveal-pixverse-start');
+        els.revealPixVerseOpenBtn = document.getElementById('btn-reveal-pixverse-open');
 
         els.slotA.addEventListener('click', () => Collection.open('A'));
         els.slotB.addEventListener('click', () => Collection.open('B'));
         els.startBtn.addEventListener('click', onStart);
         els.loadoutBtn.addEventListener('click', () => Loadout.open());
         if (els.forgeReturnBtn) els.forgeReturnBtn.addEventListener('click', onForgeReturn);
+        if (els.revealPixVerseOpenBtn) {
+            els.revealPixVerseOpenBtn.addEventListener('click', () => {
+                const url = els.revealPixVerseOpenBtn.dataset.url || '';
+                if (url) window.open(url, '_blank', 'noopener');
+            });
+        }
 
 
         refreshSlots();
@@ -164,6 +179,8 @@ const Alchemy = (() => {
     }
 
     function showReveal(card) {
+        stopPixVerseDebugPolling();
+        activePixVerseDebugTaskId = null;
         revealedCard = card;
         const overlay = document.getElementById('page-reveal');
         const cardEl = document.getElementById('reveal-card');
@@ -188,7 +205,7 @@ const Alchemy = (() => {
         if (nameplate) nameplate.textContent = card.name || '未命名法阵';
         if (title) title.textContent = '炼成';
         if (debugTheme) debugTheme.textContent = truncateText(card.themeText || '无', 140);
-        if (debugVideo) debugVideo.textContent = card.videoPrompt ? `存在 (${card.videoPrompt.length} chars)` : '不存在';
+        if (debugVideo) debugVideo.textContent = truncateText(card.videoPrompt || '无', 200);
         if (debugRoute) debugRoute.textContent = card.promptRoute || '无';
         if (debugRouteReason) debugRouteReason.textContent = truncateText(card.promptRouteReason || '无', 180);
         if (debugFallback) debugFallback.textContent = card.promptFallbackApplied ? 'true' : 'false';
@@ -196,6 +213,7 @@ const Alchemy = (() => {
         if (debugInputState) debugInputState.textContent = card.inputState || '无';
         if (debugSource) debugSource.textContent = card.source || '无';
         if (debugInputSummary) debugInputSummary.textContent = card.inputSummary || '无';
+        resetPixVerseDebug(card);
 
         console.log('[Reveal] finalized card:', {
             taskId: card.taskId || null,
@@ -247,6 +265,7 @@ const Alchemy = (() => {
     function dismissReveal(discard) {
         stopPendingResultRetry();
         hideSettlementWaiting();
+        stopPixVerseDebugPolling();
         const overlay = document.getElementById('page-reveal');
         const cardEl = document.getElementById('reveal-card');
         const title = document.getElementById('reveal-title');
@@ -265,6 +284,106 @@ const Alchemy = (() => {
         if (nameplate) nameplate.classList.remove('show');
         actions.classList.remove('show');
         refreshSlots();
+    }
+
+    function resetPixVerseDebug(card) {
+        updatePixVerseDebug(null);
+        const canStart = Boolean(card?.taskId && card?.videoPrompt);
+        if (els.revealPixVerseStartBtn) {
+            els.revealPixVerseStartBtn.disabled = !canStart;
+            els.revealPixVerseStartBtn.textContent = canStart ? '生成 PixVerse MP4' : '当前卡无可提交 videoPrompt';
+            els.revealPixVerseStartBtn.onclick = async () => {
+                if (!canStart || !revealedCard?.taskId) return;
+                els.revealPixVerseStartBtn.disabled = true;
+                const resp = await ForgeAPI.startPixVerseFromForge(revealedCard.taskId);
+                if (!resp?.ok || !resp.task) {
+                    updatePixVerseDebug({
+                        videoTaskId: null,
+                        status: 'failed',
+                        error: resp?.error || 'PixVerse 任务启动失败'
+                    });
+                    els.revealPixVerseStartBtn.disabled = false;
+                    els.revealPixVerseStartBtn.textContent = '重新生成 PixVerse MP4';
+                    return;
+                }
+                activePixVerseDebugTaskId = resp.task.videoTaskId;
+                updatePixVerseDebug(resp.task);
+                if (resp.task.status === 'succeeded' || resp.task.status === 'failed') {
+                    els.revealPixVerseStartBtn.disabled = false;
+                    els.revealPixVerseStartBtn.textContent = '重新生成 PixVerse MP4';
+                    return;
+                }
+                els.revealPixVerseStartBtn.textContent = 'PixVerse 生成中...';
+                startPixVerseDebugPolling(resp.task.videoTaskId);
+            };
+        }
+    }
+
+    function updatePixVerseDebug(task) {
+        const statusText = task
+            ? [
+                task.status || 'unknown',
+                task.providerStatus != null ? `provider=${task.providerStatus}` : null,
+                task.pixverseVideoId != null ? `video_id=${task.pixverseVideoId}` : null,
+                task.submitAttempts ? `submit=${task.submitAttempts}` : null,
+                task.pollCount ? `poll=${task.pollCount}` : null
+            ].filter(Boolean).join(' | ')
+            : '未开始';
+        if (els.revealPixVerseTask) {
+            els.revealPixVerseTask.textContent = task?.videoTaskId || '未提交';
+        }
+        if (els.revealPixVerseStatus) {
+            els.revealPixVerseStatus.textContent = statusText;
+        }
+        if (els.revealPixVerseUrl) {
+            els.revealPixVerseUrl.textContent = task?.resultUrl || '无';
+        }
+        if (els.revealPixVerseError) {
+            els.revealPixVerseError.textContent = task?.error || task?.providerErrMsg || '无';
+        }
+        if (els.revealPixVerseOpenBtn) {
+            const url = task?.resultUrl || '';
+            els.revealPixVerseOpenBtn.dataset.url = url;
+            els.revealPixVerseOpenBtn.disabled = !url;
+        }
+    }
+
+    function stopPixVerseDebugPolling() {
+        activePixVerseDebugTaskId = null;
+        if (!pixVerseDebugPollTimer) return;
+        clearTimeout(pixVerseDebugPollTimer);
+        pixVerseDebugPollTimer = null;
+    }
+
+    function startPixVerseDebugPolling(videoTaskId) {
+        stopPixVerseDebugPolling();
+        activePixVerseDebugTaskId = videoTaskId;
+        const tick = async () => {
+            if (!activePixVerseDebugTaskId || activePixVerseDebugTaskId !== videoTaskId) return;
+            const task = await ForgeAPI.checkPixVerseStatus(videoTaskId);
+            if (!task) {
+                if (els.revealPixVerseStatus) {
+                    els.revealPixVerseStatus.textContent = '状态查询失败，等待下次轮询';
+                }
+                pixVerseDebugPollTimer = setTimeout(tick, PIXVERSE_DEBUG_POLL_MS);
+                return;
+            }
+            updatePixVerseDebug(task);
+            const terminal = task.status === 'succeeded' || task.status === 'failed';
+            if (els.revealPixVerseStartBtn) {
+                els.revealPixVerseStartBtn.disabled = false;
+                els.revealPixVerseStartBtn.textContent = terminal ? '重新生成 PixVerse MP4' : 'PixVerse 生成中...';
+                if (!terminal) {
+                    els.revealPixVerseStartBtn.disabled = true;
+                }
+            }
+            if (terminal) {
+                stopPixVerseDebugPolling();
+                return;
+            }
+            pixVerseDebugPollTimer = setTimeout(tick, PIXVERSE_DEBUG_POLL_MS);
+        };
+        pixVerseDebugPollTimer = setTimeout(tick, PIXVERSE_DEBUG_POLL_MS);
     }
 
     function stopPendingResultRetry() {

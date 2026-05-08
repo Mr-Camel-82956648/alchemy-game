@@ -80,17 +80,17 @@ FORGE_DAILY_QUOTA=5
 FORGE_QUOTA_TIMEZONE=Asia/Shanghai
 ```
 
-### PixVerse Video API（Phase 2 Reserved）
+### PixVerse Video API
 
-本轮只预留配置位，不接 API：
+当前已接入第一版最小后端闭环：
 
 ```env
-PIXVERSE_BASE_URL=
+PIXVERSE_BASE_URL=https://app-api.pixverseai.cn/openapi/v2
 PIXVERSE_API_KEY=
 PIXVERSE_MODEL=c1
 PIXVERSE_QUALITY=360p
 PIXVERSE_ASPECT_RATIO=1:1
-PIXVERSE_GENERATE_AUDIO=true
+PIXVERSE_GENERATE_AUDIO_SWITCH=true
 PIXVERSE_DURATION_SECONDS=1
 PIXVERSE_WATERMARK=false
 PIXVERSE_SEED=1320994540
@@ -99,7 +99,12 @@ PIXVERSE_POLL_INTERVAL_SECONDS=5
 PIXVERSE_TIMEOUT_SECONDS=120
 ```
 
-当前只是统一配置模板与后续阶段二预留，不代表本轮已经接入视频生成或轮询逻辑。
+说明：
+
+- `PIXVERSE_BASE_URL` 推荐直接填文档统一前缀 `https://app-api.pixverseai.cn/openapi/v2`
+- `PIXVERSE_GENERATE_AUDIO_SWITCH` 对应文档真实请求字段 `generate_audio_switch`
+- 当前后端已打通 `videoPrompt -> 提交文生视频 -> 轮询状态 -> MP4 URL`
+- 当前仍未接入 webhook、图生视频、模板能力与正式战斗替换
 
 ## 3. 运行时代码现在如何读取配置
 

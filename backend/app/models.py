@@ -55,6 +55,60 @@ class ForgeCreateResponse(BaseModel):
     status: str = "pending"
 
 
+class PixVerseTaskEvent(BaseModel):
+    at: int
+    kind: str
+    message: str
+    traceId: Optional[str] = None
+    providerStatus: Optional[int] = None
+    errCode: Optional[int] = None
+    errMsg: Optional[str] = None
+
+
+class PixVerseTask(BaseModel):
+    videoTaskId: str
+    forgeTaskId: Optional[str] = None
+    pixverseVideoId: Optional[int] = None
+    traceId: Optional[str] = None
+    lastPollTraceId: Optional[str] = None
+    status: str
+    providerStatus: Optional[int] = None
+    providerErrCode: Optional[int] = None
+    providerErrMsg: Optional[str] = None
+    error: Optional[str] = None
+    resultUrl: Optional[str] = None
+    promptSummary: Optional[str] = None
+    promptLength: int = 0
+    submitAttempts: int = 0
+    pollCount: int = 0
+    createdAt: int
+    updatedAt: int
+    finishedAt: Optional[int] = None
+    events: List[PixVerseTaskEvent] = Field(default_factory=list)
+
+
+class PixVerseTaskListResponse(BaseModel):
+    count: int
+    tasks: List[PixVerseTask] = Field(default_factory=list)
+
+
+class PixVerseConfigResponse(BaseModel):
+    baseUrl: Optional[str] = None
+    apiKeyHint: Optional[str] = None
+    model: Optional[str] = None
+    quality: Optional[str] = None
+    aspectRatio: Optional[str] = None
+    durationSeconds: int
+    waterMark: bool
+    seed: int
+    generateAudioSwitch: bool
+    maxRetries: int
+    pollIntervalSeconds: float
+    timeoutSeconds: float
+    missing: List[str] = Field(default_factory=list)
+    fieldSources: dict[str, str] = Field(default_factory=dict)
+
+
 class PlayerQuotaResponse(BaseModel):
     playerId: str
     quotaDate: str
