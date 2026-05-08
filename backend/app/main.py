@@ -1,19 +1,16 @@
 import json
 import os
 import logging
-from pathlib import Path
 
-from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from alchemy_glyph_router.env_config import build_runtime_snapshot
+from alchemy_glyph_router.env_config import build_runtime_snapshot, ensure_repo_env_loaded
 
 from .routes.debug import router as debug_router
 from .routes.forge import router as forge_router
 from .routes.quota import router as quota_router
 
-env_path = Path(__file__).resolve().parents[2] / ".env"
-load_dotenv(env_path)
+ensure_repo_env_loaded()
 
 logging.basicConfig(
     level=logging.INFO,
@@ -56,6 +53,8 @@ def root():
         "forge_use_real_llm": use_llm,
         "llm_provider": snapshot["forge"]["provider"],
         "llm_model": snapshot["forge"]["model"],
+        "llm_fallback_provider": snapshot["forgeFallback"]["provider"],
+        "llm_fallback_model": snapshot["forgeFallback"]["model"],
         "glyph_router_model": snapshot["glyphRouter"]["model"],
         "llm_config_aligned": snapshot["aligned"],
     }

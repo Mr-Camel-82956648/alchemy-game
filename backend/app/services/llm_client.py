@@ -4,7 +4,11 @@ from pathlib import Path
 from typing import Any, Iterable, Optional
 
 import httpx
-from alchemy_glyph_router.env_config import resolve_forge_llm_config, resolve_glyph_router_llm_config
+from alchemy_glyph_router.env_config import (
+    resolve_forge_fallback_llm_config,
+    resolve_forge_llm_config,
+    resolve_glyph_router_llm_config,
+)
 
 logger = logging.getLogger("forge.llm")
 
@@ -44,35 +48,51 @@ def call_forge_semantic_llm(
     spell_a: Optional[dict],
     spell_b: Optional[dict],
 ) -> Optional[dict]:
-    config = resolve_forge_llm_config()
-    timeout = int(config.timeout_seconds)
-    max_retries = int(config.max_retries or 1)
-    primary_provider = config.provider
+    primary_config = resolve_forge_llm_config()
+    backup_config = resolve_forge_fallback_llm_config()
+    timeout = int(primary_config.timeout_seconds)
+    max_retries = int(primary_config.max_retries or 1)
+    primary_provider = primary_config.provider
     user_prompt = _build_user_prompt(input_state=input_state, spell_a=spell_a, spell_b=spell_b)
 
     print(f"  [LLM] Primary provider selected: {primary_provider}")
     print(
         "  [LLM] Runtime config: "
-        f"family={config.source_family}, "
-        f"model={config.model}, "
-        f"base_url={config.base_url or '-'}, "
-        f"api_key={config.api_key_hint() or '-'}, "
-        f"sources={config.field_sources}, "
-        f"env_files={list(config.env_files_loaded) or ['process_env_only']}"
+        f"family={primary_config.source_family}, "
+        f"model={primary_config.model}, "
+        f"base_url={primary_config.base_url or '-'}, "
+        f"api_key={primary_config.api_key_hint() or '-'}, "
+        f"sources={primary_config.field_sources}, "
+        f"env_files={list(primary_config.env_files_loaded) or ['process_env_only']}"
+    )
+    print(
+        "  [LLM] Fallback config: "
+        f"provider={backup_config.provider}, "
+        f"family={backup_config.source_family}, "
+        f"model={backup_config.model}, "
+        f"base_url={backup_config.base_url or '-'}, "
+        f"api_key={backup_config.api_key_hint() or '-'}"
     )
 
     if primary_provider == "openai_compat":
-        result = _call_openai_compat(user_prompt, timeout, max_retries, config)
+        result = _call_openai_compat(user_prompt, timeout, max_retries, primary_config)
         if result:
             print("  [LLM] Primary provider success: openai_compat")
-        else:
-            print("  [LLM] Primary provider failed: openai_compat")
-        return result
+            return result
+
+        print("  [LLM] Primary provider failed: openai_compat")
+        print("  [LLM] Switching to backup provider: gemini_rest")
+        backup_result = _call_gemini_rest(user_prompt, timeout, max_retries, backup_config)
+        if backup_result:
+            print("  [LLM] Backup provider success: gemini_rest")
+            return backup_result
+        print("  [LLM] Backup provider failed: gemini_rest")
+        return None
 
     if primary_provider != "gemini_rest":
         print(f"  [LLM] Unknown primary provider '{primary_provider}', falling back to gemini_rest as primary")
 
-    result = _call_gemini_rest(user_prompt, timeout, max_retries, config)
+    result = _call_gemini_rest(user_prompt, timeout, max_retries, primary_config)
     if result:
         print("  [LLM] Primary provider success: gemini_rest")
         return result
@@ -84,7 +104,7 @@ def call_forge_semantic_llm(
         user_prompt,
         timeout,
         max_retries,
-        resolve_glyph_router_llm_config(),
+        backup_config,
     )
     if backup_result:
         print("  [LLM] Backup provider success: openai_compat")

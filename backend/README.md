@@ -24,31 +24,53 @@ uvicorn app.main:app --reload --port 18001
 
 ## 环境变量
 
-推荐把本地 LLM 配置统一写在 `backend/.env`。优先使用与
-`backend/alchemy_glyph_router/.env.example` 对齐的变量格式：
+今后本项目唯一正式运行时配置文件是 `backend/.env`，唯一模板文件是
+`backend/.env.example`。本地日常维护时，只需要维护 `backend/.env`。
 
 ```env
+# Primary LLM
 FORGE_USE_REAL_LLM=true
 LLM_PROVIDER=openai_compat
-LLM_BASE_URL=
+LLM_BASE_URL=https://relay.tuyoo.com/v1
 LLM_API_KEY=
-OPENAI_COMPAT_MODEL=
-LLM_TIMEOUT_SECONDS=60
+OPENAI_COMPAT_MODEL=gpt-5.4
+
+# Fallback LLM
+GEMINI_API_KEY=
+LLM_MODEL=gemini-3-flash-preview
+
+# Forge / Debug
+LLM_TIMEOUT_SECONDS=30
 LLM_MAX_RETRIES=1
 LOG_LEVEL=INFO
-
 FORGE_DAILY_QUOTA=5
 FORGE_QUOTA_TIMEZONE=Asia/Shanghai
+
+# PixVerse Video API (Phase 2 Reserved)
+PIXVERSE_BASE_URL=
+PIXVERSE_API_KEY=
+PIXVERSE_MODEL=c1
+PIXVERSE_QUALITY=360p
+PIXVERSE_ASPECT_RATIO=1:1
+PIXVERSE_GENERATE_AUDIO=true
+PIXVERSE_DURATION_SECONDS=1
+PIXVERSE_WATERMARK=false
+PIXVERSE_SEED=1320994540
+PIXVERSE_MAX_RETRIES=1
+PIXVERSE_POLL_INTERVAL_SECONDS=5
+PIXVERSE_TIMEOUT_SECONDS=120
 ```
 
-兼容说明：
+说明：
 
-- 推荐统一方案：`LLM_PROVIDER=openai_compat`，让 forge 与模块B共用 `LLM_BASE_URL / LLM_API_KEY / OPENAI_COMPAT_MODEL`
-- 旧 Gemini 方案仍兼容：`LLM_PROVIDER=gemini_rest` + `GEMINI_API_KEY` + `LLM_MODEL`
-- 当 `LLM_PROVIDER=openai_compat` 且未设置 `OPENAI_COMPAT_MODEL` 时，模块B会兼容回退到 `LLM_MODEL`
-- `backend/.env` 是宿主主配置；只有在它不存在时，模块B才会退回读取 `backend/alchemy_glyph_router/.env`
+- forge 宿主 backend 与 glyph router 现在都以 `backend/.env` 为唯一文件级配置来源
+- 项目根目录 `./.env` 与 `backend/alchemy_glyph_router/.env*` 不再是正式文件入口
+- 推荐主用：`LLM_PROVIDER=openai_compat` + `OPENAI_COMPAT_MODEL=gpt-5.4`
+- 当前 forge 语义阶段会把 `GEMINI_API_KEY + LLM_MODEL` 作为 fallback LLM
+- glyph router 当前仍只使用 Primary LLM 区块，但也只读 `backend/.env`
+- 当 `LLM_PROVIDER=openai_compat` 且未设置 `OPENAI_COMPAT_MODEL` 时，仍兼容回退到 `LLM_MODEL`
 - `FORGE_USE_REAL_LLM=false` 时，forge 语义阶段直接走本地 fallback
-- 模块B失败时不会阻断 forge 主流程，后端会回退到本地 `videoPrompt`
+- PixVerse 配置目前只做 Phase 2 预留，本轮未接入视频 API
 
 更完整的接手说明见 [../docs/llm-env-alignment.md](../docs/llm-env-alignment.md)。
 
@@ -178,5 +200,5 @@ GET /api/player/quota?playerId=player_xxx
 
 ## 调试与验证
 
-- 启动后端时会输出一条 `llm.runtime_snapshot` 日志，包含 forge 与 glyph router 的脱敏配置摘要
-- 可访问 `GET /api/debug/llm-config` 查看当前运行时实际命中的 provider、model、base_url、apiKeyHint、变量来源与对齐状态
+- 启动后端时会输出一条 `llm.runtime_snapshot` 日志，包含 `forge`、`forgeFallback`、`glyphRouter` 的脱敏配置摘要
+- 可访问 `GET /api/debug/llm-config` 查看当前运行时实际命中的 provider、model、base_url、apiKeyHint、变量来源，以及是否检测到被忽略的旧 `.env` 文件

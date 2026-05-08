@@ -107,26 +107,42 @@ pip install -r requirements.txt
 
 ## 环境变量
 
-如果作为本仓库里的嵌入模块使用，推荐把变量统一写到 `backend/.env`。
-只有当 `backend/.env` 不存在时，glyph router 才会退回读取
-`backend/alchemy_glyph_router/.env`。
+在当前仓库中，glyph router 不再维护单独的 `.env` 或 `.env.example`。
+本仓库唯一正式运行时配置文件是：
+
+```text
+backend/.env
+```
+
+模板文件是：
+
+```text
+backend/.env.example
+```
 
 推荐变量格式如下：
 
 ```env
+FORGE_USE_REAL_LLM=true
 LLM_PROVIDER=openai_compat
-LLM_BASE_URL=
+LLM_BASE_URL=https://relay.tuyoo.com/v1
 LLM_API_KEY=
-OPENAI_COMPAT_MODEL=
-LLM_TIMEOUT_SECONDS=
-LLM_MAX_RETRIES=
+OPENAI_COMPAT_MODEL=gpt-5.4
+
+# Forge fallback / shared repo config
+GEMINI_API_KEY=
+LLM_MODEL=gemini-3-flash-preview
+
+LLM_TIMEOUT_SECONDS=30
+LLM_MAX_RETRIES=1
 LOG_LEVEL=
 ```
 
 兼容说明：
 
 - 若 `LLM_PROVIDER=openai_compat` 且 `OPENAI_COMPAT_MODEL` 缺失，会兼容回退到 `LLM_MODEL`
-- `GEMINI_API_KEY` 只影响宿主 forge 语义阶段，不会被 glyph router 直接使用
+- `GEMINI_API_KEY` 只影响宿主 forge 语义阶段的 fallback，不会被 glyph router 直接使用
+- 即使机器上存在项目根目录 `./.env`，当前仓库运行时也不会把它当成 glyph router 的正式文件来源
 
 ## 使用方式
 

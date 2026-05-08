@@ -27,6 +27,8 @@ uvicorn app.main:app --reload --port 18001
 
 当前主线已经收口到“机制重构 + 最小配额后端 + 中文 forge 文档”阶段，后续继续开发前，默认先以本文和 `docs/` 根目录文档为准，不再以旧 phase / handover 稿作为当前真相源。
 
+当前唯一正式敏感配置文件是 `backend/.env`，模板文件是 `backend/.env.example`。后续本地联调只维护这一份真实配置，不再使用项目根目录 `.env` 或 glyph router 子目录 `.env`。
+
 ## 当前核心机制现状
 
 - `attrSet` 是当前主字段。`mainAttr / subAttr / element` 只作为兼容字段保留。
