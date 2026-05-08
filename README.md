@@ -40,6 +40,13 @@ uvicorn app.main:app --reload --port 18001
 - `http://localhost:18001/api/debug/pixverse/tasks/{videoTaskId}`
   PixVerse 单任务诊断入口，用于查看最近一次提交/轮询的 endpoint、脱敏 header、trace id、HTTP status 与 ErrCode/ErrMsg。
 
+## PixVerse 当前口径
+
+- 当前默认 PixVerse 接入按国际版 `https://app-api.pixverse.ai/openapi/v2`。
+- 国内版 `.cn` 与国际版 `.ai` 的 endpoint / key 不能混用。
+- 前一轮真实排查里出现的 `ErrCode=10005, apiKey is not registered`，已定位为“国际版 key 打到了国内版 `.cn` endpoint”的环境不匹配问题。
+- 当前可用的 PixVerse 调试入口就是上面的 `config / tasks / tasks/{videoTaskId}` 三个接口；前端 reveal 调试区也保留了 `pixverseTask / pixverseState / pixverseUrl / 打开 MP4` 入口。
+
 ## 当前开发阶段
 
 当前主线已进入“阶段二第一步：PixVerse 文生视频最小后端闭环”阶段。在继续开发前，默认先以本文和 `docs/` 根目录文档为准，不再以旧 phase / handover 稿作为当前真相源。

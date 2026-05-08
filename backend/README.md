@@ -75,6 +75,7 @@ PIXVERSE_TIMEOUT_SECONDS=120
 - `PIXVERSE_BASE_URL` 当前默认按国际版 OpenAPI v2，推荐直接填 `https://app-api.pixverse.ai/openapi/v2`
 - `PIXVERSE_GENERATE_AUDIO_SWITCH` 对应文档真实字段 `generate_audio_switch`
 - 国际版文档下，当前默认组合 `model=c1 + aspect_ratio=1:1 + duration=1 + generate_audio_switch=true` 成立
+- 国内版 `.cn` 与国际版 `.ai` 的 endpoint / key 不能混用；此前 `ErrCode=10005, apiKey is not registered` 的已定位根因就是“国际版 key 命中了国内版 endpoint”
 
 更完整的接手说明见 [../docs/llm-env-alignment.md](../docs/llm-env-alignment.md)。
 
@@ -249,6 +250,7 @@ GET /api/player/quota?playerId=player_xxx
 
 - 按单个 `videoTaskId` 查看最新调试信息
 - 返回当前任务摘要 + 当前 PixVerse 配置摘要 + 最近一次提交外呼诊断 + 最近一次轮询外呼诊断
+- 成功闭环时可直接在 `task.status / task.providerStatus / task.resultUrl` 中看到 `succeeded / 1 / MP4 URL`
 - 外呼诊断会包含：
   - 完整 endpoint URL
   - 脱敏后的请求头摘要（`API-KEY` 只显示 hint）
@@ -281,6 +283,7 @@ GET /api/player/quota?playerId=player_xxx
    - `providerErrMsg`
 4. 如果这里已经明确是 `https://app-api.pixverse.ai/openapi/v2/video/text/generate`、header 名是 `API-KEY` 和 `Ai-trace-id`，且服务端返回 `10005 apiKey is not registered`，更像是 key 本身未注册、未开通 API 服务、被停用，或 key 与当前平台环境不匹配，而不是宿主主链逻辑问题。
 5. 如果手里拿的是国际版 key，但调试接口里 `baseUrl` 仍是旧的 `.cn` 域名，那优先修正 `backend/.env` / `PIXVERSE_BASE_URL`，再重试。
+6. 当前已验证过真实国际版闭环：提交命中 `.ai` 域名后，轮询可从 `status=5` 继续走到 `status=1`，本地 `videoTask.status` 会收口到 `succeeded`，同时写入 `resultUrl`。
 
 ### 如何看当前 PixVerse 配置摘要
 

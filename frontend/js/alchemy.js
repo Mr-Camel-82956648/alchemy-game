@@ -319,16 +319,44 @@ const Alchemy = (() => {
         }
     }
 
+    function describePixVerseStatus(task) {
+        if (!task) return '未开始';
+
+        const localStatusLabels = {
+            queued: 'queued(已创建本地任务)',
+            submitting: 'submitting(正在提交 PixVerse)',
+            polling: 'polling(正在等待 PixVerse 完成)',
+            succeeded: 'succeeded(MP4 已就绪)',
+            failed: 'failed(任务失败)'
+        };
+        const providerStatusLabels = {
+            1: 'success',
+            5: 'generating',
+            7: 'moderation_failed',
+            8: 'generation_failed'
+        };
+
+        const statusLabel = localStatusLabels[task.status] || task.status || 'unknown';
+        const providerLabel = task.providerStatus != null
+            ? `provider=${task.providerStatus}${providerStatusLabels[task.providerStatus] ? `(${providerStatusLabels[task.providerStatus]})` : ''}`
+            : null;
+        const urlLabel = task.resultUrl ? 'url=ready' : null;
+
+        return [
+            statusLabel,
+            providerLabel,
+            task.pixverseVideoId != null ? `video_id=${task.pixverseVideoId}` : null,
+            task.submitAttempts ? `submit=${task.submitAttempts}` : null,
+            task.pollCount ? `poll=${task.pollCount}` : null,
+            urlLabel
+        ].filter(Boolean).join(' | ');
+    }
+
     function updatePixVerseDebug(task) {
-        const statusText = task
-            ? [
-                task.status || 'unknown',
-                task.providerStatus != null ? `provider=${task.providerStatus}` : null,
-                task.pixverseVideoId != null ? `video_id=${task.pixverseVideoId}` : null,
-                task.submitAttempts ? `submit=${task.submitAttempts}` : null,
-                task.pollCount ? `poll=${task.pollCount}` : null
-            ].filter(Boolean).join(' | ')
-            : '未开始';
+        const statusText = describePixVerseStatus(task);
+        const errorText = task
+            ? (task.error || (task.status === 'failed' ? (task.providerErrMsg || '未知失败') : '无'))
+            : '无';
         if (els.revealPixVerseTask) {
             els.revealPixVerseTask.textContent = task?.videoTaskId || '未提交';
         }
@@ -337,14 +365,16 @@ const Alchemy = (() => {
         }
         if (els.revealPixVerseUrl) {
             els.revealPixVerseUrl.textContent = task?.resultUrl || '无';
+            els.revealPixVerseUrl.title = task?.resultUrl || '';
         }
         if (els.revealPixVerseError) {
-            els.revealPixVerseError.textContent = task?.error || task?.providerErrMsg || '无';
+            els.revealPixVerseError.textContent = errorText;
         }
         if (els.revealPixVerseOpenBtn) {
             const url = task?.resultUrl || '';
             els.revealPixVerseOpenBtn.dataset.url = url;
             els.revealPixVerseOpenBtn.disabled = !url;
+            els.revealPixVerseOpenBtn.textContent = url ? '打开 MP4' : 'MP4 未就绪';
         }
     }
 
