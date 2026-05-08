@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import time
 import uuid
 from dataclasses import dataclass, field
 from typing import Any
@@ -24,12 +25,20 @@ class PixVerseAPIError(RuntimeError):
         err_msg: str | None = None,
         response: Any = None,
         status_code: int | None = None,
+        diagnostic: dict[str, Any] | None = None,
     ) -> None:
         super().__init__(message)
         self.err_code = err_code
         self.err_msg = err_msg
         self.response = response
         self.status_code = status_code
+        self.diagnostic = diagnostic
+
+
+@dataclass(frozen=True)
+class PixVerseCallResult:
+    resp: dict[str, Any]
+    diagnostic: dict[str, Any]
 
 
 @dataclass(frozen=True)
@@ -62,7 +71,10 @@ class PixVerseConfig:
 
     def summary(self) -> dict[str, Any]:
         return {
+            "configSource": "backend/.env",
             "baseUrl": self.base_url,
+            "submitUrl": self.submit_url(),
+            "resultUrlTemplate": self.result_url_template(),
             "apiKeyHint": self.api_key_hint(),
             "model": self.model,
             "quality": self.quality,
@@ -77,6 +89,12 @@ class PixVerseConfig:
             "missing": list(self.missing),
             "fieldSources": dict(self.field_sources),
         }
+
+    def submit_url(self) -> str:
+        return f"{self.base_url}/video/text/generate"
+
+    def result_url_template(self) -> str:
+        return f"{self.base_url}/video/result/{{video_id}}"
 
 
 def resolve_pixverse_config() -> PixVerseConfig:
@@ -145,7 +163,7 @@ class PixVerseClient:
     def __init__(self, config: PixVerseConfig | None = None) -> None:
         self.config = config or resolve_pixverse_config()
 
-    def generate_text_video(self, *, prompt: str, trace_id: str) -> dict[str, Any]:
+    def generate_text_video(self, *, prompt: str, trace_id: str) -> PixVerseCallResult:
         payload = {
             "aspect_ratio": self.config.aspect_ratio,
             "duration": self.config.duration_seconds,
@@ -159,16 +177,29 @@ class PixVerseClient:
         return self._request(
             "POST",
             "/video/text/generate",
+            phase="submit",
             trace_id=trace_id,
             payload=payload,
+            request_summary={
+                "model": self.config.model,
+                "quality": self.config.quality,
+                "aspectRatio": self.config.aspect_ratio,
+                "durationSeconds": self.config.duration_seconds,
+                "waterMark": self.config.water_mark,
+                "seed": self.config.seed,
+                "generateAudioSwitch": self.config.generate_audio_switch,
+                "promptLength": len(prompt),
+            },
         )
 
-    def get_video_result(self, *, video_id: int, trace_id: str) -> dict[str, Any]:
+    def get_video_result(self, *, video_id: int, trace_id: str) -> PixVerseCallResult:
         return self._request(
             "GET",
             f"/video/result/{video_id}",
+            phase="poll",
             trace_id=trace_id,
             payload=None,
+            request_summary={"videoId": video_id},
         )
 
     def _request(
@@ -176,63 +207,100 @@ class PixVerseClient:
         method: str,
         path: str,
         *,
+        phase: str,
         trace_id: str,
         payload: dict[str, Any] | None,
-    ) -> dict[str, Any]:
+        request_summary: dict[str, Any] | None = None,
+    ) -> PixVerseCallResult:
         url = f"{self.config.base_url}{path}"
-        headers = {
-            "API-KEY": str(self.config.api_key or ""),
-            "Ai-trace-id": trace_id,
-        }
+        headers = self._build_headers(trace_id=trace_id, has_json_body=payload is not None)
         request_kwargs: dict[str, Any] = {
             "headers": headers,
             "timeout": self.config.request_timeout_seconds(),
         }
         if payload is not None:
-            headers["Content-Type"] = "application/json"
             request_kwargs["json"] = payload
+
+        diagnostic = {
+            "at": _now_ms(),
+            "phase": phase,
+            "method": method.upper(),
+            "url": url,
+            "traceId": trace_id,
+            "requestHeaders": self._mask_headers(headers),
+            "requestSummary": dict(request_summary or {}),
+            "httpStatus": None,
+            "providerErrCode": None,
+            "providerErrMsg": None,
+            "providerStatus": None,
+            "responseSummary": {},
+        }
 
         try:
             response = httpx.request(method, url, **request_kwargs)
+            diagnostic["httpStatus"] = response.status_code
             response.raise_for_status()
         except httpx.HTTPStatusError as exc:
             body = _safe_json(exc.response)
             err_code = _coerce_int((body or {}).get("ErrCode"))
             err_msg = str((body or {}).get("ErrMsg") or exc.response.text[:200]).strip() or None
+            diagnostic["httpStatus"] = exc.response.status_code
+            diagnostic["providerErrCode"] = err_code
+            diagnostic["providerErrMsg"] = err_msg
+            diagnostic["responseSummary"] = _summarize_provider_body(body, exc.response.text)
             raise PixVerseAPIError(
                 f"PixVerse HTTP {exc.response.status_code}: {err_msg or 'request failed'}",
                 err_code=err_code,
                 err_msg=err_msg,
                 response=body,
                 status_code=exc.response.status_code,
+                diagnostic=diagnostic,
             ) from exc
         except httpx.RequestError as exc:
-            raise PixVerseAPIError(f"PixVerse request error: {exc}") from exc
+            diagnostic["responseSummary"] = {"requestError": str(exc)}
+            raise PixVerseAPIError(
+                f"PixVerse request error: {exc}",
+                diagnostic=diagnostic,
+            ) from exc
 
         body = _safe_json(response)
         if not isinstance(body, dict):
-            raise PixVerseAPIError("PixVerse returned a non-JSON response", status_code=response.status_code)
+            diagnostic["responseSummary"] = {"rawTextPreview": response.text[:200]}
+            raise PixVerseAPIError(
+                "PixVerse returned a non-JSON response",
+                status_code=response.status_code,
+                diagnostic=diagnostic,
+            )
 
         err_code = _coerce_int(body.get("ErrCode"))
         err_msg = str(body.get("ErrMsg") or "").strip() or None
+        diagnostic["providerErrCode"] = err_code
+        diagnostic["providerErrMsg"] = err_msg
         if err_code != 0:
+            diagnostic["responseSummary"] = _summarize_provider_body(body, response.text)
             raise PixVerseAPIError(
                 f"PixVerse ErrCode={err_code}: {err_msg or 'unknown error'}",
                 err_code=err_code,
                 err_msg=err_msg,
                 response=body,
                 status_code=response.status_code,
+                diagnostic=diagnostic,
             )
 
         resp = body.get("Resp")
         if not isinstance(resp, dict):
+            diagnostic["responseSummary"] = _summarize_provider_body(body, response.text)
             raise PixVerseAPIError(
                 "PixVerse response missing Resp object",
                 err_code=err_code,
                 err_msg=err_msg,
                 response=body,
                 status_code=response.status_code,
+                diagnostic=diagnostic,
             )
+
+        diagnostic["providerStatus"] = _coerce_int(resp.get("status"))
+        diagnostic["responseSummary"] = _summarize_provider_body(body, response.text)
 
         logger.debug(
             "pixverse.http_ok %s",
@@ -247,7 +315,25 @@ class PixVerseClient:
                 separators=(",", ":"),
             ),
         )
-        return resp
+        return PixVerseCallResult(resp=resp, diagnostic=diagnostic)
+
+    def _build_headers(self, *, trace_id: str, has_json_body: bool) -> dict[str, str]:
+        headers = {
+            "API-KEY": str(self.config.api_key or ""),
+            "Ai-trace-id": trace_id,
+        }
+        if has_json_body:
+            headers["Content-Type"] = "application/json"
+        return headers
+
+    def _mask_headers(self, headers: dict[str, str]) -> dict[str, str]:
+        masked = {}
+        for key, value in headers.items():
+            if key.upper() == "API-KEY":
+                masked[key] = self.config.api_key_hint() or ""
+            else:
+                masked[key] = value
+        return masked
 
 
 def _safe_json(response: httpx.Response) -> Any:
@@ -255,6 +341,29 @@ def _safe_json(response: httpx.Response) -> Any:
         return response.json()
     except ValueError:
         return None
+
+
+def _summarize_provider_body(body: Any, raw_text: str | None) -> dict[str, Any]:
+    if isinstance(body, dict):
+        resp = body.get("Resp")
+        summary: dict[str, Any] = {
+            "topLevelKeys": sorted(body.keys()),
+            "ErrCode": _coerce_int(body.get("ErrCode")),
+            "ErrMsg": str(body.get("ErrMsg") or "").strip() or None,
+        }
+        if isinstance(resp, dict):
+            summary["respKeys"] = sorted(resp.keys())
+            if "video_id" in resp:
+                summary["videoId"] = _coerce_int(resp.get("video_id"))
+            if "id" in resp:
+                summary["resultId"] = _coerce_int(resp.get("id"))
+            if "status" in resp:
+                summary["providerStatus"] = _coerce_int(resp.get("status"))
+            if "url" in resp:
+                summary["hasUrl"] = bool(str(resp.get("url") or "").strip())
+        return summary
+
+    return {"rawTextPreview": str(raw_text or "")[:200]}
 
 
 def _coerce_int(value: Any) -> int | None:
@@ -292,3 +401,7 @@ def _parse_float(raw: str | None, default: float) -> float:
         return float(str(raw or "").strip())
     except ValueError:
         return default
+
+
+def _now_ms() -> int:
+    return int(time.time() * 1000)

@@ -1,9 +1,13 @@
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, HTTPException, Query
 
 from alchemy_glyph_router.env_config import build_runtime_snapshot
 
-from ..models import PixVerseConfigResponse, PixVerseTaskListResponse
-from ..services.video_generation_service import get_pixverse_config_snapshot, list_video_tasks
+from ..models import PixVerseConfigResponse, PixVerseTaskDebugResponse, PixVerseTaskListResponse
+from ..services.video_generation_service import (
+    get_pixverse_config_snapshot,
+    get_video_task_debug,
+    list_video_tasks,
+)
 
 router = APIRouter(prefix="/api/debug", tags=["debug"])
 
@@ -25,3 +29,11 @@ def debug_pixverse_tasks(
 ):
     tasks = list_video_tasks(limit=limit, forge_task_id=forgeTaskId)
     return PixVerseTaskListResponse(count=len(tasks), tasks=tasks)
+
+
+@router.get("/pixverse/tasks/{video_task_id}", response_model=PixVerseTaskDebugResponse)
+def debug_pixverse_task(video_task_id: str):
+    task_debug = get_video_task_debug(video_task_id)
+    if task_debug is None:
+        raise HTTPException(status_code=404, detail="PixVerse task not found")
+    return task_debug

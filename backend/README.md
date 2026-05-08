@@ -244,6 +244,77 @@ GET /api/player/quota?playerId=player_xxx
 - 查看最近 PixVerse 本地任务列表
 - 支持 `?forgeTaskId=task_xxx` 过滤某次 forge 对应的视频任务
 
+### GET /api/debug/pixverse/tasks/{videoTaskId}
+
+- 按单个 `videoTaskId` 查看最新调试信息
+- 返回当前任务摘要 + 当前 PixVerse 配置摘要 + 最近一次提交外呼诊断 + 最近一次轮询外呼诊断
+- 外呼诊断会包含：
+  - 完整 endpoint URL
+  - 脱敏后的请求头摘要（`API-KEY` 只显示 hint）
+  - `traceId`
+  - HTTP status
+  - `ErrCode / ErrMsg`
+  - `providerStatus`
+  - provider 返回体摘要
+
+## PixVerse 排障
+
+### `ErrCode=10005, apiKey is not registered` 先检查什么
+
+建议优先按这个顺序排：
+
+1. 确认 `backend/.env` 里的 `PIXVERSE_API_KEY` 是否真的是 PixVerse API 平台发放的 key，而不是网页端会员、普通登录态或别的环境的凭证。
+2. 打开 `GET /api/debug/pixverse/config`，核对当前后端实际读到的：
+   - `baseUrl`
+   - `submitUrl`
+   - `resultUrlTemplate`
+   - `apiKeyHint`
+   - `model / quality / aspectRatio / durationSeconds / generateAudioSwitch`
+   - `fieldSources`
+3. 打开 `GET /api/debug/pixverse/tasks/{videoTaskId}`，确认最近一次提交诊断里的：
+   - `url`
+   - `requestHeaders`
+   - `traceId`
+   - `httpStatus`
+   - `providerErrCode`
+   - `providerErrMsg`
+4. 如果这里已经明确是 `https://app-api.pixverseai.cn/openapi/v2/video/text/generate`、header 名是 `API-KEY` 和 `Ai-trace-id`，且服务端返回 `10005 apiKey is not registered`，更像是 key 本身未注册、未开通 API 服务、被停用，或 key 与当前平台环境不匹配，而不是宿主主链逻辑问题。
+
+### 如何看当前 PixVerse 配置摘要
+
+- `GET /api/debug/pixverse/config`
+
+重点看：
+
+- `configSource`
+- `baseUrl`
+- `submitUrl`
+- `resultUrlTemplate`
+- `apiKeyHint`
+- `fieldSources`
+
+### 如何看某个 video task 的最近一次外呼诊断
+
+- 先通过 `GET /api/debug/pixverse/tasks` 找到目标 `videoTaskId`
+- 再访问 `GET /api/debug/pixverse/tasks/{videoTaskId}`
+
+其中：
+
+- `latestSubmitCall` 是最近一次提交文生视频请求的诊断
+- `latestPollCall` 是最近一次状态轮询请求的诊断
+
+### 适合拿去和平台 / 供应商同事确认的信息
+
+- 时间点
+- 请求 endpoint URL
+- `traceId`
+- `HTTP status`
+- `ErrCode`
+- `ErrMsg`
+- `apiKeyHint`
+
+这些信息足够帮助对方在服务端侧检索请求，但不会暴露完整 key。
+
 ## 已知限制
 
 - 任务状态仍保存在进程内存中，重启后丢失
@@ -256,4 +327,4 @@ GET /api/player/quota?playerId=player_xxx
 - 启动后端时会输出一条 `llm.runtime_snapshot` 日志，包含 `forge`、`forgeFallback`、`glyphRouter` 的脱敏配置摘要
 - 可访问 `GET /api/debug/llm-config` 查看当前运行时实际命中的 provider、model、base_url、apiKeyHint、变量来源，以及是否检测到被忽略的旧 `.env` 文件
 - 本地联调时可直接打开 `http://localhost:18001/api/debug/llm-config` 做运行时配置核对
-- PixVerse 会输出 `pixverse.task_created / submit_attempt / submit_success / poll_result / task_completed / task_failed` 这些日志，方便观察提交、`video_id`、轮询状态和最终 URL
+- PixVerse 会输出 `pixverse.task_created / submit_attempt / submit_success / submit_failed / poll_result / poll_error / task_completed / task_failed` 这些日志，方便观察 endpoint、trace id、HTTP status、ErrCode/ErrMsg、轮询状态和最终 URL

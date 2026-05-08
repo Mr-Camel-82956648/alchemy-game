@@ -78,8 +78,21 @@ def get_pixverse_config_snapshot() -> dict[str, Any]:
     return config.summary()
 
 
+def get_video_task_debug(video_task_id: str) -> Optional[dict[str, Any]]:
+    task = get_video_task(video_task_id)
+    if task is None:
+        return None
+    return {
+        "task": task,
+        "config": get_pixverse_config_snapshot(),
+        "latestSubmitCall": task.get("latestSubmitCall"),
+        "latestPollCall": task.get("latestPollCall"),
+    }
+
+
 def _create_video_task(*, prompt: str, forge_task_id: str | None, prompt_summary: str) -> dict[str, Any]:
     now = _now_ms()
+    config = resolve_pixverse_config()
     video_task_id = f"vtask_{uuid.uuid4().hex[:12]}"
     task = {
         "videoTaskId": video_task_id,
@@ -101,6 +114,9 @@ def _create_video_task(*, prompt: str, forge_task_id: str | None, prompt_summary
         "updatedAt": now,
         "finishedAt": None,
         "events": [],
+        "configSnapshot": config.summary(),
+        "latestSubmitCall": None,
+        "latestPollCall": None,
         "_prompt": prompt,
     }
 
@@ -178,10 +194,15 @@ def _run_video_task(video_task_id: str) -> None:
             ),
         )
         try:
-            resp = client.generate_text_video(prompt=prompt, trace_id=trace_id)
+            call = client.generate_text_video(prompt=prompt, trace_id=trace_id)
+            resp = call.resp
             video_id = _to_int(resp.get("video_id"))
             if video_id is None:
-                raise PixVerseAPIError("PixVerse generate succeeded but Resp.video_id is missing", response=resp)
+                raise PixVerseAPIError(
+                    "PixVerse generate succeeded but Resp.video_id is missing",
+                    response=resp,
+                    diagnostic=call.diagnostic,
+                )
 
             _update_task(
                 video_task_id,
@@ -191,6 +212,7 @@ def _run_video_task(video_task_id: str) -> None:
                 providerErrCode=0,
                 providerErrMsg="Success",
                 error=None,
+                latestSubmitCall=call.diagnostic,
             )
             _append_event(
                 video_task_id,
@@ -209,17 +231,25 @@ def _run_video_task(video_task_id: str) -> None:
                         "forgeTaskId": task.get("forgeTaskId"),
                         "pixverseVideoId": video_id,
                         "traceId": trace_id,
+                        "url": call.diagnostic.get("url"),
+                        "requestHeaders": call.diagnostic.get("requestHeaders"),
+                        "httpStatus": call.diagnostic.get("httpStatus"),
+                        "providerErrCode": call.diagnostic.get("providerErrCode"),
+                        "providerErrMsg": call.diagnostic.get("providerErrMsg"),
+                        "responseSummary": call.diagnostic.get("responseSummary"),
                     }
                 ),
             )
             break
         except PixVerseAPIError as exc:
             error_text = str(exc)
+            diagnostic = exc.diagnostic or {}
             _update_task(
                 video_task_id,
                 providerErrCode=exc.err_code,
                 providerErrMsg=exc.err_msg,
                 error=error_text,
+                latestSubmitCall=diagnostic or None,
             )
             _append_event(
                 video_task_id,
@@ -236,9 +266,13 @@ def _run_video_task(video_task_id: str) -> None:
                         "videoTaskId": video_task_id,
                         "attempt": attempt,
                         "traceId": trace_id,
+                        "url": diagnostic.get("url"),
+                        "requestHeaders": diagnostic.get("requestHeaders"),
+                        "httpStatus": diagnostic.get("httpStatus"),
                         "errCode": exc.err_code,
                         "errMsg": exc.err_msg,
                         "error": error_text,
+                        "responseSummary": diagnostic.get("responseSummary"),
                     }
                 ),
             )
@@ -267,7 +301,8 @@ def _run_video_task(video_task_id: str) -> None:
             pollCount=next_poll_count,
         )
         try:
-            resp = client.get_video_result(video_id=video_id, trace_id=poll_trace_id)
+            call = client.get_video_result(video_id=video_id, trace_id=poll_trace_id)
+            resp = call.resp
             provider_status = _to_int(resp.get("status"))
             result_url = str(resp.get("url") or "").strip() or None
             provider_err_msg = "Success"
@@ -278,6 +313,7 @@ def _run_video_task(video_task_id: str) -> None:
                 providerErrCode=0,
                 providerErrMsg=provider_err_msg,
                 error=None,
+                latestPollCall=call.diagnostic,
             )
             _append_event(
                 video_task_id,
@@ -296,8 +332,14 @@ def _run_video_task(video_task_id: str) -> None:
                         "pixverseVideoId": video_id,
                         "pollCount": next_poll_count,
                         "traceId": poll_trace_id,
+                        "url": call.diagnostic.get("url"),
+                        "requestHeaders": call.diagnostic.get("requestHeaders"),
+                        "httpStatus": call.diagnostic.get("httpStatus"),
                         "providerStatus": provider_status,
+                        "providerErrCode": call.diagnostic.get("providerErrCode"),
+                        "providerErrMsg": call.diagnostic.get("providerErrMsg"),
                         "hasUrl": bool(result_url),
+                        "responseSummary": call.diagnostic.get("responseSummary"),
                     }
                 ),
             )
@@ -350,11 +392,13 @@ def _run_video_task(video_task_id: str) -> None:
             return
         except PixVerseAPIError as exc:
             error_text = str(exc)
+            diagnostic = exc.diagnostic or {}
             _update_task(
                 video_task_id,
                 providerErrCode=exc.err_code,
                 providerErrMsg=exc.err_msg,
                 error=error_text,
+                latestPollCall=diagnostic or None,
             )
             _append_event(
                 video_task_id,
@@ -372,9 +416,13 @@ def _run_video_task(video_task_id: str) -> None:
                         "pixverseVideoId": video_id,
                         "pollCount": next_poll_count,
                         "traceId": poll_trace_id,
+                        "url": diagnostic.get("url"),
+                        "requestHeaders": diagnostic.get("requestHeaders"),
+                        "httpStatus": diagnostic.get("httpStatus"),
                         "errCode": exc.err_code,
                         "errMsg": exc.err_msg,
                         "error": error_text,
+                        "responseSummary": diagnostic.get("responseSummary"),
                     }
                 ),
             )
@@ -487,6 +535,7 @@ def _mark_failed(video_task_id: str, reason: str) -> None:
 def _clone_task(task: dict[str, Any]) -> dict[str, Any]:
     cloned = dict(task)
     cloned.pop("_prompt", None)
+    cloned.pop("configSnapshot", None)
     cloned["events"] = [dict(event) for event in list(task.get("events") or [])]
     return cloned
 

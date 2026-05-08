@@ -65,6 +65,21 @@ class PixVerseTaskEvent(BaseModel):
     errMsg: Optional[str] = None
 
 
+class PixVerseCallDiagnostic(BaseModel):
+    at: int
+    phase: str
+    method: str
+    url: str
+    traceId: str
+    requestHeaders: dict[str, str] = Field(default_factory=dict)
+    requestSummary: dict[str, object] = Field(default_factory=dict)
+    httpStatus: Optional[int] = None
+    providerErrCode: Optional[int] = None
+    providerErrMsg: Optional[str] = None
+    providerStatus: Optional[int] = None
+    responseSummary: dict[str, object] = Field(default_factory=dict)
+
+
 class PixVerseTask(BaseModel):
     videoTaskId: str
     forgeTaskId: Optional[str] = None
@@ -93,7 +108,10 @@ class PixVerseTaskListResponse(BaseModel):
 
 
 class PixVerseConfigResponse(BaseModel):
+    configSource: str
     baseUrl: Optional[str] = None
+    submitUrl: Optional[str] = None
+    resultUrlTemplate: Optional[str] = None
     apiKeyHint: Optional[str] = None
     model: Optional[str] = None
     quality: Optional[str] = None
@@ -107,6 +125,13 @@ class PixVerseConfigResponse(BaseModel):
     timeoutSeconds: float
     missing: List[str] = Field(default_factory=list)
     fieldSources: dict[str, str] = Field(default_factory=dict)
+
+
+class PixVerseTaskDebugResponse(BaseModel):
+    task: PixVerseTask
+    config: PixVerseConfigResponse
+    latestSubmitCall: Optional[PixVerseCallDiagnostic] = None
+    latestPollCall: Optional[PixVerseCallDiagnostic] = None
 
 
 class PlayerQuotaResponse(BaseModel):

@@ -37,6 +37,8 @@ uvicorn app.main:app --reload --port 18001
   PixVerse 最小后端闭环的配置快照入口，用于核对 `base_url / model / quality / aspect_ratio / generate_audio_switch` 等运行时值。
 - `http://localhost:18001/api/debug/pixverse/tasks`
   PixVerse 调试任务列表入口，用于查看本地 video task、关联 forge task、PixVerse `video_id`、当前状态与 MP4 URL。
+- `http://localhost:18001/api/debug/pixverse/tasks/{videoTaskId}`
+  PixVerse 单任务诊断入口，用于查看最近一次提交/轮询的 endpoint、脱敏 header、trace id、HTTP status 与 ErrCode/ErrMsg。
 
 ## 当前开发阶段
 
