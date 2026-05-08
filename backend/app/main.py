@@ -1,3 +1,4 @@
+import json
 import os
 import logging
 from pathlib import Path
@@ -5,7 +6,9 @@ from pathlib import Path
 from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from alchemy_glyph_router.env_config import build_runtime_snapshot
 
+from .routes.debug import router as debug_router
 from .routes.forge import router as forge_router
 from .routes.quota import router as quota_router
 
@@ -30,17 +33,29 @@ app.add_middleware(
 
 app.include_router(forge_router)
 app.include_router(quota_router)
+app.include_router(debug_router)
+
+runtime_logger = logging.getLogger("forge.runtime")
+
+
+@app.on_event("startup")
+def log_runtime_snapshot():
+    runtime_logger.info(
+        "llm.runtime_snapshot %s",
+        json.dumps(build_runtime_snapshot(), ensure_ascii=False, separators=(",", ":")),
+    )
 
 
 @app.get("/")
 def root():
     use_llm = os.getenv("FORGE_USE_REAL_LLM", "false")
-    provider = os.getenv("LLM_PROVIDER", "gemini_rest")
-    model = os.getenv("LLM_MODEL", "gemini-2.0-flash")
+    snapshot = build_runtime_snapshot()
     return {
         "message": "Alchemy Game Backend",
         "status": "running",
         "forge_use_real_llm": use_llm,
-        "llm_provider": provider,
-        "llm_model": model,
+        "llm_provider": snapshot["forge"]["provider"],
+        "llm_model": snapshot["forge"]["model"],
+        "glyph_router_model": snapshot["glyphRouter"]["model"],
+        "llm_config_aligned": snapshot["aligned"],
     }

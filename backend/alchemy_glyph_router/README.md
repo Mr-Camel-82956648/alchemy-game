@@ -107,15 +107,26 @@ pip install -r requirements.txt
 
 ## 环境变量
 
-在项目根目录放置 `.env`，至少配置以下变量：
+如果作为本仓库里的嵌入模块使用，推荐把变量统一写到 `backend/.env`。
+只有当 `backend/.env` 不存在时，glyph router 才会退回读取
+`backend/alchemy_glyph_router/.env`。
+
+推荐变量格式如下：
 
 ```env
+LLM_PROVIDER=openai_compat
 LLM_BASE_URL=
 LLM_API_KEY=
 OPENAI_COMPAT_MODEL=
 LLM_TIMEOUT_SECONDS=
+LLM_MAX_RETRIES=
 LOG_LEVEL=
 ```
+
+兼容说明：
+
+- 若 `LLM_PROVIDER=openai_compat` 且 `OPENAI_COMPAT_MODEL` 缺失，会兼容回退到 `LLM_MODEL`
+- `GEMINI_API_KEY` 只影响宿主 forge 语义阶段，不会被 glyph router 直接使用
 
 ## 使用方式
 

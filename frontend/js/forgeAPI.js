@@ -171,11 +171,17 @@ const ForgeAPI = (() => {
     }
 
     function realForge(cardA, cardB) {
+        const playerId = GameStorage.getPlayerId();
+        console.log('[ForgeAPI] creating forge task:', {
+            playerId,
+            inputState: buildInputState(cardA, cardB),
+            inputSummary: buildInputSummary(cardA, cardB)
+        });
         return fetch(`${API_BASE}/api/forge`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                playerId: GameStorage.getPlayerId(),
+                playerId,
                 spellA: buildRequestSpell(cardA),
                 spellB: buildRequestSpell(cardB)
             })

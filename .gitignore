@@ -37,6 +37,7 @@ _archive_claude/
 # ===== Environment variables =====
 .env
 .env.*
+!backend/alchemy_glyph_router/.env.example
 
 # ===== Ripgrep / search ignore (not needed in repo) =====
 # .ignore is kept for local ripgrep use, not excluded

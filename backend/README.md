@@ -24,28 +24,33 @@ uvicorn app.main:app --reload --port 18001
 
 ## 环境变量
 
+推荐把本地 LLM 配置统一写在 `backend/.env`。优先使用与
+`backend/alchemy_glyph_router/.env.example` 对齐的变量格式：
+
 ```env
 FORGE_USE_REAL_LLM=true
-LLM_PROVIDER=gemini_rest
-GEMINI_API_KEY=your_gemini_api_key
-LLM_MODEL=gemini-2.0-flash
-LLM_TIMEOUT_SECONDS=30
-LLM_MAX_RETRIES=1
-FORGE_DAILY_QUOTA=5
-FORGE_QUOTA_TIMEZONE=Asia/Shanghai
-
-# 模块B / OpenAI-compatible 配置
+LLM_PROVIDER=openai_compat
 LLM_BASE_URL=
 LLM_API_KEY=
 OPENAI_COMPAT_MODEL=
+LLM_TIMEOUT_SECONDS=60
+LLM_MAX_RETRIES=1
 LOG_LEVEL=INFO
+
+FORGE_DAILY_QUOTA=5
+FORGE_QUOTA_TIMEZONE=Asia/Shanghai
 ```
 
-说明：
+兼容说明：
 
+- 推荐统一方案：`LLM_PROVIDER=openai_compat`，让 forge 与模块B共用 `LLM_BASE_URL / LLM_API_KEY / OPENAI_COMPAT_MODEL`
+- 旧 Gemini 方案仍兼容：`LLM_PROVIDER=gemini_rest` + `GEMINI_API_KEY` + `LLM_MODEL`
+- 当 `LLM_PROVIDER=openai_compat` 且未设置 `OPENAI_COMPAT_MODEL` 时，模块B会兼容回退到 `LLM_MODEL`
+- `backend/.env` 是宿主主配置；只有在它不存在时，模块B才会退回读取 `backend/alchemy_glyph_router/.env`
 - `FORGE_USE_REAL_LLM=false` 时，forge 语义阶段直接走本地 fallback
-- 模块B 会优先通过 `run_alchemy_glyph_router(theme, save_output=False, verbose=False)` 生成 `videoPrompt`
 - 模块B失败时不会阻断 forge 主流程，后端会回退到本地 `videoPrompt`
+
+更完整的接手说明见 [../docs/llm-env-alignment.md](../docs/llm-env-alignment.md)。
 
 ## 接口
 
@@ -170,3 +175,8 @@ GET /api/player/quota?playerId=player_xxx
 - `videoUrl` 仍为 `null`
 - 前端目前没有新增复杂配额 UI
 - 视频 API / CLI / MP4 仍未接入
+
+## 调试与验证
+
+- 启动后端时会输出一条 `llm.runtime_snapshot` 日志，包含 forge 与 glyph router 的脱敏配置摘要
+- 可访问 `GET /api/debug/llm-config` 查看当前运行时实际命中的 provider、model、base_url、apiKeyHint、变量来源与对齐状态

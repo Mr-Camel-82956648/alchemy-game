@@ -4,6 +4,8 @@ import logging
 import sys
 from pathlib import Path
 
+from alchemy_glyph_router.env_config import resolve_glyph_router_llm_config
+
 logger = logging.getLogger("forge.prompt_router")
 
 _RUNNER = None
@@ -12,6 +14,8 @@ _RUNNER = None
 def run_prompt_router(theme: str, *, task_id: str | None = None) -> dict:
     cleaned_theme = str(theme or "").strip()
     entered_module_b = False
+    glyph_config = resolve_glyph_router_llm_config()
+    config_summary = glyph_config.summary()
 
     logger.info(
         "prompt_router.request %s",
@@ -20,6 +24,7 @@ def run_prompt_router(theme: str, *, task_id: str | None = None) -> dict:
                 "taskId": task_id,
                 "themeText": cleaned_theme,
                 "moduleBAttempted": True,
+                "llmConfig": config_summary,
             }
         ),
     )
@@ -43,6 +48,7 @@ def run_prompt_router(theme: str, *, task_id: str | None = None) -> dict:
                     "routeElapsedMs": payload.get("route_elapsed_ms"),
                     "generationElapsedMs": payload.get("generation_elapsed_ms"),
                     "totalElapsedMs": payload.get("total_elapsed_ms"),
+                    "llmConfig": config_summary,
                 }
             ),
         )
@@ -60,6 +66,7 @@ def run_prompt_router(theme: str, *, task_id: str | None = None) -> dict:
                     "fallbackReason": failure_reason,
                     "exceptionType": type(exc).__name__,
                     "exceptionSummary": _exception_summary(exc),
+                    "llmConfig": config_summary,
                 }
             ),
         )

@@ -7,6 +7,8 @@ import time
 import uuid
 from typing import Dict, Iterable, List, Optional
 
+from alchemy_glyph_router.env_config import resolve_forge_llm_config
+
 from ..models import ForgeResult
 from .llm_client import call_forge_semantic_llm
 from .prompt_router_service import build_prompt_fallback, run_prompt_router
@@ -329,9 +331,16 @@ def _build_semantic_result(
 
     llm_result = None
     if use_real_llm:
-        provider = os.getenv("LLM_PROVIDER", "gemini_rest")
-        model = os.getenv("LLM_MODEL", "gemini-2.0-flash")
-        print(f"[FORGE] LLM enabled - provider={provider}, model={model}, inputState={input_state}")
+        config = resolve_forge_llm_config()
+        print(
+            "[FORGE] LLM enabled - "
+            f"provider={config.provider}, "
+            f"family={config.source_family}, "
+            f"model={config.model}, "
+            f"base_url={config.base_url or '-'}, "
+            f"api_key={config.api_key_hint() or '-'}, "
+            f"inputState={input_state}"
+        )
         llm_result = call_forge_semantic_llm(input_state=input_state, spell_a=spell_a, spell_b=spell_b)
         if llm_result:
             print(f"[FORGE] LLM SUCCESS - name={llm_result.get('name')}, attrSet={llm_result.get('attrSet')}")

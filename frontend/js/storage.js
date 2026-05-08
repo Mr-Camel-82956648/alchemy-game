@@ -4,6 +4,7 @@
 const GameStorage = (() => {
     const STORAGE_KEY = 'alchemy-forge-data';
     const SEED_VERSION = 4;
+    const PLAYER_ID_PARAM = 'playerId';
 
     const DEFAULT_DATA = {
         playerId: null,
@@ -34,12 +35,62 @@ const GameStorage = (() => {
         return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
     }
 
+    function sanitizePlayerId(value) {
+        const text = String(value || '').trim();
+        if (!text) return null;
+        if (!/^[A-Za-z0-9_-]{6,64}$/.test(text)) return null;
+        return text;
+    }
+
+    function getUrlPlayerIdOverride() {
+        try {
+            const params = new URLSearchParams(window.location.search || '');
+            return sanitizePlayerId(params.get(PLAYER_ID_PARAM));
+        } catch {
+            return null;
+        }
+    }
+
+    function setPlayerId(playerId) {
+        const normalized = sanitizePlayerId(playerId);
+        if (!normalized) {
+            throw new Error('playerId must be 6-64 chars and only use letters, numbers, _ or -');
+        }
+        const data = load();
+        data.playerId = normalized;
+        save(data);
+        console.log('[Storage] playerId set:', normalized);
+        return normalized;
+    }
+
+    function resetPlayerId() {
+        const nextId = `player_${generateId()}`;
+        return setPlayerId(nextId);
+    }
+
     function getPlayerId() {
         const data = load();
+        const urlOverride = getUrlPlayerIdOverride();
+        if (urlOverride && data.playerId !== urlOverride) {
+            data.playerId = urlOverride;
+            save(data);
+            console.log('[Storage] playerId overridden from URL:', urlOverride);
+        }
         if (data.playerId) return data.playerId;
         data.playerId = `player_${generateId()}`;
         save(data);
         return data.playerId;
+    }
+
+    function getPlayerIdInfo() {
+        const currentPlayerId = getPlayerId();
+        const data = load();
+        return {
+            playerId: currentPlayerId,
+            storedPlayerId: sanitizePlayerId(data.playerId),
+            urlOverride: getUrlPlayerIdOverride(),
+            storageKey: STORAGE_KEY
+        };
     }
 
     function normalizeStoredAttrSet(cardLike) {
@@ -334,6 +385,9 @@ const GameStorage = (() => {
         save,
         generateId,
         getPlayerId,
+        setPlayerId,
+        resetPlayerId,
+        getPlayerIdInfo,
         seedIfNeeded,
         getCards,
         getSpellCards,

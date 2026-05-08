@@ -1,10 +1,12 @@
 from __future__ import annotations
 
-import os
 from dataclasses import dataclass
 from pathlib import Path
 
-from dotenv import load_dotenv
+try:
+    from .env_config import resolve_glyph_router_llm_config
+except ImportError:
+    from env_config import resolve_glyph_router_llm_config
 
 
 @dataclass(frozen=True)
@@ -14,6 +16,10 @@ class Settings:
     model: str
     timeout_seconds: float
     log_level: str
+    source_family: str
+    field_sources: dict[str, str]
+    env_files_loaded: tuple[str, ...]
+    api_key_hint: str | None
     root_dir: Path
     outputs_dir: Path
     logs_dir: Path
@@ -22,27 +28,22 @@ class Settings:
 
 
 def load_settings() -> Settings:
-    load_dotenv()
+    resolved = resolve_glyph_router_llm_config()
+    if resolved.missing:
+        raise ValueError(f"missing_env={','.join(resolved.missing)}")
 
-    required_values = {
-        "LLM_BASE_URL": os.getenv("LLM_BASE_URL"),
-        "LLM_API_KEY": os.getenv("LLM_API_KEY"),
-        "OPENAI_COMPAT_MODEL": os.getenv("OPENAI_COMPAT_MODEL"),
-    }
-    missing = [name for name, value in required_values.items() if not value]
-    if missing:
-        raise ValueError(f"missing_env={','.join(missing)}")
-
-    timeout_raw = os.getenv("LLM_TIMEOUT_SECONDS", "60")
-    log_level = os.getenv("LOG_LEVEL", "INFO").upper()
     root_dir = Path(__file__).resolve().parent
 
     return Settings(
-        base_url=required_values["LLM_BASE_URL"].rstrip("/"),
-        api_key=required_values["LLM_API_KEY"],
-        model=required_values["OPENAI_COMPAT_MODEL"],
-        timeout_seconds=float(timeout_raw),
-        log_level=log_level,
+        base_url=(resolved.base_url or "").rstrip("/"),
+        api_key=resolved.api_key or "",
+        model=resolved.model or "",
+        timeout_seconds=resolved.timeout_seconds,
+        log_level=resolved.log_level,
+        source_family=resolved.source_family,
+        field_sources=dict(resolved.field_sources),
+        env_files_loaded=resolved.env_files_loaded,
+        api_key_hint=resolved.api_key_hint(),
         root_dir=root_dir,
         outputs_dir=root_dir / "outputs",
         logs_dir=root_dir / "logs",

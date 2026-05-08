@@ -76,6 +76,11 @@ def run_alchemy_glyph_router(
 
         logger.info("started_at", started_at)
         logger.info("theme", theme)
+        logger.info("llm_source_family", settings.source_family)
+        logger.info("llm_field_sources", json.dumps(settings.field_sources, ensure_ascii=False))
+        logger.info("llm_base_url", settings.base_url)
+        logger.info("llm_api_key_hint", settings.api_key_hint or "")
+        logger.info("llm_env_files", ",".join(settings.env_files_loaded) if settings.env_files_loaded else "process_env_only")
 
         route_started = time.perf_counter()
         try:
@@ -120,6 +125,11 @@ def run_alchemy_glyph_router(
             "fallback_applied": fallback_applied,
             "final_template": final_template,
             "model": settings.model,
+            "llm_source_family": settings.source_family,
+            "llm_base_url": settings.base_url,
+            "llm_api_key_hint": settings.api_key_hint,
+            "llm_field_sources": dict(settings.field_sources),
+            "llm_env_files": list(settings.env_files_loaded),
             "final_prompt": final_prompt,
             "created_at": datetime.now().astimezone().isoformat(),
             "started_at": started_at,
