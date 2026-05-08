@@ -1,0 +1,16 @@
+{
+  "id": "fire-basic-01",
+  "name": "炎龙法阵",
+  "sourceType": "built_in",
+  "category": "default_pool",
+  "attrSet": ["fire"],
+  "generation": 1,
+  "inputPhrase": "火龙",
+  "videoPrompt": "TODO: fill final video prompt for fire-basic-01",
+  "description": "默认火系法阵池中的基础高表现法阵。",
+  "videoPath": "video.mp4",
+  "thumbnailPath": "thumbnail.webp",
+  "origin": "handcrafted",
+  "originCardId": null,
+  "curationNote": null
+}

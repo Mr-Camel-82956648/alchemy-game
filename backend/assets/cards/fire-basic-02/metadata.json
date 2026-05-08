@@ -1,0 +1,16 @@
+{
+  "id": "fire-basic-02",
+  "name": "熔火轮印",
+  "sourceType": "built_in",
+  "category": "default_pool",
+  "attrSet": ["fire"],
+  "generation": 1,
+  "inputPhrase": "熔火",
+  "videoPrompt": "TODO: fill final video prompt for fire-basic-02",
+  "description": "默认火系法阵池中的基础轮印法阵。",
+  "videoPath": "video.mp4",
+  "thumbnailPath": "thumbnail.webp",
+  "origin": "handcrafted",
+  "originCardId": null,
+  "curationNote": null
+}

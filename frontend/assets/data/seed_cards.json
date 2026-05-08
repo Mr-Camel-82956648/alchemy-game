@@ -41,8 +41,8 @@
     "status": "partial",
     "videoUrl": "assets/videos/20260424080112_7b7b10fc.mp4",
     "thumbnailUrl": "assets/thumbnails/thumb_03.webp",
-    "element": "poison",
-    "mainAttr": "poison",
+    "element": "blight",
+    "mainAttr": "blight",
     "subAttr": null,
     "generation": 1,
     "baseAtk": 100
@@ -67,7 +67,7 @@
     "thumbnailUrl": "assets/thumbnails/thumb_05.webp",
     "element": "ice",
     "mainAttr": "ice",
-    "subAttr": "poison",
+    "subAttr": "blight",
     "generation": 1,
     "baseAtk": 100
   },
@@ -89,8 +89,8 @@
     "status": "partial",
     "videoUrl": "assets/videos/effect_02.mp4",
     "thumbnailUrl": "assets/thumbnails/thumb_07.webp",
-    "element": "poison",
-    "mainAttr": "poison",
+    "element": "blight",
+    "mainAttr": "blight",
     "subAttr": "ice",
     "generation": 1,
     "baseAtk": 100
@@ -137,8 +137,8 @@
     "status": "partial",
     "videoUrl": "assets/videos/拍我AI_Pixverse-c1_图文模式_360P_25D_纯特效版：原始金色地阵_Pri.mp4",
     "thumbnailUrl": "assets/thumbnails/thumb_11.webp",
-    "element": "poison",
-    "mainAttr": "poison",
+    "element": "blight",
+    "mainAttr": "blight",
     "subAttr": "fire",
     "generation": 1,
     "baseAtk": 100
@@ -151,7 +151,7 @@
     "thumbnailUrl": "assets/thumbnails/thumb_12.webp",
     "element": "fire",
     "mainAttr": "fire",
-    "subAttr": "poison",
+    "subAttr": "blight",
     "generation": 1,
     "baseAtk": 100
   },
@@ -197,8 +197,8 @@
     "status": "legacy",
     "spellImgUrl": "assets/spells/PixVerse_Image_Effect_prompt_改为绿烟毒物骷髅效果，依旧保持圆环.jpg",
     "thumbnailUrl": "assets/spells/PixVerse_Image_Effect_prompt_改为绿烟毒物骷髅效果，依旧保持圆环.jpg",
-    "element": "poison",
-    "mainAttr": "poison",
+    "element": "blight",
+    "mainAttr": "blight",
     "subAttr": null,
     "generation": 1,
     "baseAtk": 100

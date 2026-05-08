@@ -1,0 +1,16 @@
+{
+  "id": "blight-basic-02",
+  "name": "厄藤轮印",
+  "sourceType": "built_in",
+  "category": "default_pool",
+  "attrSet": ["blight"],
+  "generation": 1,
+  "inputPhrase": "毒藤",
+  "videoPrompt": "TODO: fill final video prompt for blight-basic-02",
+  "description": "默认毒系法阵池中的基础轮印法阵。",
+  "videoPath": "video.mp4",
+  "thumbnailPath": "thumbnail.webp",
+  "origin": "handcrafted",
+  "originCardId": null,
+  "curationNote": null
+}

@@ -1,0 +1,16 @@
+{
+  "id": "ice-basic-01",
+  "name": "冰凌法阵",
+  "sourceType": "built_in",
+  "category": "default_pool",
+  "attrSet": ["ice"],
+  "generation": 1,
+  "inputPhrase": "冰凌",
+  "videoPrompt": "TODO: fill final video prompt for ice-basic-01",
+  "description": "默认冰系法阵池中的基础高表现法阵。",
+  "videoPath": "video.mp4",
+  "thumbnailPath": "thumbnail.webp",
+  "origin": "handcrafted",
+  "originCardId": null,
+  "curationNote": null
+}

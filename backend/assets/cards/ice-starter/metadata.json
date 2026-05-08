@@ -1,0 +1,16 @@
+{
+  "id": "ice-starter",
+  "name": "霜华法印",
+  "sourceType": "built_in",
+  "category": "starter",
+  "attrSet": ["ice"],
+  "generation": 1,
+  "inputPhrase": "冰",
+  "videoPrompt": "TODO: fill final video prompt for ice-starter",
+  "description": "新手初始资产池中的冰系基础武器。",
+  "videoPath": "video.mp4",
+  "thumbnailPath": "thumbnail.webp",
+  "origin": "handcrafted",
+  "originCardId": null,
+  "curationNote": null
+}

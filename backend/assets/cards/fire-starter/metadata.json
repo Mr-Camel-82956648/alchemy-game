@@ -1,0 +1,16 @@
+{
+  "id": "fire-starter",
+  "name": "赤焰法印",
+  "sourceType": "built_in",
+  "category": "starter",
+  "attrSet": ["fire"],
+  "generation": 1,
+  "inputPhrase": "火",
+  "videoPrompt": "TODO: fill final video prompt for fire-starter",
+  "description": "新手初始资产池中的火系基础武器。",
+  "videoPath": "video.mp4",
+  "thumbnailPath": "thumbnail.webp",
+  "origin": "handcrafted",
+  "originCardId": null,
+  "curationNote": null
+}

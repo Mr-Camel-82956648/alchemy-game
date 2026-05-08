@@ -13,7 +13,7 @@ THUMB_DIR = "assets/thumbnails"
 THUMB_SIZE = (180, 180)
 OUTPUT_JSON = "assets/seed_cards.json"
 
-ELEMENT_CYCLE = ["fire", "ice", "thunder", "poison"]
+ELEMENT_CYCLE = ["fire", "ice", "thunder", "blight"]
 NAME_MAP = {
     "effect_01": "炎爆法阵",
     "effect_02": "寒冰法阵",

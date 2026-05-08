@@ -1,0 +1,16 @@
+{
+  "id": "thunder-starter",
+  "name": "雷鸣法印",
+  "sourceType": "built_in",
+  "category": "starter",
+  "attrSet": ["thunder"],
+  "generation": 1,
+  "inputPhrase": "雷",
+  "videoPrompt": "TODO: fill final video prompt for thunder-starter",
+  "description": "新手初始资产池中的雷系基础武器。",
+  "videoPath": "video.mp4",
+  "thumbnailPath": "thumbnail.webp",
+  "origin": "handcrafted",
+  "originCardId": null,
+  "curationNote": null
+}

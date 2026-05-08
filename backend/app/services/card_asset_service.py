@@ -166,11 +166,26 @@ def _resolve_static_asset_path(
         return None, None
 
     if not resolved.is_file():
-        logger.warning("card.asset_file_missing %s %s %s", field_name, metadata_path, normalized_rel)
+        logger.debug("card.asset_file_missing %s %s %s", field_name, metadata_path, normalized_rel)
         return normalized_rel, None
 
     static_rel = (asset_dir.resolve().relative_to(STATIC_ASSET_DIR.resolve()) / normalized_rel).as_posix()
     return normalized_rel, f"{STATIC_ASSET_URL_BASE}/{quote(static_rel, safe='/')}"
+
+
+def _collect_missing_media(
+    *,
+    thumbnail_field_value: Any,
+    thumbnail_url: str | None,
+    video_field_value: Any,
+    video_url: str | None,
+) -> list[str]:
+    missing: list[str] = []
+    if _clean_text(thumbnail_field_value) and not thumbnail_url:
+        missing.append("thumbnail")
+    if _clean_text(video_field_value) and not video_url:
+        missing.append("video")
+    return missing
 
 
 def load_persisted_video_tasks() -> dict[str, dict[str, Any]]:
@@ -423,6 +438,12 @@ def _scan_static_assets() -> list[dict[str, Any]]:
             thumbnail_url = legacy_thumbnail_url
         if not video_url and legacy_video_url:
             video_url = legacy_video_url
+        missing_media = _collect_missing_media(
+            thumbnail_field_value=payload.get("thumbnailPath"),
+            thumbnail_url=thumbnail_url,
+            video_field_value=payload.get("videoPath"),
+            video_url=video_url,
+        )
 
         attr_set = _normalize_attr_set(payload.get("attrSet"))
         status = STATUS_COMPLETED if video_url else STATUS_NOT_GENERATED
@@ -450,6 +471,8 @@ def _scan_static_assets() -> list[dict[str, Any]]:
             "thumbnailPath": thumbnail_path,
             "thumbnailUrl": thumbnail_url,
             "videoPath": video_path,
+            "mediaReady": not missing_media,
+            "missingMedia": missing_media,
             "videoTaskId": None,
             "pixverseVideoId": None,
             "providerStatus": 1 if video_url else None,

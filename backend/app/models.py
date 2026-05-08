@@ -179,6 +179,8 @@ class CardVideoStatus(BaseModel):
     thumbnailPath: Optional[str] = None
     thumbnailUrl: Optional[str] = None
     videoPath: Optional[str] = None
+    mediaReady: Optional[bool] = None
+    missingMedia: List[str] = Field(default_factory=list)
     videoTaskId: Optional[str] = None
     pixverseVideoId: Optional[int] = None
     providerStatus: Optional[int] = None

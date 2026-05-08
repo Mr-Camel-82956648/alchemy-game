@@ -1,0 +1,16 @@
+{
+  "id": "thunder-basic-02",
+  "name": "紫电轮印",
+  "sourceType": "built_in",
+  "category": "default_pool",
+  "attrSet": ["thunder"],
+  "generation": 1,
+  "inputPhrase": "紫电",
+  "videoPrompt": "TODO: fill final video prompt for thunder-basic-02",
+  "description": "默认雷系法阵池中的基础轮印法阵。",
+  "videoPath": "video.mp4",
+  "thumbnailPath": "thumbnail.webp",
+  "origin": "handcrafted",
+  "originCardId": null,
+  "curationNote": null
+}

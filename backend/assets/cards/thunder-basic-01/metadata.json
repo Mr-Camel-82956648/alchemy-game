@@ -1,0 +1,16 @@
+{
+  "id": "thunder-basic-01",
+  "name": "奔雷法阵",
+  "sourceType": "built_in",
+  "category": "default_pool",
+  "attrSet": ["thunder"],
+  "generation": 1,
+  "inputPhrase": "奔雷",
+  "videoPrompt": "TODO: fill final video prompt for thunder-basic-01",
+  "description": "默认雷系法阵池中的基础高表现法阵。",
+  "videoPath": "video.mp4",
+  "thumbnailPath": "thumbnail.webp",
+  "origin": "handcrafted",
+  "originCardId": null,
+  "curationNote": null
+}
