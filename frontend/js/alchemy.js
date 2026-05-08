@@ -9,6 +9,7 @@ const Alchemy = (() => {
     let activePixVerseDebugCardId = null;
     const PENDING_RESULT_RETRY_MS = 1000;
     const MAX_PENDING_RESULT_RETRIES = 180;
+    const MAX_REVEAL_VIDEO_WAIT_RETRIES = 12;
     const PIXVERSE_DEBUG_POLL_MS = 3000;
     let activeSettlementTaskId = null;
 
@@ -29,6 +30,9 @@ const Alchemy = (() => {
         els.revealPixVerseStatus = document.getElementById('reveal-debug-pixverse-status');
         els.revealPixVerseUrl = document.getElementById('reveal-debug-pixverse-url');
         els.revealPixVerseError = document.getElementById('reveal-debug-pixverse-error');
+        els.revealVideoStatusText = document.getElementById('reveal-video-status-text');
+        els.revealDebugPanel = document.getElementById('reveal-debug-panel');
+        els.revealDebugToggleBtn = document.getElementById('btn-reveal-debug-toggle');
         els.revealPixVerseStartBtn = document.getElementById('btn-reveal-pixverse-start');
         els.revealPixVerseOpenBtn = document.getElementById('btn-reveal-pixverse-open');
 
@@ -43,7 +47,14 @@ const Alchemy = (() => {
                 if (url) window.open(url, '_blank', 'noopener');
             });
         }
+        if (els.revealDebugToggleBtn) {
+            els.revealDebugToggleBtn.addEventListener('click', () => {
+                const isHidden = Boolean(els.revealDebugPanel?.hidden);
+                setRevealDebugOpen(isHidden);
+            });
+        }
 
+        setRevealDebugOpen(false);
 
         refreshSlots();
     }
@@ -179,11 +190,67 @@ const Alchemy = (() => {
         els.settlementOverlay.hidden = true;
     }
 
+    function setRevealDebugOpen(open) {
+        if (els.revealDebugPanel) {
+            els.revealDebugPanel.hidden = !open;
+        }
+        if (els.revealDebugToggleBtn) {
+            els.revealDebugToggleBtn.textContent = open ? '收起调试' : '展开调试';
+        }
+    }
+
+    function getPendingRewardCard(taskId = null) {
+        const pending = GameStorage.getPending();
+        if (!pending) return null;
+        if (taskId && pending.taskId !== taskId) return null;
+        return GameStorage.getPendingRewardCard(pending.taskId);
+    }
+
+    function getRevealCardSnapshot(cardId = null) {
+        const targetId = cardId || revealedCard?.id || null;
+        const pendingCard = getPendingRewardCard();
+        if (targetId && pendingCard?.id === targetId) return pendingCard;
+        if (targetId) return GameStorage.getCard(targetId) || pendingCard || revealedCard;
+        return pendingCard || revealedCard;
+    }
+
+    function isPendingRewardReadyForReveal(pending, { allowGenerating = false } = {}) {
+        if (!pending?.result) return false;
+        const rewardCard = getPendingRewardCard(pending.taskId) || pending.rewardDraft || null;
+        if (!rewardCard) return false;
+        const status = rewardCard.videoStatus || 'not_generated';
+        if (!rewardCard.videoPrompt) return true;
+        if (status === 'completed' || status === 'failed') return true;
+        return allowGenerating && (status === 'generating' || status === 'not_generated');
+    }
+
+    function buildSettlementCopy(pending, attempt = 0) {
+        if (!pending?.result) {
+            return '本次 battle 已胜利，正在等待当前 forge task 完成。';
+        }
+        const rewardCard = getPendingRewardCard(pending.taskId) || pending.rewardDraft || null;
+        if (!rewardCard) {
+            return '本次 battle 已胜利，正在整理本轮奖励与视频任务。';
+        }
+        const status = rewardCard.videoStatus || 'not_generated';
+        if (status === 'completed') {
+            return '本次奖励已完成收尾，正在进入 reveal。';
+        }
+        if (status === 'failed') {
+            return '视频任务失败，将先展示本轮法阵并保留调试入口。';
+        }
+        if (attempt >= MAX_REVEAL_VIDEO_WAIT_RETRIES) {
+            return '视频收尾超出预期，先进入 reveal，并继续保留轻量状态提示。';
+        }
+        return '本次 battle 已胜利，后台视频正在最后收尾，马上进入 reveal。';
+    }
+
     function showReveal(card) {
         stopPixVerseDebugPolling();
         activePixVerseDebugTaskId = null;
         activePixVerseDebugCardId = null;
         revealedCard = card;
+        setRevealDebugOpen(false);
         const overlay = document.getElementById('page-reveal');
         const cardEl = document.getElementById('reveal-card');
         const thumb = document.getElementById('reveal-thumb');
@@ -274,10 +341,15 @@ const Alchemy = (() => {
         const title = document.getElementById('reveal-title');
         const nameplate = document.getElementById('reveal-name');
         const actions = document.querySelector('.reveal-actions');
+        const currentCard = getRevealCardSnapshot();
 
-        if (discard && revealedCard && revealedCard.id !== '__debug__') {
-            GameStorage.removeCard(revealedCard.id);
+        if (!discard && currentCard && currentCard.id !== '__debug__') {
+            GameStorage.addCard({
+                ...currentCard,
+                assetSourceType: 'player_generated'
+            });
         }
+        GameStorage.clearPending();
         revealedCard = null;
 
         overlay.classList.remove('active');
@@ -295,7 +367,7 @@ const Alchemy = (() => {
         if (els.revealPixVerseStartBtn) {
             refreshRevealPixVerseAction(card, assetState);
             els.revealPixVerseStartBtn.onclick = async () => {
-                const currentCard = revealedCard?.id ? (GameStorage.getCard(revealedCard.id) || revealedCard) : revealedCard;
+                const currentCard = getRevealCardSnapshot();
                 const currentState = buildLocalPixVerseState(currentCard);
                 const canStart = Boolean(currentCard?.id && currentCard?.videoPrompt && ['not_generated', 'failed'].includes(currentState.status));
                 if (!canStart || !currentCard?.id) return;
@@ -357,16 +429,31 @@ const Alchemy = (() => {
         ].filter(Boolean).join(' | ');
     }
 
+    function describeRevealVideoSummary(task) {
+        if (!task) return '后台视频尚未启动';
+        const status = task.status || 'not_generated';
+        if (status === 'completed' || status === 'succeeded') return '视频已就绪，可直接查看';
+        if (status === 'failed') return '视频生成失败，可在调试面板重试';
+        if (status === 'generating' || status === 'queued' || status === 'submitting' || status === 'polling') {
+            return '后台视频生成中，预计很快完成';
+        }
+        return '后台视频任务待启动';
+    }
+
     function updatePixVerseDebug(task) {
         const statusText = describePixVerseStatus(task);
         const errorText = task
             ? (task.error || (task.status === 'failed' ? (task.providerErrMsg || '未知失败') : '无'))
             : '无';
+        const summaryText = describeRevealVideoSummary(task);
         if (els.revealPixVerseTask) {
             els.revealPixVerseTask.textContent = task?.videoTaskId || '未提交';
         }
         if (els.revealPixVerseStatus) {
             els.revealPixVerseStatus.textContent = statusText;
+        }
+        if (els.revealVideoStatusText) {
+            els.revealVideoStatusText.textContent = summaryText;
         }
         if (els.revealPixVerseUrl) {
             els.revealPixVerseUrl.textContent = task?.resultUrl || '无';
@@ -412,12 +499,12 @@ const Alchemy = (() => {
         }
         if (status === 'generating') {
             els.revealPixVerseStartBtn.disabled = true;
-            els.revealPixVerseStartBtn.textContent = 'PixVerse 生成中...';
+            els.revealPixVerseStartBtn.textContent = '后台视频生成中...';
             return;
         }
         if (status === 'completed') {
             els.revealPixVerseStartBtn.disabled = true;
-            els.revealPixVerseStartBtn.textContent = '当前 MP4 已就绪';
+            els.revealPixVerseStartBtn.textContent = '视频已就绪';
             return;
         }
         if (status === 'failed') {
@@ -426,19 +513,23 @@ const Alchemy = (() => {
             return;
         }
         els.revealPixVerseStartBtn.disabled = false;
-        els.revealPixVerseStartBtn.textContent = '生成 PixVerse MP4';
+        els.revealPixVerseStartBtn.textContent = '手动补起视频任务';
     }
 
     async function hydrateRevealPixVerseState(card) {
         if (!card?.id) return;
         const registerResp = await ForgeAPI.registerGeneratedCards([card]);
-        if (revealedCard?.id !== card.id) return;
+        const registeredAsset = registerResp?.cards?.find(item => item.cardId === card.id) || null;
+        if (revealedCard?.id !== card.id && getRevealCardSnapshot(card.id)?.id !== card.id) return;
 
-        const asset = registerResp?.cards?.find(item => item.cardId === card.id)
+        const asset = ((registeredAsset && registeredAsset.status !== 'not_generated')
+            ? registeredAsset
+            : null)
             || await ForgeAPI.getCardVideoStatus(card.id)
+            || registeredAsset
             || buildLocalPixVerseState(GameStorage.getCard(card.id) || card);
 
-        revealedCard = GameStorage.getCard(card.id) || card;
+        revealedCard = getRevealCardSnapshot(card.id) || card;
         activePixVerseDebugTaskId = asset?.videoTaskId || null;
         activePixVerseDebugCardId = card.id;
         updatePixVerseDebug(asset);
@@ -470,7 +561,7 @@ const Alchemy = (() => {
                 return;
             }
             activePixVerseDebugTaskId = task.videoTaskId || null;
-            revealedCard = GameStorage.getCard(cardId) || revealedCard;
+            revealedCard = getRevealCardSnapshot(cardId) || revealedCard;
             updatePixVerseDebug(task);
             refreshRevealPixVerseAction(revealedCard, task);
             const terminal = task.status === 'completed' || task.status === 'failed';
@@ -496,7 +587,7 @@ const Alchemy = (() => {
         return value.length > maxLength ? `${value.slice(0, maxLength)}...` : value;
     }
 
-    function finalizePendingResult(pending, trigger = 'unknown') {
+    function finalizePendingResult(pending, trigger = 'unknown', { forceReveal = false } = {}) {
         if (!pending?.result) return false;
         if (activeSettlementTaskId && pending.taskId !== activeSettlementTaskId) {
             console.warn('[Alchemy] finalize skipped for stale task:', {
@@ -506,9 +597,17 @@ const Alchemy = (() => {
             });
             return false;
         }
+        if (!isPendingRewardReadyForReveal(pending, { allowGenerating: forceReveal })) {
+            return false;
+        }
         stopPendingResultRetry();
         hideSettlementWaiting();
         const r = pending.result;
+        const rewardCard = getPendingRewardCard(pending.taskId) || pending.rewardDraft || null;
+        if (!rewardCard) {
+            console.warn('[Alchemy] finalize aborted: reward draft missing', { taskId: pending.taskId, trigger });
+            return false;
+        }
         console.log('[Alchemy] finalizePendingResult:', { trigger, ...r });
         console.log('[Alchemy] forge audit:', {
             trigger,
@@ -523,46 +622,22 @@ const Alchemy = (() => {
             promptModel: r.promptModel || null,
             themeText: r.themeText || null
         });
-        const thumbnail = GameStorage.generateTextThumbnail(r.name);
-        const newCard = GameStorage.addCard({
-            name: r.name,
-            type: 'spell',
-            status: r.status || 'complete',
-            videoUrl: r.videoUrl,
-            thumbnail,
-            attrSet: r.attrSet || [],
-            themeText: r.themeText || r.visualDesc || null,
-            videoPrompt: r.videoPrompt || r.fusionPrompt || null,
-            promptRoute: r.promptRoute || null,
-            promptRouteReason: r.promptRouteReason || null,
-            promptFallbackApplied: Boolean(r.promptFallbackApplied),
-            promptTemplate: r.promptTemplate || null,
-            promptModel: r.promptModel || null,
-            promptRouteElapsedMs: r.promptRouteElapsedMs ?? null,
-            promptGenerationElapsedMs: r.promptGenerationElapsedMs ?? null,
-            promptTotalElapsedMs: r.promptTotalElapsedMs ?? null,
-            taskId: r.taskId || pending.taskId,
-            assetSourceType: 'player_generated',
-            videoStatus: 'not_generated',
-            videoTaskId: null,
-            pixverseVideoId: null,
-            videoProviderStatus: null,
-            videoError: null,
-            videoResultUrl: null,
-            element: r.element || r.mainAttr,
-            mainAttr: r.mainAttr || r.element,
-            subAttr: r.subAttr || null,
-            generation: r.generation || 1,
-            baseAtk: r.baseAtk || SpellDefs.calcBaseAtk(r.generation || 1),
-            inputState: r.inputState || null,
-            inputSummary: r.inputSummary || pending.inputSummary || null,
-            source: r.source || null,
-            parentA: pending.cardAId,
-            parentB: pending.cardBId
+        console.log('[Alchemy] reward draft ready for reveal:', {
+            taskId: pending.taskId,
+            cardId: rewardCard.id,
+            videoStatus: rewardCard.videoStatus || null,
+            videoTaskId: rewardCard.videoTaskId || null,
+            hasVideoUrl: Boolean(rewardCard.videoUrl),
+            thumbnailKind: rewardCard.thumbnailKind || null,
+            forceReveal
         });
-        GameStorage.clearPending();
+        GameStorage.updatePending(pending.taskId, {
+            battleOutcome: 'victory',
+            grantStatus: 'awaiting_decision',
+            rewardDraft: rewardCard
+        });
         GameStorage.clearSlots();
-        showReveal(newCard);
+        showReveal(getPendingRewardCard(pending.taskId) || rewardCard);
         return true;
     }
 
@@ -603,6 +678,16 @@ const Alchemy = (() => {
         return GameStorage.getPending();
     }
 
+    async function syncPendingRun(taskId) {
+        const pending = await syncPendingResult(taskId);
+        if (!pending || pending.taskId !== taskId) return pending;
+        if (pending.status === 'done' && pending.result) {
+            await ForgeAPI.primePendingRewardRun(taskId, { refreshStatus: true });
+            return GameStorage.getPending();
+        }
+        return pending;
+    }
+
     function schedulePendingResultRetry(taskId, attempt = 0, trigger = 'retry_wait') {
         stopPendingResultRetry();
         activeSettlementTaskId = taskId;
@@ -618,15 +703,18 @@ const Alchemy = (() => {
                 hideSettlementWaiting();
                 return;
             }
-            const resolved = await syncPendingResult(taskId);
-            if (resolved && resolved.status === 'done' && resolved.result) {
-                finalizePendingResult(resolved, trigger);
+            const resolved = await syncPendingRun(taskId);
+            if (resolved && finalizePendingResult(resolved, trigger)) {
+                return;
+            }
+            if (resolved?.result && getPendingRewardCard(taskId) && attempt >= MAX_REVEAL_VIDEO_WAIT_RETRIES) {
+                finalizePendingResult(resolved, `${trigger}_force_reveal`, { forceReveal: true });
                 return;
             }
             if (activeSettlementTaskId === taskId) {
                 showSettlementWaiting(
                     GameStorage.getPending(),
-                    '本次 battle 已胜利，正在等待当前 forge task 完成后进入 reveal。'
+                    buildSettlementCopy(GameStorage.getPending(), attempt)
                 );
             }
             schedulePendingResultRetry(taskId, attempt + 1, trigger);
@@ -651,18 +739,20 @@ const Alchemy = (() => {
             inputSummary: pending.inputSummary || null
         });
         if (pending.status === 'done' && pending.result) {
-            finalizePendingResult(pending, 'battle_return_storage_ready');
-            return;
+            await ForgeAPI.primePendingRewardRun(pending.taskId, { refreshStatus: true });
+            const latestReadyPending = GameStorage.getPending();
+            if (latestReadyPending && finalizePendingResult(latestReadyPending, 'battle_return_storage_ready')) {
+                return;
+            }
         }
         refreshSlots();
         showSettlementWaiting(
             pending,
-            '本次 battle 已胜利，正在检查当前 forge task 是否已经完成。'
+            buildSettlementCopy(pending, 0)
         );
 
-        const resolved = await syncPendingResult(pending.taskId);
-        if (resolved && resolved.status === 'done' && resolved.result) {
-            finalizePendingResult(resolved, 'battle_return_ready');
+        const resolved = await syncPendingRun(pending.taskId);
+        if (resolved && finalizePendingResult(resolved, 'battle_return_ready')) {
             return;
         }
         const latestPending = GameStorage.getPending();
@@ -676,12 +766,13 @@ const Alchemy = (() => {
 
         showSettlementWaiting(
             latestPending,
-            '本次 battle 已胜利，但 forge 结果尚未完成。正在等待当前任务完成后进入 reveal。'
+            buildSettlementCopy(latestPending, 0)
         );
         console.log('[Alchemy] battle returned before forge result ready; waiting for same task:', {
             taskId: latestPending.taskId,
             inputState: latestPending.inputState || null,
-            inputSummary: latestPending.inputSummary || null
+            inputSummary: latestPending.inputSummary || null,
+            hasRewardDraft: Boolean(getPendingRewardCard(latestPending.taskId))
         });
         schedulePendingResultRetry(latestPending.taskId, 0, 'battle_return_wait');
     }

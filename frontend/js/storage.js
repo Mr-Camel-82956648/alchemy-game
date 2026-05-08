@@ -150,6 +150,11 @@ const GameStorage = (() => {
         return normalized;
     }
 
+    function normalizePendingRewardDraft(card) {
+        if (!card) return null;
+        return normalizeCardForRead(card);
+    }
+
     async function seedIfNeeded() {
         const data = load();
         if (data.seedVersion >= SEED_VERSION) return;
@@ -240,8 +245,9 @@ const GameStorage = (() => {
         const attrSet = normalizeStoredAttrSet(card);
         const assetSourceType = card.assetSourceType || (card.taskId ? 'player_generated' : (card.type === 'spell' && card.videoUrl ? 'built_in' : null));
         const videoStatus = normalizeVideoStatus(card.videoStatus, card.videoUrl ? 'completed' : (assetSourceType === 'player_generated' ? 'not_generated' : null));
+        const incomingId = card.id || generateId();
         const newCard = {
-            id: generateId(),
+            id: incomingId,
             name: card.name || '未命名',
             type: card.type || 'text',
             status: card.status || null,
@@ -249,6 +255,7 @@ const GameStorage = (() => {
             spellImgUrl: card.spellImgUrl || null,
             thumbnailUrl: card.thumbnailUrl || null,
             thumbnail: card.thumbnail || null,
+            thumbnailKind: card.thumbnailKind || null,
             attrSet,
             element: attrSet[0] || card.element || card.mainAttr || null,
             mainAttr: attrSet[0] || card.mainAttr || card.element || null,
@@ -282,9 +289,18 @@ const GameStorage = (() => {
             parentB: card.parentB || null,
             createdAt: Date.now()
         };
-        data.cards.push(newCard);
+        const existingIndex = data.cards.findIndex(item => item.id === incomingId);
+        if (existingIndex >= 0) {
+            data.cards[existingIndex] = {
+                ...data.cards[existingIndex],
+                ...newCard,
+                createdAt: data.cards[existingIndex].createdAt || newCard.createdAt
+            };
+        } else {
+            data.cards.push(newCard);
+        }
         save(data);
-        return normalizeCardForRead(newCard);
+        return normalizeCardForRead(existingIndex >= 0 ? data.cards[existingIndex] : newCard);
     }
 
     function updateCard(id, updates) {
@@ -360,6 +376,7 @@ const GameStorage = (() => {
             : { cardAId: cardAIdOrMeta ?? null, cardBId: cardBId ?? null };
         data.pendingGeneration = {
             taskId,
+            runId: meta.runId || `run_${generateId()}`,
             cardAId: meta.cardAId ?? null,
             cardBId: meta.cardBId ?? null,
             inputState: meta.inputState ?? null,
@@ -367,9 +384,38 @@ const GameStorage = (() => {
             source: meta.source ?? null,
             requestedAt: meta.requestedAt ?? Date.now(),
             status: meta.status || 'generating',
-            result: meta.result || null
+            result: meta.result || null,
+            rewardCardId: meta.rewardCardId || `reward_${generateId()}`,
+            rewardDraft: normalizePendingRewardDraft(meta.rewardDraft || null),
+            battleOutcome: meta.battleOutcome || null,
+            grantStatus: meta.grantStatus || 'pending',
+            grantedCardId: meta.grantedCardId || null
         };
         save(data);
+    }
+
+    function updatePending(taskId, updates = {}) {
+        const data = load();
+        const pending = data.pendingGeneration;
+        if (!pending) return null;
+        if (taskId && pending.taskId !== taskId) return null;
+
+        const nextPending = {
+            ...pending,
+            ...updates
+        };
+        if (Object.prototype.hasOwnProperty.call(updates, 'rewardDraft')) {
+            nextPending.rewardDraft = normalizePendingRewardDraft(updates.rewardDraft || null);
+        } else if (pending.rewardDraft) {
+            nextPending.rewardDraft = normalizePendingRewardDraft(pending.rewardDraft);
+        }
+        data.pendingGeneration = nextPending;
+        save(data);
+        return data.pendingGeneration;
+    }
+
+    function setPendingRewardDraft(taskId, card) {
+        return updatePending(taskId, { rewardDraft: card || null });
     }
 
     function writePendingResult(taskId, result) {
@@ -391,6 +437,13 @@ const GameStorage = (() => {
 
     function getPending() {
         return load().pendingGeneration;
+    }
+
+    function getPendingRewardCard(taskId = null) {
+        const pending = load().pendingGeneration;
+        if (!pending) return null;
+        if (taskId && pending.taskId !== taskId) return null;
+        return normalizePendingRewardDraft(pending.rewardDraft || null);
     }
 
     function clearPending() {
@@ -423,6 +476,10 @@ const GameStorage = (() => {
 
         card.assetId = asset.assetId || card.assetId || null;
         card.assetSourceType = asset.sourceType || card.assetSourceType || inferAssetSourceType(card);
+        if (asset.thumbnailUrl) {
+            card.thumbnailUrl = asset.thumbnailUrl;
+            card.thumbnail = null;
+        }
         card.videoStatus = normalizedStatus;
         card.videoTaskId = asset.videoTaskId || card.videoTaskId || null;
         card.pixverseVideoId = asset.pixverseVideoId ?? card.pixverseVideoId ?? null;
@@ -444,6 +501,15 @@ const GameStorage = (() => {
         applyVideoAssetStateToCardRecord(card, asset);
         save(data);
         return normalizeCardForRead(card);
+    }
+
+    function applyPendingVideoAssetState(cardId, asset) {
+        const data = load();
+        const pending = data.pendingGeneration;
+        if (!pending?.rewardDraft || pending.rewardDraft.id !== cardId) return null;
+        applyVideoAssetStateToCardRecord(pending.rewardDraft, asset);
+        save(data);
+        return normalizePendingRewardDraft(pending.rewardDraft);
     }
 
     function applyCardVideoAssetStates(assets) {
@@ -524,14 +590,18 @@ const GameStorage = (() => {
         setLoadoutSlot,
         getLoadoutIds,
         setPending,
+        updatePending,
+        setPendingRewardDraft,
         writePendingResult,
         getPending,
+        getPendingRewardCard,
         clearPending,
         isTutorialDone,
         markTutorialDone,
         getCardThumb,
         generateTextThumbnail,
         applyCardVideoAssetState,
-        applyCardVideoAssetStates
+        applyCardVideoAssetStates,
+        applyPendingVideoAssetState
     };
 })();

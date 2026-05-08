@@ -74,7 +74,9 @@ uvicorn app.main:app --reload --port 18001
 - 炼金炉入口已支持 A/B 双槽的 `0 / 1 / 2` 输入态：双空走固定开局结果池，单输入与双输入走统一 forge 语义链路。
 - forge 语义 LLM 的正式输出已收敛为 `name / attrSet / themeText`；`generation / baseAtk` 仍由 rulebase 负责。
 - 最终 `videoPrompt` 不再来自旧的 `fusionPrompt`，而是由内嵌模块B `backend/alchemy_glyph_router/` 基于 `themeText` 生成。
-- player-generated 卡现在会在前端保存 `assetId / assetSourceType / videoStatus / videoTaskId / videoUrl` 等字段，并在启动时批量向后端回补状态。
+- battle 开始后会沿同一轮 pending run 在后台推进 `forge -> player-generated 卡草稿登记 -> PixVerse 视频生成 -> 结果状态回写`。
+- player-generated 奖励现在会先停留在本轮 run 内，保存 `assetId / assetSourceType / videoStatus / videoTaskId / videoUrl` 等字段；只有 battle 胜利并在 reveal 里确认领取后，才正式进入本地 collection。
+- battle 失败后的【重试】会复用同一轮 run 与同一份后台结果，不会重跑 forge / PixVerse。
 - PixVerse 当前只负责 `videoPrompt -> 提交任务 -> 轮询状态 -> MP4 URL -> 回填卡牌资产状态`，暂不自动回填正式战斗资源替换。
 
 ## 当前最应该看的文档
