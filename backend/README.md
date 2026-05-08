@@ -8,7 +8,8 @@
 - forge 语义 LLM 负责输出 `name / attrSet / themeText`
 - rulebase 负责 `generation / baseAtk / 兼容字段 / fallback / opening pool`
 - 内嵌模块B `backend/alchemy_glyph_router/`，通过稳定 Python API `run_alchemy_glyph_router(...)` 把 `themeText` 转成最终 `videoPrompt`
-- 提供 PixVerse 最小后端闭环：从现有 `videoPrompt` 提交文生视频、轮询状态并拿到 MP4 URL
+- 提供 PixVerse 卡牌维度闭环：从现有 `videoPrompt` 提交文生视频、轮询状态、拿到 MP4 URL，并把状态稳定挂到 `cardId`
+- 提供统一卡牌资产库入口：`/api/assets/cards` 同时汇总 `built_in / player_generated / curated`
 
 ## 启动
 
@@ -237,6 +238,55 @@ GET /api/player/quota?playerId=player_xxx
 - `providerStatus` 为 PixVerse 轮询状态：`1 / 5 / 7 / 8`
 - 只有 `status=succeeded` 且 `providerStatus=1` 时，`resultUrl` 才可用
 
+### POST /api/video/pixverse/cards/register
+
+- 把前端已有的 player-generated 卡登记到后端状态仓库
+- 后端会补齐或更新 `assetId / sourceType / status / forgeTaskId / videoTaskId / resultUrl`
+- 这个接口是 reveal 刚产卡、以及页面刷新后批量回补状态时的统一入口
+
+请求示例：
+
+```json
+{
+  "cards": [
+    {
+      "cardId": "card_xxx",
+      "forgeTaskId": "task_xxx",
+      "name": "焚霜裂环",
+      "attrSet": ["fire", "ice"],
+      "generation": 2,
+      "themeText": "火焰与寒霜在边界清晰的炼金阵内相互撕扯。",
+      "videoPrompt": "最终中文视频 prompt",
+      "thumbnailUrl": "data:image/webp;base64,...",
+      "sourceType": "player_generated",
+      "status": "not_generated"
+    }
+  ]
+}
+```
+
+### POST /api/video/pixverse/from-card/{cardId}
+
+- 从卡牌维度发起 PixVerse 生成
+- 若该卡已有进行中的任务，会复用当前 `videoTaskId`
+- 若该卡已有完成结果，会直接返回现有资产状态，不会重复提交
+- 失败后允许再次调用，用同一个 `cardId` 新开任务
+
+### GET /api/video/pixverse/card/{cardId}
+
+- 查询某张卡的当前视频资产状态
+- 返回的是卡牌视角状态：`not_generated / generating / completed / failed`
+- reveal、collection、启动刷新回补都应优先看这个接口
+
+### GET /api/assets/cards
+
+- 统一卡牌资产库列表接口
+- 当前会一起返回：
+  - `built_in`：内置默认资产
+  - `player_generated`：玩家生成并已登记/轮询过的视频资产
+  - `curated`：后续人工精选资产
+- 支持 `?sourceType=built_in|player_generated|curated` 过滤
+
 ### GET /api/debug/pixverse/config
 
 - 查看当前 PixVerse 运行时配置快照与字段来源
@@ -322,10 +372,29 @@ GET /api/player/quota?playerId=player_xxx
 
 ## 已知限制
 
-- 任务状态仍保存在进程内存中，重启后丢失
-- forge 结果里的 `videoUrl` 仍不自动回填，当前 MP4 URL 先保存在独立 PixVerse 任务里
+- forge 结果里的 `videoUrl` 仍不直接改写回 forge task result；当前正式口径是通过卡牌资产状态回填到前端卡对象
 - 前端目前没有新增复杂配额 UI
 - 当前只接入 PixVerse 文生视频最小闭环，未接 webhook、图生视频、模板、lipsync、sound effect、多镜头或正式战斗替换
+
+## 卡牌资产持久化
+
+- player-generated 卡与 PixVerse 任务状态当前保存在 `backend/data/card_asset_state.json`
+- 视频任务会额外保存 `cardId / forgeTaskId / videoTaskId / pixverseVideoId / resultUrl / status / error`
+- 后端启动时会恢复已保存的任务；若存在 `queued / submitting / polling` 任务，会自动继续轮询
+- 静态资产目录协议为 `backend/assets/cards/<assetId>/metadata.json`
+- `metadata.json` 当前最小字段建议包含：
+  - `id`
+  - `name`
+  - `sourceType`
+  - `attrSet`
+  - `generation`
+  - `thumbnailUrl`
+  - `videoUrl`
+
+当前样例：
+
+- `backend/assets/cards/flame-ring-builtin/metadata.json`
+- `backend/assets/cards/frost-veil-curated/metadata.json`
 
 ## 调试与验证
 

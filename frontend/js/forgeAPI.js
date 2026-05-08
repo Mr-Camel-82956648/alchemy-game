@@ -72,6 +72,32 @@ const ForgeAPI = (() => {
         };
     }
 
+    function buildCardVideoRegistrationItem(card) {
+        if (!card?.id) return null;
+        const normalized = SpellDefs.normalizeCard(card);
+        return {
+            cardId: normalized.id,
+            forgeTaskId: normalized.taskId || null,
+            name: normalized.name || null,
+            attrSet: SpellDefs.getCardAttrSet(normalized),
+            generation: normalized.generation || 1,
+            themeText: normalized.themeText || null,
+            videoPrompt: normalized.videoPrompt || null,
+            thumbnailUrl: GameStorage.getCardThumb(normalized) || null,
+            sourceType: normalized.assetSourceType || (normalized.taskId ? 'player_generated' : 'built_in'),
+            status: normalized.videoStatus || null,
+            videoTaskId: normalized.videoTaskId || null,
+            pixverseVideoId: normalized.pixverseVideoId || null,
+            providerStatus: normalized.videoProviderStatus ?? null,
+            submitAttempts: normalized.submitAttempts || 0,
+            pollCount: normalized.pollCount || 0,
+            resultUrl: normalized.videoResultUrl || normalized.videoUrl || null,
+            videoUrl: normalized.videoUrl || null,
+            error: normalized.videoError || null,
+            updatedAt: normalized.videoUpdatedAt || null
+        };
+    }
+
     function startForge(cardA, cardB) {
         const a = cardA ? SpellDefs.normalizeCard(cardA) : null;
         const b = cardB ? SpellDefs.normalizeCard(cardB) : null;
@@ -309,6 +335,94 @@ const ForgeAPI = (() => {
         }
     }
 
+    async function registerGeneratedCards(cards) {
+        const items = (cards || [])
+            .map(buildCardVideoRegistrationItem)
+            .filter(Boolean)
+            .filter(item => item.forgeTaskId || item.videoTaskId || item.sourceType === 'player_generated');
+        if (items.length === 0) {
+            return { ok: true, cards: [] };
+        }
+
+        try {
+            const res = await fetch(`${API_BASE}/api/video/pixverse/cards/register`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ cards: items })
+            });
+            const data = await res.json().catch(() => null);
+            if (!res.ok) {
+                const message = data?.detail || `HTTP ${res.status}`;
+                throw new Error(message);
+            }
+            GameStorage.applyCardVideoAssetStates(data?.cards || []);
+            return { ok: true, cards: data?.cards || [] };
+        } catch (err) {
+            console.warn('[ForgeAPI] registerGeneratedCards failed:', err);
+            return { ok: false, error: err?.message || '卡牌视频状态注册失败', cards: [] };
+        }
+    }
+
+    async function bootstrapCardVideoAssets() {
+        const cards = GameStorage.getSpellCards().filter(card => (card.taskId || card.assetSourceType === 'player_generated'));
+        if (cards.length === 0) return { ok: true, cards: [] };
+        return registerGeneratedCards(cards);
+    }
+
+    async function getCardVideoStatus(cardId) {
+        try {
+            const res = await fetch(`${API_BASE}/api/video/pixverse/card/${encodeURIComponent(cardId)}`);
+            if (!res.ok) return null;
+            const data = await res.json();
+            GameStorage.applyCardVideoAssetState(cardId, data);
+            return data;
+        } catch (err) {
+            console.warn('[ForgeAPI] getCardVideoStatus failed:', err);
+            return null;
+        }
+    }
+
+    async function startPixVerseFromCard(cardId) {
+        if (USE_MOCK) {
+            return {
+                ok: true,
+                asset: {
+                    assetId: `player_generated:${cardId}`,
+                    cardId,
+                    sourceType: 'player_generated',
+                    status: 'completed',
+                    videoTaskId: 'vtask_mock',
+                    pixverseVideoId: 123456,
+                    providerStatus: 1,
+                    resultUrl: 'https://example.com/mock.mp4',
+                    videoUrl: 'https://example.com/mock.mp4',
+                    error: null,
+                    submitAttempts: 1,
+                    pollCount: 1
+                }
+            };
+        }
+
+        try {
+            const res = await fetch(`${API_BASE}/api/video/pixverse/from-card/${encodeURIComponent(cardId)}`, {
+                method: 'POST'
+            });
+            const data = await res.json().catch(() => null);
+            if (!res.ok) {
+                const message = data?.detail || `HTTP ${res.status}`;
+                throw new Error(message);
+            }
+            GameStorage.applyCardVideoAssetState(cardId, data);
+            return { ok: true, asset: data };
+        } catch (err) {
+            console.error('[ForgeAPI] startPixVerseFromCard failed:', err);
+            return {
+                ok: false,
+                error: err?.message || 'PixVerse 任务启动失败'
+            };
+        }
+    }
+
     async function checkPixVerseStatus(videoTaskId) {
         if (USE_MOCK) {
             return {
@@ -338,6 +452,10 @@ const ForgeAPI = (() => {
         stopPolling,
         startPixVerseFromForge,
         checkPixVerseStatus,
+        registerGeneratedCards,
+        bootstrapCardVideoAssets,
+        getCardVideoStatus,
+        startPixVerseFromCard,
         USE_MOCK
     };
 })();

@@ -100,12 +100,54 @@ const GameStorage = (() => {
         return Array.isArray(cardLike.attrSet) ? [...cardLike.attrSet] : [];
     }
 
+    function normalizeVideoStatus(status, fallback = null) {
+        const raw = String(status || '').trim().toLowerCase();
+        if (!raw) return fallback;
+        if (['not_generated', 'none', 'idle'].includes(raw)) return 'not_generated';
+        if (['generating', 'queued', 'submitting', 'polling', 'running', 'in_progress'].includes(raw)) return 'generating';
+        if (['completed', 'ready', 'succeeded', 'success'].includes(raw)) return 'completed';
+        if (['failed', 'error'].includes(raw)) return 'failed';
+        return fallback;
+    }
+
+    function inferAssetSourceType(card) {
+        if (card?.assetSourceType) return card.assetSourceType;
+        if (card?.taskId) return 'player_generated';
+        if (card?.type === 'spell' || card?.type === 'basic') return 'built_in';
+        return null;
+    }
+
+    function inferVideoStatus(card) {
+        const explicit = normalizeVideoStatus(card?.videoStatus, null);
+        if (explicit) return explicit;
+        if (card?.videoTaskId && !card?.videoUrl) return 'generating';
+        if (card?.videoUrl) return 'completed';
+        if (inferAssetSourceType(card) === 'player_generated') return 'not_generated';
+        return null;
+    }
+
     function normalizeCardForRead(card) {
         if (!card) return null;
-        if (typeof SpellDefs !== 'undefined' && SpellDefs.normalizeCard) {
-            return SpellDefs.normalizeCard(card);
-        }
-        return { ...card };
+        const normalized = typeof SpellDefs !== 'undefined' && SpellDefs.normalizeCard
+            ? SpellDefs.normalizeCard(card)
+            : { ...card };
+
+        normalized.assetId = normalized.assetId || null;
+        normalized.assetSourceType = inferAssetSourceType(normalized);
+        normalized.videoStatus = inferVideoStatus(normalized);
+        normalized.videoTaskId = normalized.videoTaskId || null;
+        normalized.pixverseVideoId = Number.isFinite(Number(normalized.pixverseVideoId))
+            ? Number(normalized.pixverseVideoId)
+            : null;
+        normalized.videoProviderStatus = Number.isFinite(Number(normalized.videoProviderStatus))
+            ? Number(normalized.videoProviderStatus)
+            : null;
+        normalized.videoError = normalized.videoError || null;
+        normalized.videoResultUrl = normalized.videoResultUrl || normalized.videoUrl || null;
+        normalized.videoUpdatedAt = Number.isFinite(Number(normalized.videoUpdatedAt))
+            ? Number(normalized.videoUpdatedAt)
+            : null;
+        return normalized;
     }
 
     async function seedIfNeeded() {
@@ -149,6 +191,15 @@ const GameStorage = (() => {
                     inputState: seed.inputState || null,
                     inputSummary: seed.inputSummary || null,
                     source: seed.source || null,
+                    assetId: seed.assetId || null,
+                    assetSourceType: seed.assetSourceType || (seed.type === 'spell' || seed.type === 'basic' ? 'built_in' : null),
+                    videoStatus: seed.videoStatus || (seed.videoUrl ? 'completed' : 'not_generated'),
+                    videoTaskId: seed.videoTaskId || null,
+                    pixverseVideoId: seed.pixverseVideoId || null,
+                    videoProviderStatus: seed.videoProviderStatus || (seed.videoUrl ? 1 : null),
+                    videoError: seed.videoError || null,
+                    videoResultUrl: seed.videoResultUrl || seed.videoUrl || null,
+                    videoUpdatedAt: Date.now(),
                     parentA: null,
                     parentB: null,
                     createdAt: Date.now()
@@ -187,6 +238,8 @@ const GameStorage = (() => {
     function addCard(card) {
         const data = load();
         const attrSet = normalizeStoredAttrSet(card);
+        const assetSourceType = card.assetSourceType || (card.taskId ? 'player_generated' : (card.type === 'spell' && card.videoUrl ? 'built_in' : null));
+        const videoStatus = normalizeVideoStatus(card.videoStatus, card.videoUrl ? 'completed' : (assetSourceType === 'player_generated' ? 'not_generated' : null));
         const newCard = {
             id: generateId(),
             name: card.name || '未命名',
@@ -216,6 +269,15 @@ const GameStorage = (() => {
             inputState: card.inputState || null,
             inputSummary: card.inputSummary || null,
             source: card.source || null,
+            assetId: card.assetId || null,
+            assetSourceType,
+            videoStatus,
+            videoTaskId: card.videoTaskId || null,
+            pixverseVideoId: card.pixverseVideoId || null,
+            videoProviderStatus: card.videoProviderStatus || null,
+            videoError: card.videoError || null,
+            videoResultUrl: card.videoResultUrl || card.resultUrl || card.videoUrl || null,
+            videoUpdatedAt: card.videoUpdatedAt || Date.now(),
             parentA: card.parentA || null,
             parentB: card.parentB || null,
             createdAt: Date.now()
@@ -223,6 +285,15 @@ const GameStorage = (() => {
         data.cards.push(newCard);
         save(data);
         return normalizeCardForRead(newCard);
+    }
+
+    function updateCard(id, updates) {
+        const data = load();
+        const index = data.cards.findIndex(card => card.id === id);
+        if (index === -1) return null;
+        data.cards[index] = { ...data.cards[index], ...updates };
+        save(data);
+        return normalizeCardForRead(data.cards[index]);
     }
 
     function removeCard(id) {
@@ -342,6 +413,54 @@ const GameStorage = (() => {
         return card.thumbnailUrl || card.thumbnail || null;
     }
 
+    function applyVideoAssetStateToCardRecord(card, asset) {
+        if (!card || !asset) return card;
+        const completedUrl = asset.videoUrl || asset.resultUrl || null;
+        const normalizedStatus = normalizeVideoStatus(asset.status, inferVideoStatus(card));
+        const nextPlayableUrl = normalizedStatus === 'completed'
+            ? (completedUrl || card.videoUrl || null)
+            : (card.videoUrl || null);
+
+        card.assetId = asset.assetId || card.assetId || null;
+        card.assetSourceType = asset.sourceType || card.assetSourceType || inferAssetSourceType(card);
+        card.videoStatus = normalizedStatus;
+        card.videoTaskId = asset.videoTaskId || card.videoTaskId || null;
+        card.pixverseVideoId = asset.pixverseVideoId ?? card.pixverseVideoId ?? null;
+        card.videoProviderStatus = asset.providerStatus ?? card.videoProviderStatus ?? null;
+        card.videoError = normalizedStatus === 'failed'
+            ? (asset.error || card.videoError || null)
+            : null;
+        card.videoResultUrl = completedUrl || card.videoResultUrl || null;
+        card.videoUpdatedAt = asset.updatedAt || Date.now();
+        card.videoUrl = nextPlayableUrl;
+        if (asset.forgeTaskId) card.taskId = asset.forgeTaskId;
+        return card;
+    }
+
+    function applyCardVideoAssetState(cardId, asset) {
+        const data = load();
+        const card = data.cards.find(item => item.id === cardId);
+        if (!card) return null;
+        applyVideoAssetStateToCardRecord(card, asset);
+        save(data);
+        return normalizeCardForRead(card);
+    }
+
+    function applyCardVideoAssetStates(assets) {
+        const data = load();
+        let changed = 0;
+        (assets || []).forEach(asset => {
+            const cardId = asset?.cardId;
+            if (!cardId) return;
+            const card = data.cards.find(item => item.id === cardId);
+            if (!card) return;
+            applyVideoAssetStateToCardRecord(card, asset);
+            changed += 1;
+        });
+        if (changed > 0) save(data);
+        return changed;
+    }
+
     function generateTextThumbnail(text) {
         const c = document.createElement('canvas');
         c.width = 180;
@@ -393,6 +512,7 @@ const GameStorage = (() => {
         getSpellCards,
         getCard,
         addCard,
+        updateCard,
         removeCard,
         deleteCard: removeCard,
         getSlot,
@@ -410,6 +530,8 @@ const GameStorage = (() => {
         isTutorialDone,
         markTutorialDone,
         getCardThumb,
-        generateTextThumbnail
+        generateTextThumbnail,
+        applyCardVideoAssetState,
+        applyCardVideoAssetStates
     };
 })();

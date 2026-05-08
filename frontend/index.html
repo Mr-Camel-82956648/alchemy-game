@@ -110,6 +110,15 @@
                         </div>
                         <div class="preview-info">
                             <p id="preview-hint" class="preview-hint">点击右侧卡牌预览</p>
+                            <div id="preview-video-status-panel" class="preview-video-status-panel" style="display:none">
+                                <div><span class="preview-video-label">视频状态</span><span id="preview-video-status-text" class="preview-video-value">未生成</span></div>
+                                <div><span class="preview-video-label">视频任务</span><span id="preview-video-task" class="preview-video-value">无</span></div>
+                                <div><span class="preview-video-label">MP4</span><span id="preview-video-url" class="preview-video-value">无</span></div>
+                                <div class="preview-video-actions">
+                                    <button id="btn-preview-video-start" class="preview-video-btn" type="button">生成视频</button>
+                                    <button id="btn-preview-video-open" class="preview-video-btn secondary" type="button" disabled>打开 MP4</button>
+                                </div>
+                            </div>
                             <div class="preview-actions" style="display:none" id="preview-actions">
                                 <button id="btn-select-card" class="icon-btn btn-select-icon">
                                     <img src="assets/icon/queren.png" alt="确认">
@@ -312,16 +321,16 @@
     <!-- 预加载隐藏资源 -->
     <img id="img-player" src="assets/ui/player.webp" style="display:none">
 
-    <script src="js/storage.js?v=forge-settlement-sync1"></script>
+    <script src="js/storage.js?v=card-video-asset1"></script>
     <script src="js/spellDefs.js?v=forge-settlement-sync1"></script>
     <script src="js/monsterDefs.js?v=phase5-final-pack2"></script>
     <script src="js/combat.js?v=phase3"></script>
-    <script src="js/forgeAPI.js?v=pixverse-min-closure1"></script>
-    <script src="js/collection.js?v=forge-result-closure-fix1"></script>
+    <script src="js/forgeAPI.js?v=card-video-asset1"></script>
+    <script src="js/collection.js?v=card-video-asset1"></script>
     <script src="js/loadout.js?v=phase3"></script>
-    <script src="js/alchemy.js?v=pixverse-closure-status1"></script>
+    <script src="js/alchemy.js?v=card-video-asset1"></script>
     <script src="js/battle.js?v=forge-settlement-sync1"></script>
     <script src="js/uiTuner.js?v=phase6-dev-foundation1"></script>
-    <script src="js/main.js?v=forge-settlement-sync1"></script>
+    <script src="js/main.js?v=card-video-asset1"></script>
 </body>
 </html>

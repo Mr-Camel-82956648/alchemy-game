@@ -1,0 +1,9 @@
+{
+  "id": "flame-ring-builtin",
+  "name": "法阵·01",
+  "sourceType": "built_in",
+  "attrSet": ["fire"],
+  "generation": 1,
+  "thumbnailUrl": "assets/thumbnails/thumb_00.webp",
+  "videoUrl": "assets/videos/20260424062246_e374c5d2.mp4"
+}

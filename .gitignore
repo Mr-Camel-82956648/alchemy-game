@@ -20,6 +20,7 @@ Thumbs.db
 *.log
 *.tmp
 *.temp
+test-results/
 
 # ===== Archives =====
 *.zip
@@ -38,6 +39,9 @@ _archive_claude/
 .env
 .env.*
 !backend/.env.example
+
+# ===== Runtime state =====
+backend/data/
 
 # ===== Ripgrep / search ignore (not needed in repo) =====
 # .ignore is kept for local ripgrep use, not excluded

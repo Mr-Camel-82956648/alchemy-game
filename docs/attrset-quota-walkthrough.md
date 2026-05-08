@@ -12,7 +12,10 @@
 
 - `frontend/js/combat.js` 仍然按技能 `attrSet` 与怪物 `attrSet` 是否有交集来判定命中
 - 无交集时，不是普通 miss，而是继续沿用当前的吸收成长链路
-- 本轮没有改 battle 数值、波次、怪物、R、大招或暂停逻辑
+- `frontend/js/battle.js` 当前总时长是 `120s`
+- 波次当前固定为 `30s * 4 wave`
+- 魂数达标后不再立刻胜利退出，而是要坚持到仪式结束再统一判定
+- HUD 会在魂数达标后提示“魂数已齐，坚持到仪式结束”
 
 ## 3. 炼金炉输入态
 
@@ -111,6 +114,9 @@
 - forge 完成后的卡对象现在会保留 `themeText / videoPrompt / promptRoute / promptTemplate / promptModel / elapsed_ms`
 - 旧卡若仍只带 `visualDesc / fusionPrompt`，前端读取时会兼容映射到 `themeText / videoPrompt`
 - 新卡继续保留 `mainAttr / subAttr / element`，但这些只是兼容派生字段
+- player-generated 卡现在还会保留 `assetId / assetSourceType / videoStatus / videoTaskId / pixverseVideoId / videoUrl`
+- 应用启动时，前端会批量把本地 player-generated 卡回补到 `POST /api/video/pixverse/cards/register`
+- reveal 与 collection 都优先按 `GET /api/video/pixverse/card/{cardId}` 同步视频资产状态
 
 ## 9. 当前真相源
 

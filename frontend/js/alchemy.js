@@ -6,6 +6,7 @@ const Alchemy = (() => {
     let pendingResultRetryTimer = null;
     let pixVerseDebugPollTimer = null;
     let activePixVerseDebugTaskId = null;
+    let activePixVerseDebugCardId = null;
     const PENDING_RESULT_RETRY_MS = 1000;
     const MAX_PENDING_RESULT_RETRIES = 180;
     const PIXVERSE_DEBUG_POLL_MS = 3000;
@@ -181,6 +182,7 @@ const Alchemy = (() => {
     function showReveal(card) {
         stopPixVerseDebugPolling();
         activePixVerseDebugTaskId = null;
+        activePixVerseDebugCardId = null;
         revealedCard = card;
         const overlay = document.getElementById('page-reveal');
         const cardEl = document.getElementById('reveal-card');
@@ -214,6 +216,7 @@ const Alchemy = (() => {
         if (debugSource) debugSource.textContent = card.source || '无';
         if (debugInputSummary) debugInputSummary.textContent = card.inputSummary || '无';
         resetPixVerseDebug(card);
+        hydrateRevealPixVerseState(card);
 
         console.log('[Reveal] finalized card:', {
             taskId: card.taskId || null,
@@ -287,34 +290,33 @@ const Alchemy = (() => {
     }
 
     function resetPixVerseDebug(card) {
-        updatePixVerseDebug(null);
-        const canStart = Boolean(card?.taskId && card?.videoPrompt);
+        const assetState = buildLocalPixVerseState(card);
+        updatePixVerseDebug(assetState);
         if (els.revealPixVerseStartBtn) {
-            els.revealPixVerseStartBtn.disabled = !canStart;
-            els.revealPixVerseStartBtn.textContent = canStart ? '生成 PixVerse MP4' : '当前卡无可提交 videoPrompt';
+            refreshRevealPixVerseAction(card, assetState);
             els.revealPixVerseStartBtn.onclick = async () => {
-                if (!canStart || !revealedCard?.taskId) return;
+                const currentCard = revealedCard?.id ? (GameStorage.getCard(revealedCard.id) || revealedCard) : revealedCard;
+                const currentState = buildLocalPixVerseState(currentCard);
+                const canStart = Boolean(currentCard?.id && currentCard?.videoPrompt && ['not_generated', 'failed'].includes(currentState.status));
+                if (!canStart || !currentCard?.id) return;
                 els.revealPixVerseStartBtn.disabled = true;
-                const resp = await ForgeAPI.startPixVerseFromForge(revealedCard.taskId);
-                if (!resp?.ok || !resp.task) {
+                const resp = await ForgeAPI.startPixVerseFromCard(currentCard.id);
+                if (!resp?.ok || !resp.asset) {
                     updatePixVerseDebug({
-                        videoTaskId: null,
+                        cardId: currentCard.id,
+                        assetId: currentCard.assetId || null,
                         status: 'failed',
                         error: resp?.error || 'PixVerse 任务启动失败'
                     });
-                    els.revealPixVerseStartBtn.disabled = false;
-                    els.revealPixVerseStartBtn.textContent = '重新生成 PixVerse MP4';
+                    refreshRevealPixVerseAction(currentCard, { status: 'failed' });
                     return;
                 }
-                activePixVerseDebugTaskId = resp.task.videoTaskId;
-                updatePixVerseDebug(resp.task);
-                if (resp.task.status === 'succeeded' || resp.task.status === 'failed') {
-                    els.revealPixVerseStartBtn.disabled = false;
-                    els.revealPixVerseStartBtn.textContent = '重新生成 PixVerse MP4';
-                    return;
-                }
-                els.revealPixVerseStartBtn.textContent = 'PixVerse 生成中...';
-                startPixVerseDebugPolling(resp.task.videoTaskId);
+                activePixVerseDebugTaskId = resp.asset.videoTaskId || null;
+                activePixVerseDebugCardId = currentCard.id;
+                updatePixVerseDebug(resp.asset);
+                refreshRevealPixVerseAction(currentCard, resp.asset);
+                if (resp.asset.status === 'completed' || resp.asset.status === 'failed') return;
+                startPixVerseDebugPolling(currentCard.id);
             };
         }
     }
@@ -323,6 +325,9 @@ const Alchemy = (() => {
         if (!task) return '未开始';
 
         const localStatusLabels = {
+            not_generated: 'not_generated(尚未提交)',
+            generating: 'generating(正在等待 PixVerse 完成)',
+            completed: 'completed(MP4 已就绪)',
             queued: 'queued(已创建本地任务)',
             submitting: 'submitting(正在提交 PixVerse)',
             polling: 'polling(正在等待 PixVerse 完成)',
@@ -378,19 +383,85 @@ const Alchemy = (() => {
         }
     }
 
+    function buildLocalPixVerseState(card) {
+        if (!card) return null;
+        return {
+            assetId: card.assetId || null,
+            cardId: card.id || null,
+            sourceType: card.assetSourceType || (card.taskId ? 'player_generated' : 'built_in'),
+            status: card.videoStatus || (card.videoUrl ? 'completed' : 'not_generated'),
+            videoTaskId: card.videoTaskId || null,
+            pixverseVideoId: card.pixverseVideoId || null,
+            providerStatus: card.videoProviderStatus ?? null,
+            submitAttempts: card.submitAttempts || 0,
+            pollCount: card.pollCount || 0,
+            resultUrl: card.videoResultUrl || card.videoUrl || null,
+            videoUrl: card.videoUrl || null,
+            error: card.videoError || null
+        };
+    }
+
+    function refreshRevealPixVerseAction(card, assetState) {
+        if (!els.revealPixVerseStartBtn) return;
+        const status = assetState?.status || 'not_generated';
+        const hasPrompt = Boolean(card?.videoPrompt);
+        if (!hasPrompt) {
+            els.revealPixVerseStartBtn.disabled = true;
+            els.revealPixVerseStartBtn.textContent = '当前卡无可提交 videoPrompt';
+            return;
+        }
+        if (status === 'generating') {
+            els.revealPixVerseStartBtn.disabled = true;
+            els.revealPixVerseStartBtn.textContent = 'PixVerse 生成中...';
+            return;
+        }
+        if (status === 'completed') {
+            els.revealPixVerseStartBtn.disabled = true;
+            els.revealPixVerseStartBtn.textContent = '当前 MP4 已就绪';
+            return;
+        }
+        if (status === 'failed') {
+            els.revealPixVerseStartBtn.disabled = false;
+            els.revealPixVerseStartBtn.textContent = '重试 PixVerse MP4';
+            return;
+        }
+        els.revealPixVerseStartBtn.disabled = false;
+        els.revealPixVerseStartBtn.textContent = '生成 PixVerse MP4';
+    }
+
+    async function hydrateRevealPixVerseState(card) {
+        if (!card?.id) return;
+        const registerResp = await ForgeAPI.registerGeneratedCards([card]);
+        if (revealedCard?.id !== card.id) return;
+
+        const asset = registerResp?.cards?.find(item => item.cardId === card.id)
+            || await ForgeAPI.getCardVideoStatus(card.id)
+            || buildLocalPixVerseState(GameStorage.getCard(card.id) || card);
+
+        revealedCard = GameStorage.getCard(card.id) || card;
+        activePixVerseDebugTaskId = asset?.videoTaskId || null;
+        activePixVerseDebugCardId = card.id;
+        updatePixVerseDebug(asset);
+        refreshRevealPixVerseAction(revealedCard, asset);
+        if (asset?.status === 'generating') {
+            startPixVerseDebugPolling(card.id);
+        }
+    }
+
     function stopPixVerseDebugPolling() {
         activePixVerseDebugTaskId = null;
+        activePixVerseDebugCardId = null;
         if (!pixVerseDebugPollTimer) return;
         clearTimeout(pixVerseDebugPollTimer);
         pixVerseDebugPollTimer = null;
     }
 
-    function startPixVerseDebugPolling(videoTaskId) {
+    function startPixVerseDebugPolling(cardId) {
         stopPixVerseDebugPolling();
-        activePixVerseDebugTaskId = videoTaskId;
+        activePixVerseDebugCardId = cardId;
         const tick = async () => {
-            if (!activePixVerseDebugTaskId || activePixVerseDebugTaskId !== videoTaskId) return;
-            const task = await ForgeAPI.checkPixVerseStatus(videoTaskId);
+            if (!activePixVerseDebugCardId || activePixVerseDebugCardId !== cardId) return;
+            const task = await ForgeAPI.getCardVideoStatus(cardId);
             if (!task) {
                 if (els.revealPixVerseStatus) {
                     els.revealPixVerseStatus.textContent = '状态查询失败，等待下次轮询';
@@ -398,15 +469,11 @@ const Alchemy = (() => {
                 pixVerseDebugPollTimer = setTimeout(tick, PIXVERSE_DEBUG_POLL_MS);
                 return;
             }
+            activePixVerseDebugTaskId = task.videoTaskId || null;
+            revealedCard = GameStorage.getCard(cardId) || revealedCard;
             updatePixVerseDebug(task);
-            const terminal = task.status === 'succeeded' || task.status === 'failed';
-            if (els.revealPixVerseStartBtn) {
-                els.revealPixVerseStartBtn.disabled = false;
-                els.revealPixVerseStartBtn.textContent = terminal ? '重新生成 PixVerse MP4' : 'PixVerse 生成中...';
-                if (!terminal) {
-                    els.revealPixVerseStartBtn.disabled = true;
-                }
-            }
+            refreshRevealPixVerseAction(revealedCard, task);
+            const terminal = task.status === 'completed' || task.status === 'failed';
             if (terminal) {
                 stopPixVerseDebugPolling();
                 return;
@@ -475,6 +542,13 @@ const Alchemy = (() => {
             promptGenerationElapsedMs: r.promptGenerationElapsedMs ?? null,
             promptTotalElapsedMs: r.promptTotalElapsedMs ?? null,
             taskId: r.taskId || pending.taskId,
+            assetSourceType: 'player_generated',
+            videoStatus: 'not_generated',
+            videoTaskId: null,
+            pixverseVideoId: null,
+            videoProviderStatus: null,
+            videoError: null,
+            videoResultUrl: null,
             element: r.element || r.mainAttr,
             mainAttr: r.mainAttr || r.element,
             subAttr: r.subAttr || null,

@@ -267,7 +267,7 @@ const Battle = (() => {
         wavePause: 1500,
         spellMaxCharges: 6,
         spellChargeTime: 4000,
-        battleDuration: 90,
+        battleDuration: 120,
         soulGoal: 1800,
         spellSizes: [796, 597, 696, 895],
         spellDamages: [3, 2, 4, 2],
@@ -932,7 +932,7 @@ const Battle = (() => {
     const WAVE_TEMPLATES = [
         {
             number: 1,
-            durationSec: 18,
+            durationSec: 30,
             speciesCount: 1,
             tier: 'minion',
             packIntervalMs: 1550,
@@ -944,7 +944,7 @@ const Battle = (() => {
         },
         {
             number: 2,
-            durationSec: 22,
+            durationSec: 30,
             speciesCount: 1,
             tier: 'minion',
             packIntervalMs: 1320,
@@ -956,7 +956,7 @@ const Battle = (() => {
         },
         {
             number: 3,
-            durationSec: 24,
+            durationSec: 30,
             speciesCount: 1,
             tier: 'minion',
             packIntervalMs: 1120,
@@ -968,7 +968,7 @@ const Battle = (() => {
         },
         {
             number: 4,
-            durationSec: 26,
+            durationSec: 30,
             speciesCount: 1,
             tier: 'minion',
             packIntervalMs: 1040,
@@ -2201,12 +2201,11 @@ const Battle = (() => {
 
         gameTime = getBattleElapsedMs(now) / 1000;
 
-        if (checkWinCondition()) return;
         if (updateSoulWisps(now)) return;
 
-        // Countdown timer → defeat if time runs out
+        // Countdown timer → resolve battle only when the ritual fully ends
         const remaining = CONFIG.battleDuration - gameTime;
-        if (remaining <= 0) { onDefeat('time_out'); return; }
+        if (remaining <= 0) { checkWinCondition(now); return; }
 
         // Dash (ease-out: fast start, decelerate)
         if (isDashing) {
@@ -2701,7 +2700,6 @@ const Battle = (() => {
                 triggerCruciblePulse(now);
                 updateScoreDisplay();
                 activeSoulWisps.splice(i, 1);
-                if (checkWinCondition()) return true;
             }
         }
         return false;
@@ -3580,6 +3578,7 @@ const Battle = (() => {
         const tSec = Math.floor(remaining % 60);
         const timeStr = `${String(tMin).padStart(2, '0')}:${String(tSec).padStart(2, '0')}`;
         const urgent = remaining < 10;
+        const ritualReady = hasSoulGoalReached();
 
         ctx.textAlign = 'right';
         ctx.font = `bold ${Math.round(30 * S)}px "Consolas", monospace`;
@@ -3592,6 +3591,11 @@ const Battle = (() => {
         ctx.font = `${Math.round(11 * S)}px "Consolas", monospace`;
         ctx.fillStyle = 'rgba(180,170,150,0.65)';
         ctx.fillText(`WAVE ${waveNumber}`, layout.timer.x, layout.timer.y + Math.round(20 * S));
+        if (ritualReady) {
+            ctx.fillStyle = 'rgba(159,223,189,0.88)';
+            ctx.font = `${Math.round(10 * S)}px "Noto Serif SC", serif`;
+            ctx.fillText('魂数已齐，坚持到仪式结束', layout.timer.x, layout.timer.y + Math.round(38 * S));
+        }
 
         // === Bottom-center: Circular spell cooldown slots ===
         const slotR = Math.round(38 * S);
@@ -3835,10 +3839,11 @@ const Battle = (() => {
     function updateWaveDisplay() {}
 
     // ---- Win/Lose ----
-    function hasBattleVictoryCondition() {
+    function hasBattleVictoryCondition(now = Date.now()) {
         return !!(
             player.hp > 0 &&
-            hasSoulGoalReached()
+            hasSoulGoalReached() &&
+            (getBattleElapsedMs(now) / 1000) >= CONFIG.battleDuration
         );
     }
 
@@ -3846,9 +3851,13 @@ const Battle = (() => {
         if (hasBattleVictoryCondition()) onVictory();
     }
 
-    function checkWinCondition() {
-        if (hasBattleVictoryCondition()) {
+    function checkWinCondition(now = Date.now()) {
+        if (hasBattleVictoryCondition(now)) {
             onVictory();
+            return true;
+        }
+        if ((getBattleElapsedMs(now) / 1000) >= CONFIG.battleDuration) {
+            onDefeat(player.hp > 0 ? 'time_out' : 'hp_out');
             return true;
         }
         return false;
@@ -3870,7 +3879,7 @@ const Battle = (() => {
         const title = overlay.querySelector('h2');
         const text = overlay.querySelector('p');
         if (title) title.textContent = '炼成完成';
-        if (text) text.textContent = '千魂融炉，炉火长明。';
+        if (text) text.textContent = '魂数已齐，仪式完成，新的法阵将在返程后揭示。';
         showBattleResultOverlay(overlay);
     }
 
@@ -3888,7 +3897,7 @@ const Battle = (() => {
         } else {
             overlay.classList.add('defeat-time-out');
             if (title) title.textContent = '时限已至';
-            if (text) text.textContent = '魂数未满，炉火熄灭，本次炼金失败。';
+            if (text) text.textContent = '仪式结束时魂数仍未达标，炉火熄灭，本次炼金失败。';
         }
 
         showBattleResultOverlay(overlay);

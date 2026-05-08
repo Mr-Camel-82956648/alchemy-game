@@ -6,6 +6,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from alchemy_glyph_router.env_config import build_runtime_snapshot, ensure_repo_env_loaded
 
+from .routes.assets import router as assets_router
 from .routes.debug import router as debug_router
 from .routes.forge import router as forge_router
 from .routes.quota import router as quota_router
@@ -33,6 +34,7 @@ app.include_router(forge_router)
 app.include_router(quota_router)
 app.include_router(debug_router)
 app.include_router(video_router)
+app.include_router(assets_router)
 
 runtime_logger = logging.getLogger("forge.runtime")
 

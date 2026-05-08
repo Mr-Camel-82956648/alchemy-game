@@ -1,0 +1,9 @@
+{
+  "id": "frost-veil-curated",
+  "name": "寒冰法阵",
+  "sourceType": "curated",
+  "attrSet": ["ice", "blight"],
+  "generation": 1,
+  "thumbnailUrl": "assets/thumbnails/thumb_07.webp",
+  "videoUrl": "assets/videos/effect_02.mp4"
+}

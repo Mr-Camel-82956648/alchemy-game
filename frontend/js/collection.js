@@ -4,6 +4,8 @@
 const Collection = (() => {
     let activeSlot = null;
     let selectedCardId = null;
+    let previewVideoPollTimer = null;
+    let activePreviewVideoCardId = null;
     const els = {};
 
     function init() {
@@ -16,6 +18,12 @@ const Collection = (() => {
         els.previewText = document.getElementById('preview-text');
         els.previewName = document.getElementById('preview-name');
         els.previewHint = document.getElementById('preview-hint');
+        els.previewVideoStatusPanel = document.getElementById('preview-video-status-panel');
+        els.previewVideoStatusText = document.getElementById('preview-video-status-text');
+        els.previewVideoTask = document.getElementById('preview-video-task');
+        els.previewVideoUrl = document.getElementById('preview-video-url');
+        els.previewVideoStartBtn = document.getElementById('btn-preview-video-start');
+        els.previewVideoOpenBtn = document.getElementById('btn-preview-video-open');
         els.previewActions = document.getElementById('preview-actions');
         els.selectBtn = document.getElementById('btn-select-card');
         els.deleteBtn = document.getElementById('btn-delete-card');
@@ -29,6 +37,12 @@ const Collection = (() => {
         els.selectBtn.addEventListener('click', onSelectCard);
         els.deleteBtn.addEventListener('click', onDeleteCard);
         if (els.clearSlotBtn) els.clearSlotBtn.addEventListener('click', onClearSlot);
+        if (els.previewVideoOpenBtn) {
+            els.previewVideoOpenBtn.addEventListener('click', () => {
+                const url = els.previewVideoOpenBtn.dataset.url || '';
+                if (url) window.open(url, '_blank', 'noopener');
+            });
+        }
         els.spellConfirm.addEventListener('click', onSpellConfirm);
         els.spellCancel.addEventListener('click', onSpellCancel);
     }
@@ -49,6 +63,7 @@ const Collection = (() => {
     }
 
     function close() {
+        stopPreviewVideoStatusPolling();
         resetPreview();
         selectedCardId = null;
         els.page.classList.remove('active');
@@ -94,21 +109,28 @@ const Collection = (() => {
     }
 
     function resetPreview() {
+        stopPreviewVideoStatusPolling();
         els.previewEmpty.style.display = 'flex';
         els.previewContent.style.display = 'none';
         stopPreviewVideo();
         els.previewText.textContent = '';
         els.previewName.textContent = '';
+        if (els.previewVideoStatusPanel) els.previewVideoStatusPanel.style.display = 'none';
+        if (els.previewVideoOpenBtn) {
+            els.previewVideoOpenBtn.dataset.url = '';
+            els.previewVideoOpenBtn.disabled = true;
+        }
         els.previewActions.style.display = 'none';
         if (els.previewHint) els.previewHint.style.display = 'block';
     }
 
-    function renderPreview(card, { selected = false } = {}) {
+    function renderPreview(card, { selected = false, skipSync = false } = {}) {
         if (!card) {
             resetPreview();
             return;
         }
 
+        stopPreviewVideoStatusPolling();
         els.previewEmpty.style.display = 'none';
         els.previewContent.style.display = 'block';
         stopPreviewVideo();
@@ -127,6 +149,7 @@ const Collection = (() => {
         els.previewName.textContent = card.name;
         els.previewActions.style.display = 'flex';
         if (els.previewHint) els.previewHint.style.display = 'none';
+        updatePreviewVideoStatus(card, buildPreviewVideoState(card));
 
         if (els.selectBtn) {
             els.selectBtn.disabled = !selected;
@@ -136,6 +159,7 @@ const Collection = (() => {
             const hasCurrentSlotCard = Boolean(activeSlot && GameStorage.getSlot(activeSlot));
             els.clearSlotBtn.style.display = hasCurrentSlotCard ? 'inline-flex' : 'none';
         }
+        if (!skipSync) syncPreviewVideoState(card);
     }
 
     function updateGridSelection(id) {
@@ -214,6 +238,139 @@ const Collection = (() => {
             return SpellDefs.normalizeCard(card);
         }
         return card;
+    }
+
+    function buildPreviewVideoState(card) {
+        if (!card) return null;
+        return {
+            status: card.videoStatus || (card.videoUrl ? 'completed' : 'not_generated'),
+            sourceType: card.assetSourceType || (card.taskId ? 'player_generated' : 'built_in'),
+            videoTaskId: card.videoTaskId || null,
+            providerStatus: card.videoProviderStatus ?? null,
+            resultUrl: card.videoResultUrl || card.videoUrl || null,
+            error: card.videoError || null
+        };
+    }
+
+    function describeVideoStatus(state) {
+        const status = state?.status || 'not_generated';
+        const labels = {
+            not_generated: '未生成',
+            generating: '生成中',
+            completed: '已完成',
+            failed: '失败'
+        };
+        const provider = state?.providerStatus != null ? ` / provider=${state.providerStatus}` : '';
+        return `${labels[status] || status}${provider}`;
+    }
+
+    function updatePreviewVideoStatus(card, state) {
+        if (!els.previewVideoStatusPanel) return;
+        els.previewVideoStatusPanel.style.display = 'block';
+        const videoUrl = state?.resultUrl || card?.videoUrl || null;
+        if (els.previewVideoStatusText) {
+            els.previewVideoStatusText.textContent = describeVideoStatus(state);
+        }
+        if (els.previewVideoTask) {
+            els.previewVideoTask.textContent = state?.videoTaskId || '无';
+        }
+        if (els.previewVideoUrl) {
+            els.previewVideoUrl.textContent = videoUrl || '无';
+            els.previewVideoUrl.title = videoUrl || '';
+        }
+        if (els.previewVideoOpenBtn) {
+            els.previewVideoOpenBtn.dataset.url = videoUrl || '';
+            els.previewVideoOpenBtn.disabled = !videoUrl;
+        }
+        if (els.previewVideoStartBtn) {
+            const status = state?.status || 'not_generated';
+            const isPlayerGenerated = (state?.sourceType || card?.assetSourceType) === 'player_generated' || Boolean(card?.taskId);
+            const hasPrompt = Boolean(card?.videoPrompt);
+            if (!isPlayerGenerated) {
+                els.previewVideoStartBtn.disabled = true;
+                els.previewVideoStartBtn.textContent = videoUrl ? '当前资产可直接使用' : '当前资产无需生成';
+            } else if (!hasPrompt) {
+                els.previewVideoStartBtn.disabled = true;
+                els.previewVideoStartBtn.textContent = '当前卡无可提交 videoPrompt';
+            } else if (status === 'generating') {
+                els.previewVideoStartBtn.disabled = true;
+                els.previewVideoStartBtn.textContent = 'PixVerse 生成中...';
+            } else if (status === 'completed') {
+                els.previewVideoStartBtn.disabled = true;
+                els.previewVideoStartBtn.textContent = '当前 MP4 已就绪';
+            } else if (status === 'failed') {
+                els.previewVideoStartBtn.disabled = false;
+                els.previewVideoStartBtn.textContent = '重试视频生成';
+            } else {
+                els.previewVideoStartBtn.disabled = false;
+                els.previewVideoStartBtn.textContent = '生成视频';
+            }
+
+            els.previewVideoStartBtn.onclick = async () => {
+                const current = selectedCardId ? GameStorage.getCard(selectedCardId) : null;
+                if (!current?.id) return;
+                const currentState = buildPreviewVideoState(current);
+                const canStart = ['not_generated', 'failed'].includes(currentState?.status || 'not_generated');
+                if (!canStart || !current.videoPrompt) return;
+                els.previewVideoStartBtn.disabled = true;
+                const registerResp = await ForgeAPI.registerGeneratedCards([current]);
+                if (!registerResp?.ok) {
+                    updatePreviewVideoStatus(current, { ...currentState, status: 'failed', error: registerResp?.error || '注册失败' });
+                    return;
+                }
+                const resp = await ForgeAPI.startPixVerseFromCard(current.id);
+                if (!resp?.ok || !resp.asset) {
+                    updatePreviewVideoStatus(current, { ...currentState, status: 'failed', error: resp?.error || '启动失败' });
+                    return;
+                }
+                const latestCard = GameStorage.getCard(current.id) || current;
+                renderPreview(latestCard, { selected: true, skipSync: true });
+                if (resp.asset.status === 'generating') {
+                    startPreviewVideoStatusPolling(current.id);
+                }
+            };
+        }
+    }
+
+    async function syncPreviewVideoState(card) {
+        if (!card?.id) return;
+        const isPlayerGenerated = card.assetSourceType === 'player_generated' || Boolean(card.taskId) || Boolean(card.videoTaskId);
+        if (!isPlayerGenerated) return;
+        const asset = await ForgeAPI.getCardVideoStatus(card.id);
+        if (!asset || selectedCardId !== card.id) return;
+        const latestCard = GameStorage.getCard(card.id) || card;
+        renderPreview(latestCard, { selected: true, skipSync: true });
+        if (asset.status === 'generating') {
+            startPreviewVideoStatusPolling(card.id);
+        }
+    }
+
+    function stopPreviewVideoStatusPolling() {
+        activePreviewVideoCardId = null;
+        if (!previewVideoPollTimer) return;
+        clearTimeout(previewVideoPollTimer);
+        previewVideoPollTimer = null;
+    }
+
+    function startPreviewVideoStatusPolling(cardId) {
+        stopPreviewVideoStatusPolling();
+        activePreviewVideoCardId = cardId;
+        const tick = async () => {
+            if (!activePreviewVideoCardId || activePreviewVideoCardId !== cardId) return;
+            const asset = await ForgeAPI.getCardVideoStatus(cardId);
+            if (!asset || selectedCardId !== cardId) {
+                previewVideoPollTimer = setTimeout(tick, 3000);
+                return;
+            }
+            const latestCard = GameStorage.getCard(cardId);
+            if (latestCard) renderPreview(latestCard, { selected: true, skipSync: true });
+            if (asset.status === 'completed' || asset.status === 'failed') {
+                stopPreviewVideoStatusPolling();
+                return;
+            }
+            previewVideoPollTimer = setTimeout(tick, 3000);
+        };
+        previewVideoPollTimer = setTimeout(tick, 3000);
     }
 
     function formatGeneration(generation) {

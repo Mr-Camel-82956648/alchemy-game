@@ -170,7 +170,90 @@ GET /api/player/quota?playerId=player_xxx
 }
 ```
 
-## 9. 文档使用建议
+## 9. 卡牌视频资产协议
+
+### POST /api/video/pixverse/cards/register
+
+用于把前端已有的 player-generated 卡登记到后端轻量状态仓库。最小请求体示例：
+
+```json
+{
+  "cards": [
+    {
+      "cardId": "card_xxx",
+      "forgeTaskId": "task_xxx",
+      "name": "焚霜裂环",
+      "attrSet": ["fire", "ice"],
+      "generation": 2,
+      "themeText": "火焰与寒霜在边界清晰的炼金阵内相互撕扯。",
+      "videoPrompt": "最终中文视频 prompt",
+      "thumbnailUrl": "data:image/webp;base64,...",
+      "sourceType": "player_generated",
+      "status": "not_generated"
+    }
+  ]
+}
+```
+
+### POST /api/video/pixverse/from-card/{cardId}
+
+- 从卡牌维度启动 PixVerse 生成
+- 若当前 `cardId` 已有 `queued / submitting / polling` 任务，则直接复用
+- 若当前 `cardId` 已有完成结果，则直接返回已完成资产状态
+- 若上一轮失败，则允许再次调用重新提交
+
+### GET /api/video/pixverse/card/{cardId}
+
+返回卡牌视角的资产状态，核心字段包括：
+
+- `assetId`
+- `cardId`
+- `forgeTaskId`
+- `sourceType`
+- `status`
+- `videoTaskId`
+- `pixverseVideoId`
+- `providerStatus`
+- `resultUrl`
+- `videoUrl`
+- `error`
+
+状态口径：
+
+- `not_generated`
+- `generating`
+- `completed`
+- `failed`
+
+### GET /api/assets/cards
+
+统一卡牌资产库入口。当前会汇总：
+
+- `built_in`
+- `player_generated`
+- `curated`
+
+静态资产目录协议：
+
+```text
+backend/assets/cards/<assetId>/metadata.json
+```
+
+`metadata.json` 当前最小建议字段：
+
+```json
+{
+  "id": "flame-ring-builtin",
+  "name": "法阵·01",
+  "sourceType": "built_in",
+  "attrSet": ["fire"],
+  "generation": 1,
+  "thumbnailUrl": "assets/thumbnails/thumb_00.webp",
+  "videoUrl": "assets/videos/20260424062246_e374c5d2.mp4"
+}
+```
+
+## 10. 文档使用建议
 
 如果你是新会话：
 

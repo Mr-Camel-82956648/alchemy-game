@@ -27,6 +27,7 @@ const App = (() => {
         window.addEventListener('resize', resizeApp);
 
         await GameStorage.seedIfNeeded();
+        await ForgeAPI.bootstrapCardVideoAssets();
 
         Collection.init();
         Loadout.init();

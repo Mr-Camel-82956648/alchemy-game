@@ -82,6 +82,7 @@ class PixVerseCallDiagnostic(BaseModel):
 
 class PixVerseTask(BaseModel):
     videoTaskId: str
+    cardId: Optional[str] = None
     forgeTaskId: Optional[str] = None
     pixverseVideoId: Optional[int] = None
     traceId: Optional[str] = None
@@ -132,6 +133,69 @@ class PixVerseTaskDebugResponse(BaseModel):
     config: PixVerseConfigResponse
     latestSubmitCall: Optional[PixVerseCallDiagnostic] = None
     latestPollCall: Optional[PixVerseCallDiagnostic] = None
+
+
+class CardVideoRegistrationItem(BaseModel):
+    cardId: str
+    forgeTaskId: Optional[str] = None
+    name: Optional[str] = None
+    attrSet: List[str] = Field(default_factory=list)
+    generation: Optional[int] = 1
+    themeText: Optional[str] = None
+    videoPrompt: Optional[str] = None
+    thumbnailUrl: Optional[str] = None
+    sourceType: Optional[str] = None
+    status: Optional[str] = None
+    videoTaskId: Optional[str] = None
+    pixverseVideoId: Optional[int] = None
+    providerStatus: Optional[int] = None
+    submitAttempts: int = 0
+    pollCount: int = 0
+    resultUrl: Optional[str] = None
+    videoUrl: Optional[str] = None
+    error: Optional[str] = None
+    updatedAt: Optional[int] = None
+    completedAt: Optional[int] = None
+
+
+class CardVideoRegistrationRequest(BaseModel):
+    cards: List[CardVideoRegistrationItem] = Field(default_factory=list)
+
+
+class CardVideoStatus(BaseModel):
+    assetId: str
+    cardId: Optional[str] = None
+    forgeTaskId: Optional[str] = None
+    sourceType: str
+    status: str
+    name: Optional[str] = None
+    attrSet: List[str] = Field(default_factory=list)
+    generation: int = 1
+    themeText: Optional[str] = None
+    thumbnailUrl: Optional[str] = None
+    videoTaskId: Optional[str] = None
+    pixverseVideoId: Optional[int] = None
+    providerStatus: Optional[int] = None
+    submitAttempts: int = 0
+    pollCount: int = 0
+    resultUrl: Optional[str] = None
+    videoUrl: Optional[str] = None
+    error: Optional[str] = None
+    createdAt: int = 0
+    updatedAt: int = 0
+    completedAt: Optional[int] = None
+    metadataPath: Optional[str] = None
+    assetDir: Optional[str] = None
+
+
+class CardVideoStatusListResponse(BaseModel):
+    count: int
+    cards: List[CardVideoStatus] = Field(default_factory=list)
+
+
+class CardAssetListResponse(BaseModel):
+    count: int
+    assets: List[CardVideoStatus] = Field(default_factory=list)
 
 
 class PlayerQuotaResponse(BaseModel):

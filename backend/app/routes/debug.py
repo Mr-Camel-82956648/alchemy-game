@@ -26,8 +26,9 @@ def debug_pixverse_config():
 def debug_pixverse_tasks(
     limit: int = Query(default=20, ge=1, le=100),
     forgeTaskId: str | None = Query(default=None),
+    cardId: str | None = Query(default=None),
 ):
-    tasks = list_video_tasks(limit=limit, forge_task_id=forgeTaskId)
+    tasks = list_video_tasks(limit=limit, forge_task_id=forgeTaskId, card_id=cardId)
     return PixVerseTaskListResponse(count=len(tasks), tasks=tasks)
 
 
