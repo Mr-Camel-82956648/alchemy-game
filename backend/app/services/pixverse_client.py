@@ -13,7 +13,7 @@ from alchemy_glyph_router.env_config import ensure_repo_env_loaded
 
 logger = logging.getLogger("pixverse.client")
 
-DEFAULT_PIXVERSE_BASE_URL = "https://app-api.pixverseai.cn/openapi/v2"
+DEFAULT_PIXVERSE_BASE_URL = "https://app-api.pixverse.ai/openapi/v2"
 
 
 class PixVerseAPIError(RuntimeError):
@@ -94,7 +94,7 @@ class PixVerseConfig:
         return f"{self.base_url}/video/text/generate"
 
     def result_url_template(self) -> str:
-        return f"{self.base_url}/video/result/{{video_id}}"
+        return f"{self.base_url}/video/result/{{id}}"
 
 
 def resolve_pixverse_config() -> PixVerseConfig:

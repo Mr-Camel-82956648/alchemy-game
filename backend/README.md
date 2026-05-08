@@ -48,7 +48,7 @@ FORGE_DAILY_QUOTA=5
 FORGE_QUOTA_TIMEZONE=Asia/Shanghai
 
 # PixVerse Video API
-PIXVERSE_BASE_URL=https://app-api.pixverseai.cn/openapi/v2
+PIXVERSE_BASE_URL=https://app-api.pixverse.ai/openapi/v2
 PIXVERSE_API_KEY=
 PIXVERSE_MODEL=c1
 PIXVERSE_QUALITY=360p
@@ -71,9 +71,10 @@ PIXVERSE_TIMEOUT_SECONDS=120
 - glyph router 当前仍只使用 Primary LLM 区块，但也只读 `backend/.env`
 - 当 `LLM_PROVIDER=openai_compat` 且未设置 `OPENAI_COMPAT_MODEL` 时，仍兼容回退到 `LLM_MODEL`
 - `FORGE_USE_REAL_LLM=false` 时，forge 语义阶段直接走本地 fallback
-- PixVerse 当前已接入第一版最小闭环：`POST /openapi/v2/video/text/generate` + `GET /openapi/v2/video/result/{video_id}`
-- `PIXVERSE_BASE_URL` 推荐直接填 `https://app-api.pixverseai.cn/openapi/v2`，这样代码层只需拼接文档中的相对路径
+- PixVerse 当前已接入第一版最小闭环：`POST /openapi/v2/video/text/generate` + `GET /openapi/v2/video/result/{id}`
+- `PIXVERSE_BASE_URL` 当前默认按国际版 OpenAPI v2，推荐直接填 `https://app-api.pixverse.ai/openapi/v2`
 - `PIXVERSE_GENERATE_AUDIO_SWITCH` 对应文档真实字段 `generate_audio_switch`
+- 国际版文档下，当前默认组合 `model=c1 + aspect_ratio=1:1 + duration=1 + generate_audio_switch=true` 成立
 
 更完整的接手说明见 [../docs/llm-env-alignment.md](../docs/llm-env-alignment.md)。
 
@@ -278,7 +279,8 @@ GET /api/player/quota?playerId=player_xxx
    - `httpStatus`
    - `providerErrCode`
    - `providerErrMsg`
-4. 如果这里已经明确是 `https://app-api.pixverseai.cn/openapi/v2/video/text/generate`、header 名是 `API-KEY` 和 `Ai-trace-id`，且服务端返回 `10005 apiKey is not registered`，更像是 key 本身未注册、未开通 API 服务、被停用，或 key 与当前平台环境不匹配，而不是宿主主链逻辑问题。
+4. 如果这里已经明确是 `https://app-api.pixverse.ai/openapi/v2/video/text/generate`、header 名是 `API-KEY` 和 `Ai-trace-id`，且服务端返回 `10005 apiKey is not registered`，更像是 key 本身未注册、未开通 API 服务、被停用，或 key 与当前平台环境不匹配，而不是宿主主链逻辑问题。
+5. 如果手里拿的是国际版 key，但调试接口里 `baseUrl` 仍是旧的 `.cn` 域名，那优先修正 `backend/.env` / `PIXVERSE_BASE_URL`，再重试。
 
 ### 如何看当前 PixVerse 配置摘要
 

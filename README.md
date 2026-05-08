@@ -34,7 +34,7 @@ uvicorn app.main:app --reload --port 18001
 - `http://localhost:18001/api/debug/llm-config`
   当前后端配置调试入口，用于确认 forge 与 glyph router 实际命中的 provider、model、base_url 与脱敏 key 摘要。
 - `http://localhost:18001/api/debug/pixverse/config`
-  PixVerse 最小后端闭环的配置快照入口，用于核对 `base_url / model / quality / aspect_ratio / generate_audio_switch` 等运行时值。
+  PixVerse 最小后端闭环的配置快照入口，用于核对当前默认国际版 `base_url / submitUrl / resultUrlTemplate / model / quality / aspect_ratio / generate_audio_switch` 等运行时值。
 - `http://localhost:18001/api/debug/pixverse/tasks`
   PixVerse 调试任务列表入口，用于查看本地 video task、关联 forge task、PixVerse `video_id`、当前状态与 MP4 URL。
 - `http://localhost:18001/api/debug/pixverse/tasks/{videoTaskId}`

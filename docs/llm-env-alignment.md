@@ -85,7 +85,7 @@ FORGE_QUOTA_TIMEZONE=Asia/Shanghai
 当前已接入第一版最小后端闭环：
 
 ```env
-PIXVERSE_BASE_URL=https://app-api.pixverseai.cn/openapi/v2
+PIXVERSE_BASE_URL=https://app-api.pixverse.ai/openapi/v2
 PIXVERSE_API_KEY=
 PIXVERSE_MODEL=c1
 PIXVERSE_QUALITY=360p
@@ -101,8 +101,10 @@ PIXVERSE_TIMEOUT_SECONDS=120
 
 说明：
 
-- `PIXVERSE_BASE_URL` 推荐直接填文档统一前缀 `https://app-api.pixverseai.cn/openapi/v2`
+- `PIXVERSE_BASE_URL` 当前默认按国际版 OpenAPI v2 填 `https://app-api.pixverse.ai/openapi/v2`
+- 提交与轮询最终路径分别是 `/video/text/generate` 与 `/video/result/{id}`
 - `PIXVERSE_GENERATE_AUDIO_SWITCH` 对应文档真实请求字段 `generate_audio_switch`
+- 国际版文档下，当前默认组合 `model=c1 + aspect_ratio=1:1 + duration=1 + generate_audio_switch=true` 成立
 - 当前后端已打通 `videoPrompt -> 提交文生视频 -> 轮询状态 -> MP4 URL`
 - 当前仍未接入 webhook、图生视频、模板能力与正式战斗替换
 
