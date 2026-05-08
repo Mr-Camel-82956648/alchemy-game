@@ -286,6 +286,7 @@ GET /api/player/quota?playerId=player_xxx
   - `player_generated`：玩家生成并已登记/轮询过的视频资产
   - `curated`：后续人工精选资产
 - 支持 `?sourceType=built_in|player_generated|curated` 过滤
+- 对静态 `built_in / curated` 资产，metadata 内部正式使用 `videoPath / thumbnailPath`，接口对外解析为可直接访问的 `videoUrl / thumbnailUrl`
 
 ### GET /api/debug/pixverse/config
 
@@ -381,20 +382,24 @@ GET /api/player/quota?playerId=player_xxx
 - player-generated 卡与 PixVerse 任务状态当前保存在 `backend/data/card_asset_state.json`
 - 视频任务会额外保存 `cardId / forgeTaskId / videoTaskId / pixverseVideoId / resultUrl / status / error`
 - 后端启动时会恢复已保存的任务；若存在 `queued / submitting / polling` 任务，会自动继续轮询
-- 静态资产目录协议为 `backend/assets/cards/<assetId>/metadata.json`
-- `metadata.json` 当前最小字段建议包含：
-  - `id`
-  - `name`
-  - `sourceType`
-  - `attrSet`
-  - `generation`
-  - `thumbnailUrl`
-  - `videoUrl`
+- 静态 `built_in / curated` 资产当前采用自包含目录协议：
+
+```text
+backend/assets/cards/<assetId>/
+  metadata.json
+  video.mp4
+  thumbnail.webp
+```
+
+- `metadata.json` 正式字段应使用 `videoPath / thumbnailPath`，路径相对于当前资产目录
+- `/api/assets/cards` 会继续暴露 `videoUrl / thumbnailUrl` 供前端直接使用
+- 旧 `videoUrl / thumbnailUrl` 目前仍兼容读取，但仅作为迁移过渡，不再是新资产标准
+- 详细规范见 [../docs/builtin-asset-spec-v1.md](../docs/builtin-asset-spec-v1.md)
 
 当前样例：
 
-- `backend/assets/cards/flame-ring-builtin/metadata.json`
-- `backend/assets/cards/frost-veil-curated/metadata.json`
+- `backend/assets/cards/flame-ring-builtin/`
+- `backend/assets/cards/frost-veil-curated/`
 
 ## 调试与验证
 

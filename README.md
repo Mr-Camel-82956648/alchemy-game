@@ -55,7 +55,7 @@ uvicorn app.main:app --reload --port 18001
 - 前一轮真实排查里出现的 `ErrCode=10005, apiKey is not registered`，已定位为“国际版 key 打到了国内版 `.cn` endpoint”的环境不匹配问题。
 - 当前除了 `from-forge / status / debug tasks` 这组调试入口外，还新增了面向产品链路的 `cards/register / from-card/{cardId} / card/{cardId}`。
 - 后端会把 player-generated 卡视频记录持久化到 `backend/data/card_asset_state.json`，刷新页面或重启后端后仍可按 `cardId` 回查视频状态。
-- 统一卡牌资产库当前采用目录协议 `backend/assets/cards/<assetId>/metadata.json`，并已落地 `built_in` 与 `curated` 的 metadata 样例。
+- 统一卡牌资产库已升级为自包含目录协议 `backend/assets/cards/<assetId>/`；静态 `built_in / curated` 资产至少包含 `metadata.json + video.mp4 + thumbnail.webp`，metadata 正式使用 `videoPath / thumbnailPath` 相对路径，对外 API 再解析成前端可直接访问的 URL。
 - 前端 reveal 调试区与 collection 预览区都保留了 `状态 / task / MP4 / 打开 MP4` 入口。
 
 ## 当前开发阶段
@@ -83,8 +83,9 @@ uvicorn app.main:app --reload --port 18001
 
 1. `docs/attrset-quota-walkthrough.md`
 2. `docs/forge-schema.md`
-3. `docs/llm-env-alignment.md`
-4. `backend/README.md`
+3. `docs/builtin-asset-spec-v1.md`
+4. `docs/llm-env-alignment.md`
+5. `backend/README.md`
 
 `docs/archive/` 下的文档仅作为历史参考，不应再作为当前主参考。
 
@@ -93,6 +94,7 @@ uvicorn app.main:app --reload --port 18001
 1. 先读本文，确认当前阶段、启动方式和主文档入口。
 2. 再读 `docs/attrset-quota-walkthrough.md`，建立机制、前后端链路和接管边界。
 3. 再读 `docs/forge-schema.md`，确认接口、字段和 quota 行为。
-4. 再读 `docs/llm-env-alignment.md`，确认宿主 backend 与 glyph router 的 LLM 配置口径与排查方式。
-5. 需要后端接口或运行细节时，再补读 `backend/README.md`。
-6. 只有在排查历史决策或旧实现来源时，才进入 `docs/archive/`。
+4. 再读 `docs/builtin-asset-spec-v1.md`，确认静态卡牌资产的正式目录协议、字段口径与入库流程。
+5. 再读 `docs/llm-env-alignment.md`，确认宿主 backend 与 glyph router 的 LLM 配置口径与排查方式。
+6. 需要后端接口或运行细节时，再补读 `backend/README.md`。
+7. 只有在排查历史决策或旧实现来源时，才进入 `docs/archive/`。

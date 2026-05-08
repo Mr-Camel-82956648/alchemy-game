@@ -7,6 +7,7 @@ import threading
 import time
 from pathlib import Path
 from typing import Any
+from urllib.parse import quote
 
 logger = logging.getLogger("card.assets")
 
@@ -14,6 +15,7 @@ BACKEND_DIR = Path(__file__).resolve().parents[2]
 DATA_DIR = BACKEND_DIR / "data"
 STATE_FILE = DATA_DIR / "card_asset_state.json"
 STATIC_ASSET_DIR = BACKEND_DIR / "assets" / "cards"
+STATIC_ASSET_URL_BASE = "/api/assets/files/cards"
 
 STATUS_NOT_GENERATED = "not_generated"
 STATUS_GENERATING = "generating"
@@ -81,6 +83,15 @@ def _clean_text(value: Any) -> str | None:
     return text or None
 
 
+def _clean_url(value: Any) -> str | None:
+    text = _clean_text(value)
+    if not text:
+        return None
+    if "://" in text or text.startswith("data:"):
+        return text
+    return text.replace("\\", "/")
+
+
 def _normalize_source_type(value: Any, default: str = "player_generated") -> str:
     text = str(value or "").strip().lower()
     return text if text in ALLOWED_SOURCE_TYPES else default
@@ -121,6 +132,45 @@ def _make_player_asset_id(card_id: str) -> str:
 
 def _copy_asset(asset: dict[str, Any]) -> dict[str, Any]:
     return copy.deepcopy(asset)
+
+
+def _coerce_timestamp_ms(value: Any, *, default: int = 0) -> int:
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        return default
+    return parsed if parsed >= 0 else default
+
+
+def _resolve_static_asset_path(
+    asset_dir: Path,
+    metadata_path: Path,
+    raw_value: Any,
+    *,
+    field_name: str,
+) -> tuple[str | None, str | None]:
+    rel_text = _clean_text(raw_value)
+    if not rel_text:
+        return None, None
+
+    candidate = Path(rel_text.replace("\\", "/"))
+    if candidate.is_absolute():
+        logger.warning("card.asset_path_must_be_relative %s %s %s", field_name, metadata_path, rel_text)
+        return None, None
+
+    try:
+        resolved = (asset_dir / candidate).resolve()
+        normalized_rel = resolved.relative_to(asset_dir.resolve()).as_posix()
+    except Exception:
+        logger.warning("card.asset_path_invalid %s %s %s", field_name, metadata_path, rel_text)
+        return None, None
+
+    if not resolved.is_file():
+        logger.warning("card.asset_file_missing %s %s %s", field_name, metadata_path, normalized_rel)
+        return normalized_rel, None
+
+    static_rel = (asset_dir.resolve().relative_to(STATIC_ASSET_DIR.resolve()) / normalized_rel).as_posix()
+    return normalized_rel, f"{STATIC_ASSET_URL_BASE}/{quote(static_rel, safe='/')}"
 
 
 def load_persisted_video_tasks() -> dict[str, dict[str, Any]]:
@@ -354,10 +404,35 @@ def _scan_static_assets() -> list[dict[str, Any]]:
             logger.warning("card.asset_metadata_read_failed %s %s", metadata_path, exc)
             continue
 
+        metadata_mtime_ms = int(metadata_path.stat().st_mtime * 1000)
+        thumbnail_path, thumbnail_url = _resolve_static_asset_path(
+            metadata_path.parent,
+            metadata_path,
+            payload.get("thumbnailPath"),
+            field_name="thumbnailPath",
+        )
+        video_path, video_url = _resolve_static_asset_path(
+            metadata_path.parent,
+            metadata_path,
+            payload.get("videoPath"),
+            field_name="videoPath",
+        )
+        legacy_thumbnail_url = _clean_url(payload.get("thumbnailUrl"))
+        legacy_video_url = _clean_url(payload.get("videoUrl"))
+        if not thumbnail_url and legacy_thumbnail_url:
+            thumbnail_url = legacy_thumbnail_url
+        if not video_url and legacy_video_url:
+            video_url = legacy_video_url
+
         attr_set = _normalize_attr_set(payload.get("attrSet"))
-        video_url = _clean_text(payload.get("videoUrl"))
         status = STATUS_COMPLETED if video_url else STATUS_NOT_GENERATED
         source_type = _normalize_source_type(payload.get("sourceType"), default="built_in")
+        updated_at = _coerce_timestamp_ms(payload.get("updatedAt"), default=metadata_mtime_ms)
+        created_at = _coerce_timestamp_ms(payload.get("createdAt"), default=updated_at)
+        completed_at = _coerce_timestamp_ms(
+            payload.get("completedAt"),
+            default=updated_at if video_url else 0,
+        ) or None
         asset = {
             "assetId": _clean_text(payload.get("id")) or metadata_path.parent.name,
             "cardId": None,
@@ -367,9 +442,14 @@ def _scan_static_assets() -> list[dict[str, Any]]:
             "name": _clean_text(payload.get("name")) or metadata_path.parent.name,
             "attrSet": attr_set,
             "generation": int(payload.get("generation") or 1),
+            "category": _clean_text(payload.get("category")),
+            "inputPhrase": _clean_text(payload.get("inputPhrase")),
             "themeText": _clean_text(payload.get("themeText")),
-            "videoPrompt": None,
-            "thumbnailUrl": _clean_text(payload.get("thumbnailUrl")),
+            "videoPrompt": _clean_text(payload.get("videoPrompt")),
+            "description": _clean_text(payload.get("description")),
+            "thumbnailPath": thumbnail_path,
+            "thumbnailUrl": thumbnail_url,
+            "videoPath": video_path,
             "videoTaskId": None,
             "pixverseVideoId": None,
             "providerStatus": 1 if video_url else None,
@@ -378,9 +458,12 @@ def _scan_static_assets() -> list[dict[str, Any]]:
             "error": None,
             "resultUrl": video_url,
             "videoUrl": video_url,
-            "createdAt": int(payload.get("createdAt") or 0),
-            "updatedAt": int(payload.get("updatedAt") or 0),
-            "completedAt": int(payload.get("completedAt") or 0) or None,
+            "origin": _clean_text(payload.get("origin")),
+            "originCardId": _clean_text(payload.get("originCardId")),
+            "curationNote": _clean_text(payload.get("curationNote")),
+            "createdAt": created_at,
+            "updatedAt": updated_at,
+            "completedAt": completed_at,
             "metadataPath": str(metadata_path.relative_to(BACKEND_DIR)).replace("\\", "/"),
             "assetDir": str(metadata_path.parent.relative_to(BACKEND_DIR)).replace("\\", "/"),
         }

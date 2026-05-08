@@ -1,9 +1,16 @@
 {
   "id": "frost-veil-curated",
-  "name": "寒冰法阵",
+  "name": "霜幕护潮",
   "sourceType": "curated",
+  "category": "default_pool",
   "attrSet": ["ice", "blight"],
   "generation": 1,
-  "thumbnailUrl": "assets/thumbnails/thumb_07.webp",
-  "videoUrl": "assets/videos/effect_02.mp4"
+  "inputPhrase": "冰雾护幕",
+  "videoPrompt": "25D 游戏视角下，一枚冰雾与蚀气交织的防御型法阵在地面铺开，寒霜边缘持续扩散，中心护幕像潮汐般起伏，适合作为默认法阵池中的控制型特效。",
+  "description": "从玩家生成结果中挑选后，人工固化入默认池的精选样例。",
+  "videoPath": "video.mp4",
+  "thumbnailPath": "thumbnail.webp",
+  "origin": "player_generated",
+  "originCardId": "player_generated_demo_frost_veil",
+  "curationNote": "演示样例：说明玩家生成素材迁移入默认池后的正式落库形态。"
 }

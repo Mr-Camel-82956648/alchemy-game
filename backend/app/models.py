@@ -171,8 +171,14 @@ class CardVideoStatus(BaseModel):
     name: Optional[str] = None
     attrSet: List[str] = Field(default_factory=list)
     generation: int = 1
+    category: Optional[str] = None
+    inputPhrase: Optional[str] = None
     themeText: Optional[str] = None
+    videoPrompt: Optional[str] = None
+    description: Optional[str] = None
+    thumbnailPath: Optional[str] = None
     thumbnailUrl: Optional[str] = None
+    videoPath: Optional[str] = None
     videoTaskId: Optional[str] = None
     pixverseVideoId: Optional[int] = None
     providerStatus: Optional[int] = None
@@ -180,6 +186,9 @@ class CardVideoStatus(BaseModel):
     pollCount: int = 0
     resultUrl: Optional[str] = None
     videoUrl: Optional[str] = None
+    origin: Optional[str] = None
+    originCardId: Optional[str] = None
+    curationNote: Optional[str] = None
     error: Optional[str] = None
     createdAt: int = 0
     updatedAt: int = 0

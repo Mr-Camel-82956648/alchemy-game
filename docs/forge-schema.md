@@ -236,22 +236,39 @@ GET /api/player/quota?playerId=player_xxx
 静态资产目录协议：
 
 ```text
-backend/assets/cards/<assetId>/metadata.json
+backend/assets/cards/<assetId>/
+  metadata.json
+  video.mp4
+  thumbnail.webp
 ```
 
-`metadata.json` 当前最小建议字段：
+当前正式字段口径：
 
 ```json
 {
   "id": "flame-ring-builtin",
-  "name": "法阵·01",
+  "name": "熔环起式",
   "sourceType": "built_in",
+  "category": "starter",
   "attrSet": ["fire"],
   "generation": 1,
-  "thumbnailUrl": "assets/thumbnails/thumb_00.webp",
-  "videoUrl": "assets/videos/20260424062246_e374c5d2.mp4"
+  "inputPhrase": "火焰圆环",
+  "videoPrompt": "25D 游戏视角下，一枚火系起始法阵在地面稳定展开。",
+  "description": "新手初始资产池中的火系内置法阵样例。",
+  "videoPath": "video.mp4",
+  "thumbnailPath": "thumbnail.webp",
+  "origin": "handcrafted",
+  "originCardId": null,
+  "curationNote": null
 }
 ```
+
+说明：
+
+- metadata 内部正式使用 `videoPath / thumbnailPath`，路径相对于当前资产目录。
+- `/api/assets/cards` 对外仍返回前端可直接使用的 `videoUrl / thumbnailUrl`，由后端根据相对路径解析生成。
+- 旧 `videoUrl / thumbnailUrl` 目前仍兼容读取，但仅用于迁移过渡，不再作为新资产制作标准。
+- 详细制作规范见 `docs/builtin-asset-spec-v1.md`。
 
 ## 10. 文档使用建议
 

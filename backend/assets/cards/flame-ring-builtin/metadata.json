@@ -1,9 +1,16 @@
 {
   "id": "flame-ring-builtin",
-  "name": "法阵·01",
+  "name": "熔环起式",
   "sourceType": "built_in",
+  "category": "starter",
   "attrSet": ["fire"],
   "generation": 1,
-  "thumbnailUrl": "assets/thumbnails/thumb_00.webp",
-  "videoUrl": "assets/videos/20260424062246_e374c5d2.mp4"
+  "inputPhrase": "火焰圆环",
+  "videoPrompt": "25D 游戏视角下，一枚火系起始法阵在地面稳定展开，熔火环纹由内向外逐层点亮，中心火核持续脉动，整体适合作为新手初始技能展示。",
+  "description": "新手初始资产池中的火系内置法阵样例。",
+  "videoPath": "video.mp4",
+  "thumbnailPath": "thumbnail.webp",
+  "origin": "handcrafted",
+  "originCardId": null,
+  "curationNote": null
 }

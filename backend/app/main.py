@@ -1,9 +1,11 @@
 import json
 import os
 import logging
+import mimetypes
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from alchemy_glyph_router.env_config import build_runtime_snapshot, ensure_repo_env_loaded
 
 from .routes.assets import router as assets_router
@@ -11,8 +13,10 @@ from .routes.debug import router as debug_router
 from .routes.forge import router as forge_router
 from .routes.quota import router as quota_router
 from .routes.video import router as video_router
+from .services.card_asset_service import STATIC_ASSET_DIR
 
 ensure_repo_env_loaded()
+mimetypes.add_type("image/webp", ".webp")
 
 logging.basicConfig(
     level=logging.INFO,
@@ -28,6 +32,12 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+)
+
+app.mount(
+    "/api/assets/files/cards",
+    StaticFiles(directory=str(STATIC_ASSET_DIR), check_dir=False),
+    name="card-asset-files",
 )
 
 app.include_router(forge_router)
