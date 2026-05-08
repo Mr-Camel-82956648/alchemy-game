@@ -202,3 +202,4 @@ GET /api/player/quota?playerId=player_xxx
 
 - 启动后端时会输出一条 `llm.runtime_snapshot` 日志，包含 `forge`、`forgeFallback`、`glyphRouter` 的脱敏配置摘要
 - 可访问 `GET /api/debug/llm-config` 查看当前运行时实际命中的 provider、model、base_url、apiKeyHint、变量来源，以及是否检测到被忽略的旧 `.env` 文件
+- 本地联调时可直接打开 `http://localhost:18001/api/debug/llm-config` 做运行时配置核对

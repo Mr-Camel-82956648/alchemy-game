@@ -23,6 +23,17 @@ uvicorn app.main:app --reload --port 18001
 
 接口文档位于 `http://localhost:18001/docs`。如果修改后端端口，需要同步修改 `frontend/js/forgeAPI.js` 中的 `API_BASE`。
 
+## 本地调试快捷入口
+
+- `http://localhost:8000/`
+  当前前端本地开发入口。现阶段普通本地模式仍默认显示 battle 开发按钮和 reveal 调试信息，方便联调。
+- `http://localhost:8000/?autoResolveAfter=30`
+  本地开发快速结算入口。只在 `file://`、`localhost`、`127.0.0.1`、`::1` 这类本地环境生效；进入 battle 后会在 30 秒后自动走胜利结算，并继续等待同一个 forge task 完成后再进入 reveal。
+- `http://localhost:8000/?devBattle=0`
+  关闭本地 battle 开发按钮。这个参数同样只对本地环境有效；设置后会隐藏 battle 开发面板，同时也会让 `autoResolveAfter` 失效。
+- `http://localhost:18001/api/debug/llm-config`
+  当前后端配置调试入口，用于确认 forge 与 glyph router 实际命中的 provider、model、base_url 与脱敏 key 摘要。
+
 ## 当前开发阶段
 
 当前主线已经收口到“机制重构 + 最小配额后端 + 中文 forge 文档”阶段，后续继续开发前，默认先以本文和 `docs/` 根目录文档为准，不再以旧 phase / handover 稿作为当前真相源。

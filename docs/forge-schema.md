@@ -108,6 +108,12 @@
 | `source` | rulebase | `opening_pool / llm / fallback` |
 | `inputState` | rulebase | `empty / single / dual` |
 
+补充说明：
+
+- `source` 表示这张结果卡最初是从哪一层产出的，例如双空输入时常见 `source=opening_pool`
+- `promptRoute` 表示模块B后续为 `themeText -> videoPrompt` 选择了哪一个模板路由，例如 `E`
+- 这两个字段不是同一层概念，所以 `source=opening_pool`、`promptRoute=E`、`promptFallbackApplied=false` 同时出现并不冲突；它表示“卡的来源是开局池，但它的后续视频 prompt 仍正常经过了模板路由阶段”
+
 ## 5. Forge LLM 输出协议
 
 当前 forge 语义 LLM 只允许输出：
