@@ -311,6 +311,9 @@ const Alchemy = (() => {
 
         overlay.style.display = 'flex';
         overlay.classList.add('active');
+        if (typeof GameAudio !== 'undefined' && GameAudio.playRevealRise) {
+            GameAudio.playRevealRise();
+        }
         requestAnimationFrame(() => {
             cardEl.classList.add('animate');
         });

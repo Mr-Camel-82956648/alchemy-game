@@ -166,7 +166,7 @@ GET /api/player/quota?playerId=player_xxx
   "playerId": "player_xxx",
   "applyToAll": false,
   "usedCount": 0,
-  "dailyLimit": 5
+  "dailyLimit": 50
 }
 ```
 

@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>Alchemy Intro Book</title>
+    <link rel="stylesheet" href="./styles/main.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <div class="ambient-vignette" aria-hidden="true"></div>
+      <div class="orientation-hint">建议横屏体验，以获得更完整的书页画面。</div>
+
+      <main class="scene-stack">
+        <section class="scene scene--cover is-active" data-scene="cover">
+          <button class="cover-entry" type="button" data-action="start-intro" aria-label="点击任意位置进入游戏">
+            <img class="cover-entry__image" data-cover-image alt="" />
+            <span class="cover-entry__shade" aria-hidden="true"></span>
+            <span class="cover-entry__prompt">「点击任意位置进入游戏」</span>
+          </button>
+        </section>
+
+        <section class="scene scene--intro" data-scene="intro" aria-hidden="true">
+          <div class="book-surface" data-book-surface>
+            <div
+              class="frame-window"
+              data-frame-window
+              data-debug-target="mediaFrame"
+              data-debug-label="视频区域"
+            >
+              <div class="frame-media" data-frame-media></div>
+            </div>
+
+            <img class="book-overlay" data-book-overlay alt="" />
+
+            <button
+              class="utility-button mute-button"
+              type="button"
+              data-action="mute"
+              aria-label="静音"
+              aria-pressed="false"
+              data-debug-target="muteButton"
+              data-debug-label="静音按钮"
+            >
+              <span data-mute-label>静音</span>
+            </button>
+
+            <button
+              class="utility-button skip-button"
+              type="button"
+              data-action="skip"
+              aria-label="跳过新手引导"
+              data-debug-target="skipButton"
+              data-debug-label="跳过按钮"
+            >
+              <img class="skip-button__icon" data-skip-icon alt="" />
+              <span>跳过新手引导</span>
+            </button>
+
+            <p
+              class="page-counter"
+              data-page-counter
+              data-debug-target="pageCounter"
+              data-debug-label="页码"
+            ></p>
+
+            <div class="copy-panel" data-debug-target="textBlock" data-debug-label="文字区域">
+              <h1 class="page-title is-empty" data-page-title></h1>
+              <div class="page-body" data-page-body></div>
+            </div>
+
+            <nav class="nav-row" aria-label="页面切换">
+              <button
+                class="nav-button nav-button--left"
+                type="button"
+                data-action="prev"
+                data-debug-target="prevButton"
+                data-debug-label="上一页按钮"
+              ></button>
+              <button
+                class="nav-button nav-button--right"
+                type="button"
+                data-action="next"
+                data-debug-target="forwardButton"
+                data-debug-label="下一页按钮"
+              ></button>
+              <button
+                class="nav-button nav-button--enter"
+                type="button"
+                data-action="enter"
+                data-debug-target="forwardButton"
+                data-debug-label="进入游戏按钮"
+              ></button>
+            </nav>
+          </div>
+
+          <div class="audio-hint" data-audio-hint>首次点击任意位置后，将开启 BGM 与按钮音效。</div>
+        </section>
+
+        <section class="scene scene--destination" data-scene="destination" aria-hidden="true">
+          <div class="destination-card">
+            <img class="destination-card__image" data-destination-image alt="" />
+            <div class="destination-card__copy">
+              <p class="destination-card__kicker">Placeholder Destination</p>
+              <h2>主游戏入口占位页</h2>
+              <p data-destination-description>
+                这里用于演示未来正式游戏入口。接入主游戏时，只需要替换进入方式配置或接入真实首页逻辑。
+              </p>
+              <div class="destination-actions">
+                <button class="nav-button nav-button--secondary" type="button" data-action="restart">
+                  重新查看引导
+                </button>
+                <a class="text-link" data-destination-link href="http://localhost:8000/" target="_self">
+                  示例正式入口
+                </a>
+              </div>
+            </div>
+          </div>
+        </section>
+      </main>
+
+      <div class="frame-zoom-layer" data-frame-zoom-layer hidden>
+        <img class="frame-zoom-destination" data-frame-zoom-destination alt="" />
+        <div class="frame-zoom-backdrop"></div>
+        <div class="frame-zoom-shell" data-frame-zoom-shell></div>
+        <img class="frame-zoom-overlay" data-frame-zoom-overlay alt="" hidden />
+      </div>
+    </div>
+
+    <script type="module" src="./src/main.js"></script>
+  </body>
+</html>

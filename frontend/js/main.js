@@ -25,6 +25,9 @@ const App = (() => {
 
         resizeApp();
         window.addEventListener('resize', resizeApp);
+        if (typeof GameAudio !== 'undefined' && GameAudio.init) {
+            GameAudio.init();
+        }
 
         await GameStorage.seedIfNeeded();
         await ForgeAPI.bootstrapCardVideoAssets();
@@ -69,9 +72,16 @@ const App = (() => {
             }
         });
         currentPage = name;
+        if (typeof GameAudio !== 'undefined' && GameAudio.setPageContext) {
+            GameAudio.setPageContext(name);
+        }
     }
 
-    return { init, switchPage };
+    function getCurrentPage() {
+        return currentPage;
+    }
+
+    return { init, switchPage, getCurrentPage };
 })();
 
 document.addEventListener('DOMContentLoaded', () => App.init());

@@ -7,7 +7,7 @@ from typing import Optional
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 DB_PATH = Path(__file__).resolve().parents[2] / "data" / "quota.sqlite3"
-DEFAULT_DAILY_LIMIT = int(os.getenv("FORGE_DAILY_QUOTA", "20"))
+DEFAULT_DAILY_LIMIT = int(os.getenv("FORGE_DAILY_QUOTA", "50"))
 logger = logging.getLogger("forge.quota")
 
 

@@ -1,0 +1,22 @@
+<svg width="1280" height="720" viewBox="0 0 1280 720" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1280" y2="720" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#1A171A"/>
+      <stop offset="0.55" stop-color="#18161B"/>
+      <stop offset="1" stop-color="#3E2411"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(642 360) rotate(90) scale(200 280)">
+      <stop stop-color="#D88225" stop-opacity="0.95"/>
+      <stop offset="1" stop-color="#D88225" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <rect width="1280" height="720" fill="url(#bg)"/>
+  <rect x="70" y="60" width="1140" height="600" rx="22" fill="#0B0C10" fill-opacity="0.54" stroke="#8B6840" stroke-opacity="0.38" stroke-width="2"/>
+  <circle cx="642" cy="360" r="206" fill="url(#glow)"/>
+  <circle cx="642" cy="360" r="138" stroke="#F8D38A" stroke-opacity="0.34" stroke-width="2"/>
+  <path d="M604 305L704 360L604 415V305Z" fill="#F3D59B" fill-opacity="0.86"/>
+  <path d="M501 208C551 155 737 155 785 208M480 500C540 555 746 555 805 500" stroke="#A36E34" stroke-opacity="0.4" stroke-width="3"/>
+  <text x="640" y="546" fill="#EFDDB7" font-family="Georgia, serif" font-size="34" text-anchor="middle">替换这里的视频素材</text>
+  <text x="640" y="590" fill="#C7B18A" font-family="Georgia, serif" font-size="20" text-anchor="middle">assets/videos/pages/pXX.mp4</text>
+</svg>

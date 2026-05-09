@@ -45,7 +45,7 @@ LLM_MODEL=gemini-3-flash-preview
 LLM_TIMEOUT_SECONDS=30
 LLM_MAX_RETRIES=1
 LOG_LEVEL=INFO
-FORGE_DAILY_QUOTA=5
+FORGE_DAILY_QUOTA=50
 FORGE_QUOTA_TIMEZONE=Asia/Shanghai
 
 # PixVerse Video API
@@ -165,7 +165,7 @@ GET /api/player/quota?playerId=player_xxx
   "playerId": "player_xxx",
   "applyToAll": false,
   "usedCount": 0,
-  "dailyLimit": 5
+  "dailyLimit": 50
 }
 ```
 

@@ -480,7 +480,8 @@ const Battle = (() => {
     const AMULET_SIZE = 480;
     const AMULET_DAMAGE = 0.3;
     const AMULET_TICK_MS = 500;
-    const DEFAULT_SPELL_SFX_SRC = 'assets/Audio/sfx/koiroylers-fireball-impact-351961.mp3';
+    const DEFAULT_SPELL_SFX_SRC = 'assets/audio/sfx/koiroylers-fireball-impact-351961.mp3';
+    const AUDIO_FILE_EXT_RE = /\.(mp3|wav|ogg|m4a|aac)(\?.*)?$/i;
     let amuletVideo = null;
     let lastAmuletDamageTick = 0;
 
@@ -735,7 +736,7 @@ const Battle = (() => {
         const loadout = GameStorage.getLoadout();
         loadout.forEach((card, i) => {
             spellVideoSrcs[i] = GameStorage.getCardVideoUrl(card);
-            spellSfxSrcs[i] = GameStorage.getCardSfxUrl(card);
+            spellSfxSrcs[i] = resolveBattleSfxUrl(GameStorage.getCardSfxUrl(card));
             spellCardData[i] = card ? SpellDefs.normalizeCard(card) : null;
             const thumbUrl = card ? GameStorage.getCardThumb(card) : null;
             if (thumbUrl) {
@@ -922,7 +923,6 @@ const Battle = (() => {
         if (playerAnim.state === 'castUp') return;
         ultimateReadyAt = now + CONFIG.ultimateCooldownMs;
         updateBars();
-        playSpellSfx(activeSpellIndex, { volume: 0.9 });
 
         const selectedSpellIndex = activeSpellIndex;
         const selectedVideoSrc = spellVideoSrcs[selectedSpellIndex] || null;
@@ -1305,8 +1305,17 @@ const Battle = (() => {
     }
 
     function playSpellSfx(index, options = {}) {
-        const src = spellSfxSrcs[index] || DEFAULT_SPELL_SFX_SRC;
-        return playBattleSfx(src, options);
+        const src = spellSfxSrcs[index];
+        if (src) return playBattleSfx(src, options);
+        if (typeof GameAudio !== 'undefined' && GameAudio.playSpellLaunch) {
+            return GameAudio.playSpellLaunch();
+        }
+        return playBattleSfx(DEFAULT_SPELL_SFX_SRC, options);
+    }
+
+    function resolveBattleSfxUrl(src) {
+        if (!src || !AUDIO_FILE_EXT_RE.test(String(src))) return null;
+        return src;
     }
 
     function retainBattleVideo(video) {
@@ -1487,6 +1496,9 @@ const Battle = (() => {
         pausedFrameNow = pauseStartedAt;
         pauseBattleTimeouts(pauseStartedAt);
         syncBattleMediaPlayback(true);
+        if (typeof GameAudio !== 'undefined' && GameAudio.stopFootsteps) {
+            GameAudio.stopFootsteps();
+        }
     }
 
     function resumeBattle() {
@@ -2062,6 +2074,9 @@ const Battle = (() => {
         monster.absorbFeedbackStart = 0;
         monster.flashEnd = Math.max(Number(monster.flashEnd) || 0, now + MONSTER_DEATH_FLASH_HOLD_MS);
         monster.hitSilhouetteEnd = Math.max(Number(monster.hitSilhouetteEnd) || 0, now + MONSTER_DEATH_FLASH_HOLD_MS + 30);
+        if (typeof GameAudio !== 'undefined' && GameAudio.playMonsterDeath) {
+            GameAudio.playMonsterDeath();
+        }
     }
 
     function spawnHordeGroup(species, count, tier, options = null) {
@@ -2260,6 +2275,9 @@ const Battle = (() => {
         Object.keys(keys).forEach(code => { keys[code] = false; });
         clearBattleTimeouts();
         cleanupBattleMedia();
+        if (typeof GameAudio !== 'undefined' && GameAudio.stopFootsteps) {
+            GameAudio.stopFootsteps();
+        }
         floatingTexts = [];
         activeSoulWisps = [];
         particles = [];
@@ -2298,6 +2316,8 @@ const Battle = (() => {
         if (remaining <= 0) { checkWinCondition(now); return; }
 
         // Dash (ease-out: fast start, decelerate)
+        const prevPlayerX = player.x;
+        const prevPlayerY = player.y;
         if (isDashing) {
             const dashAge = now - dashStart;
             if (dashAge < CONFIG.dashDuration) {
@@ -2323,6 +2343,14 @@ const Battle = (() => {
             if (keys['KeyA'] || keys['ArrowLeft']) player.x -= CONFIG.playerSpeed;
             if (keys['KeyD'] || keys['ArrowRight']) player.x += CONFIG.playerSpeed;
         }
+        const movedDistance = Math.hypot(player.x - prevPlayerX, player.y - prevPlayerY);
+        if (typeof GameAudio !== 'undefined') {
+            if (!isDashing && movedDistance > 0.1 && GameAudio.startFootsteps) {
+                GameAudio.startFootsteps();
+            } else if (GameAudio.stopFootsteps) {
+                GameAudio.stopFootsteps();
+            }
+        }
         // Update camera to center on player
         camera.x = player.x - CANVAS_W / 2;
         camera.y = player.y - CANVAS_H / 2;
@@ -2336,6 +2364,7 @@ const Battle = (() => {
             const age = now - eff.startTime;
             if (!eff.damageApplied && age > 400 && age < 1200) {
                 eff.damageApplied = true;
+                let dealtDamage = false;
                 monsters.forEach(m => {
                     if (m.isDying) return;
                     const hitRadius = getEffectHitRadius(eff);
@@ -2360,6 +2389,7 @@ const Battle = (() => {
                         if (hitResult.damage <= 0) return;
 
                         m.hp -= hitResult.damage;
+                        dealtDamage = true;
 
                         const dx = m.x - eff.x;
                         const dy = m.y - eff.y;
@@ -2372,6 +2402,11 @@ const Battle = (() => {
                         if (m.hp <= 0) beginMonsterDeath(m, now);
                     }
                 });
+                if (dealtDamage && typeof GameAudio !== 'undefined') {
+                    if (!eff.isUltimate && GameAudio.playAttackHit) {
+                        GameAudio.playAttackHit();
+                    }
+                }
             }
         });
 
@@ -2436,6 +2471,9 @@ const Battle = (() => {
                 player.hp -= 0.015;
                 damageFlash.alpha = Math.min(1, damageFlash.alpha + 0.15);
                 damageFlash.time = now;
+                if (typeof GameAudio !== 'undefined' && GameAudio.playPlayerHurt) {
+                    GameAudio.playPlayerHurt();
+                }
                 if (Math.random() < 0.05) triggerShake(3, 80);
             }
         }

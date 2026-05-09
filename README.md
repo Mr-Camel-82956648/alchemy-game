@@ -4,14 +4,17 @@
 
 ## 如何启动
 
-### 前端
+### 前端（根目录入口）
 
 ```bash
-cd frontend
 python -m http.server 8000
 ```
 
-访问 `http://localhost:8000`。
+访问 `http://localhost:8000/`。
+
+当前根目录入口会先进入 `alchemy_intro_book/` 的封面与 11 页引导；第 11 页“进入游戏”和“跳过新手引导”都会同标签跳转到 `http://localhost:8000/frontend/`。
+
+如果你只想直接调试原主游戏 A，不经过 intro-book，也可以直接打开 `http://localhost:8000/frontend/`。
 
 ### 后端
 
@@ -26,11 +29,15 @@ uvicorn app.main:app --reload --port 18001
 ## 本地调试快捷入口
 
 - `http://localhost:8000/`
-  当前前端本地开发入口。现阶段普通本地模式仍默认显示 battle 开发按钮和 reveal 调试信息，方便联调。
-- `http://localhost:8000/?autoResolveAfter=30`
-  本地开发快速结算入口。只在 `file://`、`localhost`、`127.0.0.1`、`::1` 这类本地环境生效；进入 battle 后会在 30 秒后自动弹出胜利结算层，点击返程后继续沿同一个 forge task 进入 reveal。
-- `http://localhost:8000/?devBattle=0`
-  关闭本地 battle 开发按钮。这个参数同样只对本地环境有效；设置后会隐藏 battle 开发面板，同时也会让 `autoResolveAfter` 失效。
+  当前项目根入口。会先进入 `alchemy_intro_book/` 的封面与新手引导，再进入主游戏 A。
+- `http://localhost:8000/alchemy_intro_book/?debug=1`
+  intro-book 的布局与最终推进过渡调试入口。
+- `http://localhost:8000/frontend/`
+  原主游戏 A 的直接前端入口。现阶段普通本地模式仍默认显示 battle 开发按钮和 reveal 调试信息，方便联调。
+- `http://localhost:8000/frontend/?autoResolveAfter=30`
+  主游戏 A 的本地开发快速结算入口。只在 `file://`、`localhost`、`127.0.0.1`、`::1` 这类本地环境生效；进入 battle 后会在 30 秒后自动弹出胜利结算层，点击返程后继续沿同一个 forge task 进入 reveal。
+- `http://localhost:8000/frontend/?devBattle=0`
+  关闭主游戏 A 的本地 battle 开发按钮。这个参数同样只对本地环境有效；设置后会隐藏 battle 开发面板，同时也会让 `autoResolveAfter` 失效。
 - `http://localhost:18001/api/debug/llm-config`
   当前后端配置调试入口，用于确认 forge 与 glyph router 实际命中的 provider、model、base_url 与脱敏 key 摘要。
 - `http://localhost:18001/api/debug/pixverse/config`
