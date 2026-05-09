@@ -122,7 +122,15 @@ window.ArenaGlyphRenderer = (() => {
     }
 
     function createEffectPlacement(overrides = {}) {
-        return { ...SHARED_ARENA_GLYPH_DEFAULTS.placement, ...(overrides || {}) };
+        const placement = { ...SHARED_ARENA_GLYPH_DEFAULTS.placement };
+        if (!overrides || typeof overrides !== 'object') return placement;
+        if (Number.isFinite(overrides.offsetX)) placement.offsetX = Number(overrides.offsetX);
+        if (Number.isFinite(overrides.offsetY)) placement.offsetY = Number(overrides.offsetY);
+        if (Number.isFinite(overrides.opacity)) placement.opacity = Number(overrides.opacity);
+        if (typeof overrides.blendMode === 'string' && overrides.blendMode.trim()) {
+            placement.blendMode = overrides.blendMode;
+        }
+        return placement;
     }
 
     function createGlyphSizeTuning(overrides = {}) {
@@ -438,7 +446,6 @@ window.ArenaGlyphRenderer = (() => {
         }
 
         function buildSoftEdgeSurface(source, postFx = DEFAULT_POST_FX) {
-            if (postFx.softEdge === false) return source;
             softEdgeCtx.clearRect(0, 0, effectSurfaceSize, effectSurfaceSize);
             softEdgeCtx.save();
             softEdgeCtx.drawImage(source, 0, 0, effectSurfaceSize, effectSurfaceSize);
