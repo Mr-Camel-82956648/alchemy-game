@@ -961,6 +961,8 @@ const Battle = (() => {
                     damage: CONFIG.ultimateDamage * (burst.isCenter ? 1 : 0.5),
                     mainAttr: mainAttr,
                     spellData: spellData,
+                    // Ultimate glyphs rely on edge-heavy motion; keep the new soft-edge pass off here.
+                    postFx: { softEdge: false },
                     video: retainBattleVideo(sharedVideo),
                     startTime: Date.now(),
                     damageApplied: false, isUltimate: true

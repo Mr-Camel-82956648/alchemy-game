@@ -438,6 +438,7 @@ window.ArenaGlyphRenderer = (() => {
         }
 
         function buildSoftEdgeSurface(source, postFx = DEFAULT_POST_FX) {
+            if (postFx.softEdge === false) return source;
             softEdgeCtx.clearRect(0, 0, effectSurfaceSize, effectSurfaceSize);
             softEdgeCtx.save();
             softEdgeCtx.drawImage(source, 0, 0, effectSurfaceSize, effectSurfaceSize);
