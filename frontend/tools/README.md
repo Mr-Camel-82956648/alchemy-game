@@ -16,3 +16,4 @@
 - `monster_facing_preview.html` / `monster_facing_preview.js` 是怪物朝向与镜像的本地预览工具。
 - 该工具当前保留用于正式怪物朝向复查，不接正式首页。
 - `arena_glyph_tuner.html` / `arena_glyph_tuner.js` 现已升级为“尽量复刻真实 battle 竞技场渲染”的调试预览器：背景层、法阵底层 / 顶层与尺寸公式优先复用共享 battle canvas 渲染入口，再在此基础上保留尺寸、位置、混合模式与近似后处理调参能力。
+- 该工具当前默认初始值也来自共享渲染层里已确认采用的竞技场法阵正式默认参数；调试只是在这份默认值之上临时偏移，不应再单独维护第二套 battle 默认值。

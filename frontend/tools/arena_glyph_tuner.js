@@ -2,31 +2,30 @@
 (function () {
     const STORAGE_KEY = 'arena-glyph-tuner.v2';
     const CARD_URL_PREFIX = 'card:';
-    const DEFAULT_TUNING = ArenaGlyphRenderer.DEFAULT_GLYPH_SIZE_TUNING;
-    const DEFAULT_BACKGROUND = ArenaGlyphRenderer.DEFAULT_BACKGROUND_TUNING;
+    const SHARED_DEFAULTS = ArenaGlyphRenderer.createSharedArenaGlyphDefaults();
     const DEFAULTS = {
         sourceKey: '',
         sourceLabel: '',
         sourceUrl: '',
-        previewMode: 'spell',
-        blendMode: 'lighten',
-        glyphBaseSize: DEFAULT_TUNING.baseSize,
-        arenaViewSizeTweak: DEFAULT_TUNING.arenaViewSizeTweak,
-        offsetX: 0,
-        offsetY: 26,
-        opacity: 0.96,
-        glyphSaturation: 1,
-        glyphContrast: 1,
-        glyphBrightness: 1,
-        glyphHighlights: 0.18,
-        glyphShadows: 0.08,
-        glyphWhites: 0.12,
-        glyphBlacks: 0.1,
-        glyphGlow: 0.2,
-        vignette: DEFAULT_BACKGROUND.vignetteStrength,
-        arenaBrightness: DEFAULT_BACKGROUND.brightness,
-        arenaSaturation: DEFAULT_BACKGROUND.saturation,
-        arenaContrast: DEFAULT_BACKGROUND.contrast
+        previewMode: SHARED_DEFAULTS.previewMode,
+        blendMode: SHARED_DEFAULTS.placement.blendMode,
+        glyphBaseSize: SHARED_DEFAULTS.battleSize.glyphBaseSize,
+        arenaViewSizeTweak: SHARED_DEFAULTS.battleSize.arenaViewSizeTweak,
+        offsetX: SHARED_DEFAULTS.placement.offsetX,
+        offsetY: SHARED_DEFAULTS.placement.offsetY,
+        opacity: SHARED_DEFAULTS.placement.opacity,
+        glyphSaturation: SHARED_DEFAULTS.glyphPostFx.saturation,
+        glyphContrast: SHARED_DEFAULTS.glyphPostFx.contrast,
+        glyphBrightness: SHARED_DEFAULTS.glyphPostFx.brightness,
+        glyphHighlights: SHARED_DEFAULTS.glyphPostFx.highlights,
+        glyphShadows: SHARED_DEFAULTS.glyphPostFx.shadows,
+        glyphWhites: SHARED_DEFAULTS.glyphPostFx.whites,
+        glyphBlacks: SHARED_DEFAULTS.glyphPostFx.blacks,
+        glyphGlow: SHARED_DEFAULTS.glyphPostFx.glow,
+        vignette: SHARED_DEFAULTS.arena.vignette,
+        arenaBrightness: SHARED_DEFAULTS.arena.brightness,
+        arenaSaturation: SHARED_DEFAULTS.arena.saturation,
+        arenaContrast: SHARED_DEFAULTS.arena.contrast
     };
 
     const els = {};
@@ -101,7 +100,7 @@
     }
 
     function getCurrentPostFx() {
-        return {
+        return ArenaGlyphRenderer.createGlyphPostFx({
             blendMode: state.blendMode,
             opacity: state.opacity,
             saturation: state.glyphSaturation,
@@ -112,13 +111,13 @@
             whites: state.glyphWhites,
             blacks: state.glyphBlacks,
             glow: state.glyphGlow
-        };
+        });
     }
 
     function getFocusPoint() {
         return {
-            x: renderer.width / 2 + state.offsetX,
-            y: renderer.height / 2 + state.offsetY
+            x: renderer.width / 2,
+            y: renderer.height / 2
         };
     }
 
@@ -148,6 +147,8 @@
                 video: previewVideo,
                 alpha: 1,
                 postFx,
+                renderOffsetX: state.offsetX,
+                renderOffsetY: state.offsetY,
                 renderTop: true,
                 renderBottom: true
             }));
@@ -163,6 +164,8 @@
             video: previewVideo,
             alpha: 1,
             postFx,
+            renderOffsetX: state.offsetX,
+            renderOffsetY: state.offsetY,
             renderTop: true,
             renderBottom: true
         }];

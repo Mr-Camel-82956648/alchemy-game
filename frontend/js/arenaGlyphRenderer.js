@@ -15,9 +15,40 @@ window.ArenaGlyphRenderer = (() => {
         crucibleUi: 'assets/icon/crucible_UI.png'
     });
 
+    // Confirmed production-default arena glyph preset shared by battle and tuner.
+    const SHARED_ARENA_GLYPH_DEFAULTS = Object.freeze({
+        previewMode: 'spell',
+        battleSize: Object.freeze({
+            glyphBaseSize: 824,
+            arenaViewSizeTweak: 1
+        }),
+        placement: Object.freeze({
+            offsetX: 0,
+            offsetY: 26,
+            opacity: 1,
+            blendMode: 'lighten'
+        }),
+        arena: Object.freeze({
+            brightness: 0.54,
+            saturation: 0.38,
+            contrast: 0.96,
+            vignette: 0.95
+        }),
+        glyphPostFx: Object.freeze({
+            saturation: 1.29,
+            contrast: 1.47,
+            brightness: 1.23,
+            highlights: 0.26,
+            shadows: 0,
+            whites: 0.04,
+            blacks: 0,
+            glow: 0.28
+        })
+    });
+
     const DEFAULT_GLYPH_SIZE_TUNING = Object.freeze({
-        baseSize: 746,
-        arenaViewSizeTweak: 1,
+        baseSize: SHARED_ARENA_GLYPH_DEFAULTS.battleSize.glyphBaseSize,
+        arenaViewSizeTweak: SHARED_ARENA_GLYPH_DEFAULTS.battleSize.arenaViewSizeTweak,
         spellSizeJitter: 0,
         ultimateCenterScale: 1,
         ultimateSatelliteScale: 0.75,
@@ -29,23 +60,25 @@ window.ArenaGlyphRenderer = (() => {
     });
 
     const DEFAULT_BACKGROUND_TUNING = Object.freeze({
-        brightness: 0.59,
-        saturation: 0.62,
-        contrast: 1,
-        vignetteStrength: 0.55
+        brightness: SHARED_ARENA_GLYPH_DEFAULTS.arena.brightness,
+        saturation: SHARED_ARENA_GLYPH_DEFAULTS.arena.saturation,
+        contrast: SHARED_ARENA_GLYPH_DEFAULTS.arena.contrast,
+        vignetteStrength: SHARED_ARENA_GLYPH_DEFAULTS.arena.vignette
     });
 
     const DEFAULT_POST_FX = Object.freeze({
-        blendMode: 'lighten',
-        opacity: 1,
-        saturation: 1,
-        contrast: 1,
-        brightness: 1,
-        highlights: 0,
-        shadows: 0,
-        whites: 0,
-        blacks: 0,
-        glow: 0
+        blendMode: SHARED_ARENA_GLYPH_DEFAULTS.placement.blendMode,
+        opacity: SHARED_ARENA_GLYPH_DEFAULTS.placement.opacity,
+        saturation: SHARED_ARENA_GLYPH_DEFAULTS.glyphPostFx.saturation,
+        contrast: SHARED_ARENA_GLYPH_DEFAULTS.glyphPostFx.contrast,
+        brightness: SHARED_ARENA_GLYPH_DEFAULTS.glyphPostFx.brightness,
+        softEdgeStart: 0.72,
+        softEdgeMid: 0.88,
+        highlights: SHARED_ARENA_GLYPH_DEFAULTS.glyphPostFx.highlights,
+        shadows: SHARED_ARENA_GLYPH_DEFAULTS.glyphPostFx.shadows,
+        whites: SHARED_ARENA_GLYPH_DEFAULTS.glyphPostFx.whites,
+        blacks: SHARED_ARENA_GLYPH_DEFAULTS.glyphPostFx.blacks,
+        glow: SHARED_ARENA_GLYPH_DEFAULTS.glyphPostFx.glow
     });
 
     function clamp(value, min, max) {
@@ -62,6 +95,34 @@ window.ArenaGlyphRenderer = (() => {
             s = (s * 16807) % 2147483647;
             return s / 2147483647;
         };
+    }
+
+    function createSharedArenaGlyphDefaults() {
+        return {
+            previewMode: SHARED_ARENA_GLYPH_DEFAULTS.previewMode,
+            battleSize: { ...SHARED_ARENA_GLYPH_DEFAULTS.battleSize },
+            placement: { ...SHARED_ARENA_GLYPH_DEFAULTS.placement },
+            arena: { ...SHARED_ARENA_GLYPH_DEFAULTS.arena },
+            glyphPostFx: { ...SHARED_ARENA_GLYPH_DEFAULTS.glyphPostFx }
+        };
+    }
+
+    function createArenaBackgroundTuning(overrides = {}) {
+        return {
+            brightness: DEFAULT_BACKGROUND_TUNING.brightness,
+            saturation: DEFAULT_BACKGROUND_TUNING.saturation,
+            contrast: DEFAULT_BACKGROUND_TUNING.contrast,
+            vignetteStrength: DEFAULT_BACKGROUND_TUNING.vignetteStrength,
+            ...(overrides || {})
+        };
+    }
+
+    function createGlyphPostFx(overrides = {}) {
+        return { ...DEFAULT_POST_FX, ...(overrides || {}) };
+    }
+
+    function createEffectPlacement(overrides = {}) {
+        return { ...SHARED_ARENA_GLYPH_DEFAULTS.placement, ...(overrides || {}) };
     }
 
     function createGlyphSizeTuning(overrides = {}) {
@@ -151,6 +212,10 @@ window.ArenaGlyphRenderer = (() => {
         maskCanvas.width = effectSurfaceSize;
         maskCanvas.height = effectSurfaceSize;
         const maskCtx = maskCanvas.getContext('2d');
+        const softEdgeCanvas = document.createElement('canvas');
+        softEdgeCanvas.width = effectSurfaceSize;
+        softEdgeCanvas.height = effectSurfaceSize;
+        const softEdgeCtx = softEdgeCanvas.getContext('2d');
 
         let vignetteCache = null;
         let vignetteStrength = null;
@@ -372,11 +437,33 @@ window.ArenaGlyphRenderer = (() => {
             return maskCanvas;
         }
 
+        function buildSoftEdgeSurface(source, postFx = DEFAULT_POST_FX) {
+            softEdgeCtx.clearRect(0, 0, effectSurfaceSize, effectSurfaceSize);
+            softEdgeCtx.save();
+            softEdgeCtx.drawImage(source, 0, 0, effectSurfaceSize, effectSurfaceSize);
+            softEdgeCtx.globalCompositeOperation = 'destination-in';
+
+            const center = effectSurfaceSize / 2;
+            const outerRadius = effectSurfaceSize / 2;
+            const innerRadius = outerRadius * clamp(postFx.softEdgeStart, 0, 0.99);
+            const midRadius = outerRadius * clamp(postFx.softEdgeMid, postFx.softEdgeStart, 0.999);
+            const gradient = softEdgeCtx.createRadialGradient(center, center, innerRadius, center, center, outerRadius);
+            gradient.addColorStop(0, 'rgba(0,0,0,1)');
+            gradient.addColorStop(clamp((midRadius - innerRadius) / Math.max(1, outerRadius - innerRadius), 0, 1), 'rgba(0,0,0,0.82)');
+            gradient.addColorStop(1, 'rgba(0,0,0,0)');
+            softEdgeCtx.fillStyle = gradient;
+            softEdgeCtx.fillRect(0, 0, effectSurfaceSize, effectSurfaceSize);
+            softEdgeCtx.restore();
+
+            return softEdgeCanvas;
+        }
+
         function drawGlyphPasses(ctx, source, effect, screenX, screenY, alpha) {
             const postFx = { ...DEFAULT_POST_FX, ...(effect.postFx || {}) };
             const size = Number(effect.size) || getUnifiedGlyphBaseSize();
             const drawX = screenX - size / 2;
             const drawY = screenY - size / 2;
+            const featheredSource = buildSoftEdgeSurface(source, postFx);
 
             const drawPass = ({ blendMode = postFx.blendMode, localAlpha = 1, filter = 'none' }) => {
                 if (localAlpha <= 0) return;
@@ -384,7 +471,7 @@ window.ArenaGlyphRenderer = (() => {
                 ctx.globalCompositeOperation = blendMode;
                 ctx.globalAlpha = alpha * postFx.opacity * localAlpha;
                 if (filter && filter !== 'none') ctx.filter = filter;
-                ctx.drawImage(source, drawX, drawY, size, size);
+                ctx.drawImage(featheredSource, drawX, drawY, size, size);
                 ctx.restore();
             };
 
@@ -454,8 +541,12 @@ window.ArenaGlyphRenderer = (() => {
                     return;
                 }
 
-                const screenX = effect.x - camera.x;
-                const screenY = effect.y - camera.y;
+                const placement = createEffectPlacement({
+                    offsetX: effect.renderOffsetX,
+                    offsetY: effect.renderOffsetY
+                });
+                const screenX = effect.x - camera.x + placement.offsetX;
+                const screenY = effect.y - camera.y + placement.offsetY;
                 const source = layer === 'top' ? buildMaskedEffectSurface(frameSurface) : frameSurface;
                 drawGlyphPasses(ctx, source, effect, screenX, screenY, alpha);
             });
@@ -489,6 +580,7 @@ window.ArenaGlyphRenderer = (() => {
 
     return {
         ASSET_FILES,
+        SHARED_ARENA_GLYPH_DEFAULTS,
         DEFAULT_CANVAS_WIDTH,
         DEFAULT_CANVAS_HEIGHT,
         DEFAULT_EFFECT_SURFACE_SIZE,
@@ -497,6 +589,10 @@ window.ArenaGlyphRenderer = (() => {
         DEFAULT_POST_FX,
         clamp,
         seededRandom,
+        createSharedArenaGlyphDefaults,
+        createArenaBackgroundTuning,
+        createGlyphPostFx,
+        createEffectPlacement,
         createGlyphSizeTuning,
         getUnifiedGlyphBaseSize,
         getSpellRenderSize,

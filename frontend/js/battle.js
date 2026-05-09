@@ -254,11 +254,20 @@ const Battle = (() => {
     const MONSTER_SPEED_MULTIPLIER = 1.17;
     const SOUL_WISP_ALPHA_MULTIPLIER = 1.2;
     const SOUL_WISP_SIZE_MULTIPLIER = 1.5;
+    const ARENA_GLYPH_DEFAULTS = typeof ArenaGlyphRenderer !== 'undefined' && ArenaGlyphRenderer.createSharedArenaGlyphDefaults
+        ? ArenaGlyphRenderer.createSharedArenaGlyphDefaults()
+        : {
+            previewMode: 'spell',
+            battleSize: { glyphBaseSize: 824, arenaViewSizeTweak: 1 },
+            placement: { offsetX: 0, offsetY: 26, opacity: 1, blendMode: 'lighten' },
+            arena: { brightness: 0.54, saturation: 0.38, contrast: 0.96, vignette: 0.95 },
+            glyphPostFx: { saturation: 1.29, contrast: 1.47, brightness: 1.23, highlights: 0.26, shadows: 0, whites: 0.04, blacks: 0, glow: 0.28 }
+        };
     const GLYPH_SIZE_TUNING = typeof ArenaGlyphRenderer !== 'undefined' && ArenaGlyphRenderer.createGlyphSizeTuning
         ? ArenaGlyphRenderer.createGlyphSizeTuning()
         : {
-            baseSize: 746,
-            arenaViewSizeTweak: 1,
+            baseSize: ARENA_GLYPH_DEFAULTS.battleSize.glyphBaseSize,
+            arenaViewSizeTweak: ARENA_GLYPH_DEFAULTS.battleSize.arenaViewSizeTweak,
             spellSizeJitter: 0,
             ultimateCenterScale: 1,
             ultimateSatelliteScale: 0.75,
@@ -282,7 +291,7 @@ const Battle = (() => {
         spellChargeTime: 4000,
         battleDuration: 120,
         soulGoal: 1800,
-        // Shared size tuning entry: arena tuner now previews the same baseline.
+        // Shared confirmed arena glyph defaults live in ArenaGlyphRenderer.
         glyphBaseSize: GLYPH_SIZE_TUNING.baseSize,
         arenaViewSizeTweak: GLYPH_SIZE_TUNING.arenaViewSizeTweak,
         spellSizeJitter: GLYPH_SIZE_TUNING.spellSizeJitter,
@@ -295,9 +304,10 @@ const Battle = (() => {
         ultimateAngleJitter: GLYPH_SIZE_TUNING.ultimateAngleJitter,
         spellDamages: [3, 2, 4, 2],
         spellNames: ['火焰风暴', '冰霜之刃', '雷电裁决', '毒雾缠绕'],
-        groundBrightness: 0.59,
-        groundSaturation: 0.62,
-        groundContrast: 1
+        groundBrightness: ARENA_GLYPH_DEFAULTS.arena.brightness,
+        groundSaturation: ARENA_GLYPH_DEFAULTS.arena.saturation,
+        groundContrast: ARENA_GLYPH_DEFAULTS.arena.contrast,
+        groundVignetteStrength: ARENA_GLYPH_DEFAULTS.arena.vignette
     };
 
     const DEFAULT_SLOT_ELEMENTS = ['fire', 'ice', 'thunder', 'blight'];
@@ -575,7 +585,7 @@ const Battle = (() => {
 
     function drawBattleVignette() {
         if (!arenaSceneRenderer) return;
-        arenaSceneRenderer.drawVignette(ctx);
+        arenaSceneRenderer.drawVignette(ctx, { strength: CONFIG.groundVignetteStrength });
     }
 
     function init() {
