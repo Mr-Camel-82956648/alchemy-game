@@ -87,8 +87,9 @@ const Alchemy = (() => {
         if (card) {
             emptyEl.style.display = 'none';
             filledEl.style.display = 'flex';
-            if (card.videoUrl) {
-                videoEl.src = card.videoUrl;
+            const videoUrl = GameStorage.getCardVideoUrl(card);
+            if (videoUrl) {
+                videoEl.src = videoUrl;
                 videoEl.style.display = 'block';
                 videoEl.play().catch(() => {});
                 thumb.style.display = 'none';
@@ -441,6 +442,9 @@ const Alchemy = (() => {
     }
 
     function updatePixVerseDebug(task) {
+        const resultUrl = (typeof AlchemyRuntime !== 'undefined' && AlchemyRuntime.resolveMediaUrl)
+            ? AlchemyRuntime.resolveMediaUrl(task?.resultUrl || task?.videoUrl || '')
+            : (task?.resultUrl || task?.videoUrl || '');
         const statusText = describePixVerseStatus(task);
         const errorText = task
             ? (task.error || (task.status === 'failed' ? (task.providerErrMsg || '未知失败') : '无'))
@@ -456,14 +460,14 @@ const Alchemy = (() => {
             els.revealVideoStatusText.textContent = summaryText;
         }
         if (els.revealPixVerseUrl) {
-            els.revealPixVerseUrl.textContent = task?.resultUrl || '无';
-            els.revealPixVerseUrl.title = task?.resultUrl || '';
+            els.revealPixVerseUrl.textContent = resultUrl || '无';
+            els.revealPixVerseUrl.title = resultUrl || '';
         }
         if (els.revealPixVerseError) {
             els.revealPixVerseError.textContent = errorText;
         }
         if (els.revealPixVerseOpenBtn) {
-            const url = task?.resultUrl || '';
+            const url = resultUrl || '';
             els.revealPixVerseOpenBtn.dataset.url = url;
             els.revealPixVerseOpenBtn.disabled = !url;
             els.revealPixVerseOpenBtn.textContent = url ? '打开 MP4' : 'MP4 未就绪';
@@ -476,14 +480,14 @@ const Alchemy = (() => {
             assetId: card.assetId || null,
             cardId: card.id || null,
             sourceType: card.assetSourceType || (card.taskId ? 'player_generated' : 'built_in'),
-            status: card.videoStatus || (card.videoUrl ? 'completed' : 'not_generated'),
+            status: card.videoStatus || (GameStorage.getCardVideoUrl(card) ? 'completed' : 'not_generated'),
             videoTaskId: card.videoTaskId || null,
             pixverseVideoId: card.pixverseVideoId || null,
             providerStatus: card.videoProviderStatus ?? null,
             submitAttempts: card.submitAttempts || 0,
             pollCount: card.pollCount || 0,
-            resultUrl: card.videoResultUrl || card.videoUrl || null,
-            videoUrl: card.videoUrl || null,
+            resultUrl: GameStorage.getCardResultUrl(card),
+            videoUrl: GameStorage.getCardVideoUrl(card),
             error: card.videoError || null
         };
     }

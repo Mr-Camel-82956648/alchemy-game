@@ -189,8 +189,9 @@ const Loadout = (() => {
             if (card) {
                 keyEl.style.display = 'none';
 
-                if (card.videoUrl && videoEl) {
-                    videoEl.src = card.videoUrl;
+                const videoUrl = GameStorage.getCardVideoUrl(card);
+                if (videoUrl && videoEl) {
+                    videoEl.src = videoUrl;
                     videoEl.style.display = 'block';
                     videoEl.play().catch(() => {});
                     thumbEl.style.display = 'none';

@@ -329,16 +329,22 @@
     <!-- 预加载隐藏资源 -->
     <img id="img-player" src="assets/ui/player.webp" style="display:none">
 
-    <script src="js/runtimeConfig.js?v=media-url-base1"></script>
-    <script src="js/storage.js?v=media-url-base1"></script>
+    <script>
+        window.__ALCHEMY_RUNTIME_CONFIG__ = Object.assign(
+            { apiBase: 'http://localhost:18001' },
+            window.__ALCHEMY_RUNTIME_CONFIG__ || {}
+        );
+    </script>
+    <script src="js/runtimeConfig.js?v=media-url-base2"></script>
+    <script src="js/storage.js?v=media-url-base2"></script>
     <script src="js/spellDefs.js?v=forge-settlement-sync1"></script>
     <script src="js/monsterDefs.js?v=phase5-final-pack2"></script>
     <script src="js/combat.js?v=phase3"></script>
-    <script src="js/forgeAPI.js?v=media-url-base1"></script>
-    <script src="js/collection.js?v=media-url-base1"></script>
-    <script src="js/loadout.js?v=media-url-base1"></script>
-    <script src="js/alchemy.js?v=media-url-base1"></script>
-    <script src="js/battle.js?v=media-url-base1"></script>
+    <script src="js/forgeAPI.js?v=media-url-base2"></script>
+    <script src="js/collection.js?v=media-url-base2"></script>
+    <script src="js/loadout.js?v=media-url-base2"></script>
+    <script src="js/alchemy.js?v=media-url-base2"></script>
+    <script src="js/battle.js?v=media-url-base2"></script>
     <script src="js/uiTuner.js?v=phase6-dev-foundation1"></script>
     <script src="js/main.js?v=media-url-base1"></script>
 </body>

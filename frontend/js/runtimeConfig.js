@@ -59,10 +59,12 @@ const AlchemyRuntime = (() => {
         }
         if (typeof payload !== 'object') return payload;
 
-        const next = { ...payload };
-        MEDIA_URL_FIELDS.forEach(field => {
-            if (!Object.prototype.hasOwnProperty.call(next, field)) return;
-            next[field] = resolveMediaUrl(next[field]);
+        const next = {};
+        Object.keys(payload).forEach(key => {
+            const value = payload[key];
+            next[key] = MEDIA_URL_FIELDS.includes(key)
+                ? resolveMediaUrl(value)
+                : normalizeMediaPayload(value);
         });
         return next;
     }

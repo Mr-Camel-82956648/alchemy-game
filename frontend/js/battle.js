@@ -494,6 +494,13 @@ const Battle = (() => {
     let devBattlePanel = null;
     let devBattleStatus = null;
 
+    function resolveBattleMediaUrl(value) {
+        if (typeof AlchemyRuntime !== 'undefined' && AlchemyRuntime.resolveMediaUrl) {
+            return AlchemyRuntime.resolveMediaUrl(value);
+        }
+        return value || null;
+    }
+
     function init() {
         canvas = document.getElementById('battle-canvas');
         ctx = canvas.getContext('2d');
@@ -651,8 +658,8 @@ const Battle = (() => {
         spellCardData = [null, null, null, null];
         const loadout = GameStorage.getLoadout();
         loadout.forEach((card, i) => {
-            spellVideoSrcs[i] = card?.videoUrl || null;
-            spellSfxSrcs[i] = card?.sfxUrl || card?.videoUrl || null;
+            spellVideoSrcs[i] = GameStorage.getCardVideoUrl(card);
+            spellSfxSrcs[i] = GameStorage.getCardSfxUrl(card);
             spellCardData[i] = card ? SpellDefs.normalizeCard(card) : null;
             const thumbUrl = card ? GameStorage.getCardThumb(card) : null;
             if (thumbUrl) {
@@ -1208,9 +1215,10 @@ const Battle = (() => {
     }
 
     function createBattleVideo(src, options = {}) {
-        if (!src) return null;
+        const resolvedSrc = resolveBattleMediaUrl(src);
+        if (!resolvedSrc) return null;
         const video = document.createElement('video');
-        video.src = src;
+        video.src = resolvedSrc;
         video.loop = !!options.loop;
         video.muted = true;
         video.playsInline = true;
@@ -1228,9 +1236,10 @@ const Battle = (() => {
     }
 
     function playBattleSfx(src, options = {}) {
-        if (!src) return null;
+        const resolvedSrc = resolveBattleMediaUrl(src);
+        if (!resolvedSrc) return null;
         const audio = document.createElement('audio');
-        audio.src = src;
+        audio.src = resolvedSrc;
         audio.preload = 'auto';
         audio.volume = Math.max(0, Math.min(1, Number(options.volume) || 0.85));
         activeSfxPlayers.add(audio);

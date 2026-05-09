@@ -60,6 +60,29 @@ const GameStorage = (() => {
         return value || null;
     }
 
+    function normalizeCardMediaFields(card) {
+        if (!card || typeof card !== 'object') return card;
+        return {
+            ...card,
+            thumbnailUrl: resolveMediaUrl(card.thumbnailUrl),
+            videoUrl: resolveMediaUrl(card.videoUrl),
+            videoResultUrl: resolveMediaUrl(card.videoResultUrl || card.resultUrl || card.videoUrl),
+            sfxUrl: resolveMediaUrl(card.sfxUrl)
+        };
+    }
+
+    function getCardVideoUrl(card) {
+        return resolveMediaUrl(card?.videoUrl) || null;
+    }
+
+    function getCardResultUrl(card) {
+        return resolveMediaUrl(card?.videoResultUrl || card?.resultUrl || card?.videoUrl) || null;
+    }
+
+    function getCardSfxUrl(card) {
+        return resolveMediaUrl(card?.sfxUrl) || getCardVideoUrl(card) || null;
+    }
+
     function isManagedBuiltinAssetId(value) {
         const assetId = String(value || '').trim();
         return MANAGED_BUILTIN_ASSET_ID_SET.has(assetId);
@@ -72,22 +95,23 @@ const GameStorage = (() => {
     }
 
     function buildStoredBuiltinCard(asset, existingCard = null) {
+        const normalizedAsset = normalizeMediaPayload(asset) || asset || {};
         const previous = existingCard || {};
-        const attrSet = normalizeStoredAttrSet(asset);
-        const generation = Math.max(1, Number(asset?.generation) || 1);
+        const attrSet = normalizeStoredAttrSet(normalizedAsset);
+        const generation = Math.max(1, Number(normalizedAsset?.generation) || 1);
         const fallbackBaseAtk = (typeof SpellDefs !== 'undefined' && SpellDefs.calcBaseAtk)
             ? SpellDefs.calcBaseAtk(generation)
             : null;
-        const completedVideoUrl = asset?.videoUrl || asset?.resultUrl || null;
-        return {
+        const completedVideoUrl = normalizedAsset?.videoUrl || normalizedAsset?.resultUrl || null;
+        return normalizeCardMediaFields({
             ...previous,
-            id: asset.assetId,
-            name: asset.name || asset.assetId,
+            id: normalizedAsset.assetId,
+            name: normalizedAsset.name || normalizedAsset.assetId,
             type: 'spell',
-            status: asset.status || (completedVideoUrl ? 'partial' : 'legacy'),
+            status: normalizedAsset.status || (completedVideoUrl ? 'partial' : 'legacy'),
             videoUrl: completedVideoUrl,
             spellImgUrl: null,
-            thumbnailUrl: asset.thumbnailUrl || null,
+            thumbnailUrl: normalizedAsset.thumbnailUrl || null,
             thumbnail: null,
             thumbnailKind: null,
             attrSet,
@@ -95,9 +119,9 @@ const GameStorage = (() => {
             mainAttr: attrSet[0] || null,
             subAttr: attrSet[1] || null,
             generation,
-            baseAtk: Number(asset?.baseAtk) || fallbackBaseAtk,
-            themeText: asset.themeText || asset.description || null,
-            videoPrompt: asset.videoPrompt || null,
+            baseAtk: Number(normalizedAsset?.baseAtk) || fallbackBaseAtk,
+            themeText: normalizedAsset.themeText || normalizedAsset.description || null,
+            videoPrompt: normalizedAsset.videoPrompt || null,
             promptRoute: previous.promptRoute || null,
             promptRouteReason: previous.promptRouteReason || null,
             promptFallbackApplied: Boolean(previous.promptFallbackApplied),
@@ -109,22 +133,22 @@ const GameStorage = (() => {
             taskId: null,
             inputState: null,
             inputSummary: null,
-            source: asset.origin || 'built_in',
-            assetId: asset.assetId,
-            assetSourceType: asset.sourceType || 'built_in',
-            videoStatus: asset.status || (completedVideoUrl ? 'completed' : 'not_generated'),
+            source: normalizedAsset.origin || 'built_in',
+            assetId: normalizedAsset.assetId,
+            assetSourceType: normalizedAsset.sourceType || 'built_in',
+            videoStatus: normalizedAsset.status || (completedVideoUrl ? 'completed' : 'not_generated'),
             videoTaskId: null,
             pixverseVideoId: null,
-            videoProviderStatus: asset.providerStatus || (completedVideoUrl ? 1 : null),
-            videoError: asset.error || null,
-            videoResultUrl: asset.resultUrl || completedVideoUrl,
-            videoUpdatedAt: Number(asset.updatedAt) || Date.now(),
-            sfxPath: asset.sfxPath || null,
-            sfxUrl: asset.sfxUrl || null,
+            videoProviderStatus: normalizedAsset.providerStatus || (completedVideoUrl ? 1 : null),
+            videoError: normalizedAsset.error || null,
+            videoResultUrl: normalizedAsset.resultUrl || completedVideoUrl,
+            videoUpdatedAt: Number(normalizedAsset.updatedAt) || Date.now(),
+            sfxPath: normalizedAsset.sfxPath || null,
+            sfxUrl: normalizedAsset.sfxUrl || null,
             parentA: null,
             parentB: null,
-            createdAt: previous.createdAt || Number(asset.createdAt) || Date.now()
-        };
+            createdAt: previous.createdAt || Number(normalizedAsset.createdAt) || Date.now()
+        });
     }
 
     function remapCardId(nextId, previousCardsById, validIds) {
@@ -157,7 +181,8 @@ const GameStorage = (() => {
                 throw new Error(payload?.detail || `HTTP ${res.status}`);
             }
 
-            const assets = (payload?.assets || [])
+            const normalizedPayload = normalizeMediaPayload(payload) || payload;
+            const assets = (normalizedPayload?.assets || [])
                 .filter(asset => isManagedBuiltinAssetId(asset?.assetId))
                 .sort((a, b) => getManagedBuiltinSortIndex(a?.assetId) - getManagedBuiltinSortIndex(b?.assetId));
 
@@ -317,7 +342,7 @@ const GameStorage = (() => {
         normalized.videoUpdatedAt = Number.isFinite(Number(normalized.videoUpdatedAt))
             ? Number(normalized.videoUpdatedAt)
             : null;
-        return normalizeMediaPayload(normalized);
+        return normalizeCardMediaFields(normalized);
     }
 
     function normalizePendingRewardDraft(card) {
@@ -335,52 +360,53 @@ const GameStorage = (() => {
                 data.cards = data.cards.filter(c => c.type === 'text');
 
                 seeds.forEach(seed => {
-                    const attrSet = normalizeStoredAttrSet(seed);
-                    data.cards.push({
+                    const normalizedSeed = normalizeMediaPayload(seed) || seed;
+                    const attrSet = normalizeStoredAttrSet(normalizedSeed);
+                    data.cards.push(normalizeCardMediaFields({
                         id: generateId(),
-                        name: seed.name,
-                        type: seed.type,
-                        status: seed.status || null,
-                        videoUrl: seed.videoUrl || null,
-                        spellImgUrl: seed.spellImgUrl || null,
-                        thumbnailUrl: seed.thumbnailUrl || null,
+                        name: normalizedSeed.name,
+                        type: normalizedSeed.type,
+                        status: normalizedSeed.status || null,
+                        videoUrl: normalizedSeed.videoUrl || null,
+                        spellImgUrl: normalizedSeed.spellImgUrl || null,
+                        thumbnailUrl: normalizedSeed.thumbnailUrl || null,
                         thumbnail: null,
                         thumbnailKind: null,
                         attrSet,
-                        element: attrSet[0] || seed.element || seed.mainAttr || null,
-                        mainAttr: attrSet[0] || seed.mainAttr || seed.element || null,
-                        subAttr: attrSet[1] || seed.subAttr || null,
-                        generation: seed.generation || null,
-                        baseAtk: seed.baseAtk || null,
-                        themeText: seed.themeText || seed.visualDesc || null,
-                        videoPrompt: seed.videoPrompt || seed.fusionPrompt || null,
-                        promptRoute: seed.promptRoute || null,
-                        promptRouteReason: seed.promptRouteReason || null,
-                        promptFallbackApplied: Boolean(seed.promptFallbackApplied),
-                        promptTemplate: seed.promptTemplate || null,
-                        promptModel: seed.promptModel || null,
-                        promptRouteElapsedMs: seed.promptRouteElapsedMs || null,
-                        promptGenerationElapsedMs: seed.promptGenerationElapsedMs || null,
-                        promptTotalElapsedMs: seed.promptTotalElapsedMs || null,
-                        taskId: seed.taskId || null,
-                        inputState: seed.inputState || null,
-                        inputSummary: seed.inputSummary || null,
-                        source: seed.source || null,
-                        assetId: seed.assetId || null,
-                        assetSourceType: seed.assetSourceType || (seed.type === 'spell' || seed.type === 'basic' ? 'built_in' : null),
-                        videoStatus: seed.videoStatus || (seed.videoUrl ? 'completed' : 'not_generated'),
-                        videoTaskId: seed.videoTaskId || null,
-                        pixverseVideoId: seed.pixverseVideoId || null,
-                        videoProviderStatus: seed.videoProviderStatus || (seed.videoUrl ? 1 : null),
-                        videoError: seed.videoError || null,
-                        videoResultUrl: seed.videoResultUrl || seed.videoUrl || null,
+                        element: attrSet[0] || normalizedSeed.element || normalizedSeed.mainAttr || null,
+                        mainAttr: attrSet[0] || normalizedSeed.mainAttr || normalizedSeed.element || null,
+                        subAttr: attrSet[1] || normalizedSeed.subAttr || null,
+                        generation: normalizedSeed.generation || null,
+                        baseAtk: normalizedSeed.baseAtk || null,
+                        themeText: normalizedSeed.themeText || normalizedSeed.visualDesc || null,
+                        videoPrompt: normalizedSeed.videoPrompt || normalizedSeed.fusionPrompt || null,
+                        promptRoute: normalizedSeed.promptRoute || null,
+                        promptRouteReason: normalizedSeed.promptRouteReason || null,
+                        promptFallbackApplied: Boolean(normalizedSeed.promptFallbackApplied),
+                        promptTemplate: normalizedSeed.promptTemplate || null,
+                        promptModel: normalizedSeed.promptModel || null,
+                        promptRouteElapsedMs: normalizedSeed.promptRouteElapsedMs || null,
+                        promptGenerationElapsedMs: normalizedSeed.promptGenerationElapsedMs || null,
+                        promptTotalElapsedMs: normalizedSeed.promptTotalElapsedMs || null,
+                        taskId: normalizedSeed.taskId || null,
+                        inputState: normalizedSeed.inputState || null,
+                        inputSummary: normalizedSeed.inputSummary || null,
+                        source: normalizedSeed.source || null,
+                        assetId: normalizedSeed.assetId || null,
+                        assetSourceType: normalizedSeed.assetSourceType || (normalizedSeed.type === 'spell' || normalizedSeed.type === 'basic' ? 'built_in' : null),
+                        videoStatus: normalizedSeed.videoStatus || (normalizedSeed.videoUrl ? 'completed' : 'not_generated'),
+                        videoTaskId: normalizedSeed.videoTaskId || null,
+                        pixverseVideoId: normalizedSeed.pixverseVideoId || null,
+                        videoProviderStatus: normalizedSeed.videoProviderStatus || (normalizedSeed.videoUrl ? 1 : null),
+                        videoError: normalizedSeed.videoError || null,
+                        videoResultUrl: normalizedSeed.videoResultUrl || normalizedSeed.videoUrl || null,
                         videoUpdatedAt: Date.now(),
-                        sfxPath: seed.sfxPath || null,
-                        sfxUrl: seed.sfxUrl || null,
+                        sfxPath: normalizedSeed.sfxPath || null,
+                        sfxUrl: normalizedSeed.sfxUrl || null,
                         parentA: null,
                         parentB: null,
                         createdAt: Date.now()
-                    });
+                    }));
                 });
 
                 const spells = data.cards.filter(c => c.type === 'spell');
@@ -420,7 +446,7 @@ const GameStorage = (() => {
         const assetSourceType = card.assetSourceType || (card.taskId ? 'player_generated' : (card.type === 'spell' && card.videoUrl ? 'built_in' : null));
         const videoStatus = normalizeVideoStatus(card.videoStatus, card.videoUrl ? 'completed' : (assetSourceType === 'player_generated' ? 'not_generated' : null));
         const incomingId = card.id || generateId();
-        const newCard = {
+        const newCard = normalizeCardMediaFields({
             id: incomingId,
             name: card.name || '未命名',
             type: card.type || 'text',
@@ -464,14 +490,14 @@ const GameStorage = (() => {
             parentA: card.parentA || null,
             parentB: card.parentB || null,
             createdAt: Date.now()
-        };
+        });
         const existingIndex = data.cards.findIndex(item => item.id === incomingId);
         if (existingIndex >= 0) {
-            data.cards[existingIndex] = {
+            data.cards[existingIndex] = normalizeCardMediaFields({
                 ...data.cards[existingIndex],
                 ...newCard,
                 createdAt: data.cards[existingIndex].createdAt || newCard.createdAt
-            };
+            });
         } else {
             data.cards.push(newCard);
         }
@@ -483,7 +509,7 @@ const GameStorage = (() => {
         const data = load();
         const index = data.cards.findIndex(card => card.id === id);
         if (index === -1) return null;
-        data.cards[index] = { ...data.cards[index], ...updates };
+        data.cards[index] = normalizeCardMediaFields({ ...data.cards[index], ...updates });
         save(data);
         return normalizeCardForRead(data.cards[index]);
     }
@@ -600,13 +626,13 @@ const GameStorage = (() => {
 
         const pending = data.pendingGeneration;
         data.pendingGeneration.status = 'done';
-        data.pendingGeneration.result = {
+        data.pendingGeneration.result = normalizeMediaPayload({
             ...(result || {}),
             taskId,
             inputState: result?.inputState || pending.inputState || null,
             inputSummary: result?.inputSummary || pending.inputSummary || null,
             source: result?.source || pending.source || null
-        };
+        });
         save(data);
         return data.pendingGeneration;
     }
@@ -644,32 +670,33 @@ const GameStorage = (() => {
 
     function applyVideoAssetStateToCardRecord(card, asset) {
         if (!card || !asset) return card;
-        const completedUrl = asset.videoUrl || asset.resultUrl || null;
-        const normalizedStatus = normalizeVideoStatus(asset.status, inferVideoStatus(card));
+        const normalizedAsset = normalizeMediaPayload(asset) || asset;
+        const completedUrl = normalizedAsset.videoUrl || normalizedAsset.resultUrl || null;
+        const normalizedStatus = normalizeVideoStatus(normalizedAsset.status, inferVideoStatus(card));
         const nextPlayableUrl = normalizedStatus === 'completed'
             ? (completedUrl || card.videoUrl || null)
             : (card.videoUrl || null);
 
-        card.assetId = asset.assetId || card.assetId || null;
-        card.assetSourceType = asset.sourceType || card.assetSourceType || inferAssetSourceType(card);
-        if (asset.thumbnailUrl) {
-            card.thumbnailUrl = asset.thumbnailUrl;
+        card.assetId = normalizedAsset.assetId || card.assetId || null;
+        card.assetSourceType = normalizedAsset.sourceType || card.assetSourceType || inferAssetSourceType(card);
+        if (normalizedAsset.thumbnailUrl) {
+            card.thumbnailUrl = normalizedAsset.thumbnailUrl;
             card.thumbnail = null;
         }
         card.videoStatus = normalizedStatus;
-        card.videoTaskId = asset.videoTaskId || card.videoTaskId || null;
-        card.pixverseVideoId = asset.pixverseVideoId ?? card.pixverseVideoId ?? null;
-        card.videoProviderStatus = asset.providerStatus ?? card.videoProviderStatus ?? null;
+        card.videoTaskId = normalizedAsset.videoTaskId || card.videoTaskId || null;
+        card.pixverseVideoId = normalizedAsset.pixverseVideoId ?? card.pixverseVideoId ?? null;
+        card.videoProviderStatus = normalizedAsset.providerStatus ?? card.videoProviderStatus ?? null;
         card.videoError = normalizedStatus === 'failed'
-            ? (asset.error || card.videoError || null)
+            ? (normalizedAsset.error || card.videoError || null)
             : null;
         card.videoResultUrl = completedUrl || card.videoResultUrl || null;
-        card.videoUpdatedAt = asset.updatedAt || Date.now();
+        card.videoUpdatedAt = normalizedAsset.updatedAt || Date.now();
         card.videoUrl = nextPlayableUrl;
-        card.sfxPath = asset.sfxPath || card.sfxPath || null;
-        card.sfxUrl = asset.sfxUrl || card.sfxUrl || null;
-        if (asset.forgeTaskId) card.taskId = asset.forgeTaskId;
-        return card;
+        card.sfxPath = normalizedAsset.sfxPath || card.sfxPath || null;
+        card.sfxUrl = normalizedAsset.sfxUrl || card.sfxUrl || null;
+        if (normalizedAsset.forgeTaskId) card.taskId = normalizedAsset.forgeTaskId;
+        return Object.assign(card, normalizeCardMediaFields(card));
     }
 
     function applyCardVideoAssetState(cardId, asset) {
@@ -777,6 +804,9 @@ const GameStorage = (() => {
         isTutorialDone,
         markTutorialDone,
         getCardThumb,
+        getCardVideoUrl,
+        getCardResultUrl,
+        getCardSfxUrl,
         generateTextThumbnail,
         applyCardVideoAssetState,
         applyCardVideoAssetStates,

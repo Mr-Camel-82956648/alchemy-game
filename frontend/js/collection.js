@@ -135,8 +135,9 @@ const Collection = (() => {
         els.previewContent.style.display = 'block';
         stopPreviewVideo();
 
-        if (card.type === 'spell' && card.videoUrl) {
-            els.previewVideo.src = card.videoUrl;
+        const previewVideoUrl = GameStorage.getCardVideoUrl(card);
+        if (card.type === 'spell' && previewVideoUrl) {
+            els.previewVideo.src = previewVideoUrl;
             els.previewVideo.style.display = 'block';
             els.previewText.style.display = 'none';
             els.previewVideo.play().catch(() => {});
@@ -243,11 +244,11 @@ const Collection = (() => {
     function buildPreviewVideoState(card) {
         if (!card) return null;
         return {
-            status: card.videoStatus || (card.videoUrl ? 'completed' : 'not_generated'),
+            status: card.videoStatus || (GameStorage.getCardVideoUrl(card) ? 'completed' : 'not_generated'),
             sourceType: card.assetSourceType || (card.taskId ? 'player_generated' : 'built_in'),
             videoTaskId: card.videoTaskId || null,
             providerStatus: card.videoProviderStatus ?? null,
-            resultUrl: card.videoResultUrl || card.videoUrl || null,
+            resultUrl: GameStorage.getCardResultUrl(card),
             error: card.videoError || null
         };
     }
@@ -267,7 +268,7 @@ const Collection = (() => {
     function updatePreviewVideoStatus(card, state) {
         if (!els.previewVideoStatusPanel) return;
         els.previewVideoStatusPanel.style.display = 'block';
-        const videoUrl = state?.resultUrl || card?.videoUrl || null;
+        const videoUrl = state?.resultUrl || GameStorage.getCardResultUrl(card);
         if (els.previewVideoStatusText) {
             els.previewVideoStatusText.textContent = describeVideoStatus(state);
         }

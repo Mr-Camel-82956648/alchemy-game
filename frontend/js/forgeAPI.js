@@ -106,8 +106,8 @@ const ForgeAPI = (() => {
             providerStatus: normalized.videoProviderStatus ?? null,
             submitAttempts: normalized.submitAttempts || 0,
             pollCount: normalized.pollCount || 0,
-            resultUrl: normalized.videoResultUrl || normalized.videoUrl || null,
-            videoUrl: normalized.videoUrl || null,
+            resultUrl: GameStorage.getCardResultUrl(normalized),
+            videoUrl: GameStorage.getCardVideoUrl(normalized),
             error: normalized.videoError || null,
             updatedAt: normalized.videoUpdatedAt || null
         };

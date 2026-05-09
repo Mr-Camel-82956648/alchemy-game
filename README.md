@@ -21,7 +21,7 @@ pip install -r requirements.txt
 uvicorn app.main:app --reload --port 18001
 ```
 
-接口文档位于 `http://localhost:18001/docs`。如果修改后端端口，需要同步修改 `frontend/js/runtimeConfig.js` 中的默认 `API_BASE` 配置。
+接口文档位于 `http://localhost:18001/docs`。如果修改后端端口，需要同步修改 `frontend/index.html` 里 `window.__ALCHEMY_RUNTIME_CONFIG__.apiBase` 的默认配置。
 
 ## 本地调试快捷入口
 
