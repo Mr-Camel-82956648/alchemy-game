@@ -111,12 +111,9 @@
                         <div class="preview-info">
                             <p id="preview-hint" class="preview-hint">点击右侧卡牌预览</p>
                             <div id="preview-video-status-panel" class="preview-video-status-panel" style="display:none">
-                                <div><span class="preview-video-label">视频状态</span><span id="preview-video-status-text" class="preview-video-value">未生成</span></div>
-                                <div><span class="preview-video-label">视频任务</span><span id="preview-video-task" class="preview-video-value">无</span></div>
-                                <div><span class="preview-video-label">MP4</span><span id="preview-video-url" class="preview-video-value">无</span></div>
+                                <div id="preview-video-status-text" class="preview-video-message">这张法阵的影像会显示在卡面中</div>
                                 <div class="preview-video-actions">
-                                    <button id="btn-preview-video-start" class="preview-video-btn" type="button">生成视频</button>
-                                    <button id="btn-preview-video-open" class="preview-video-btn secondary" type="button" disabled>打开 MP4</button>
+                                    <button id="btn-preview-video-start" class="preview-video-btn" type="button">生成影像</button>
                                 </div>
                             </div>
                             <div class="preview-actions" style="display:none" id="preview-actions">
@@ -126,7 +123,9 @@
                                 <button id="btn-delete-card" class="icon-btn btn-delete-icon">
                                     <img src="assets/icon/xiaohui.png" alt="销毁">
                                 </button>
-                                <button id="btn-clear-slot" class="slot-clear-btn" type="button">清空当前槽位</button>
+                                <button id="btn-clear-slot" class="icon-btn slot-clear-btn" type="button" aria-label="清空当前槽位" title="清空当前槽位">
+                                    <img src="assets/icon/quxiao.png" alt="清空当前槽位">
+                                </button>
                             </div>
                         </div>
                     </div>
@@ -275,30 +274,9 @@
                 <div class="reveal-info">
                     <h2 id="reveal-title" class="reveal-title">炼成</h2>
                     <div class="reveal-status-bar">
-                        <div id="reveal-video-status-text" class="reveal-status-text">后台视频生成中，预计很快完成</div>
+                        <div id="reveal-video-status-text" class="reveal-status-text">法阵影像仍在凝聚，收藏后可稍后回看。</div>
                         <div class="reveal-status-actions">
-                            <button id="btn-reveal-pixverse-open" class="reveal-status-btn secondary" type="button" disabled>查看视频</button>
-                            <button id="btn-reveal-debug-toggle" class="reveal-status-btn" type="button">展开调试</button>
-                        </div>
-                    </div>
-                    <div id="reveal-debug-panel" class="reveal-debug-shell" hidden>
-                        <div class="reveal-debug" id="reveal-debug">
-                            <div><span class="reveal-debug-label">themeText</span><span id="reveal-debug-theme" class="reveal-debug-value">无</span></div>
-                            <div><span class="reveal-debug-label">videoPrompt</span><span id="reveal-debug-video" class="reveal-debug-value">无</span></div>
-                            <div><span class="reveal-debug-label">promptRoute</span><span id="reveal-debug-route" class="reveal-debug-value">无</span></div>
-                            <div><span class="reveal-debug-label">routeReason</span><span id="reveal-debug-route-reason" class="reveal-debug-value">无</span></div>
-                            <div><span class="reveal-debug-label">fallback</span><span id="reveal-debug-fallback" class="reveal-debug-value">false</span></div>
-                            <div><span class="reveal-debug-label">taskId</span><span id="reveal-debug-task" class="reveal-debug-value">无</span></div>
-                            <div><span class="reveal-debug-label">inputState</span><span id="reveal-debug-input-state" class="reveal-debug-value">无</span></div>
-                            <div><span class="reveal-debug-label">source</span><span id="reveal-debug-source" class="reveal-debug-value">无</span></div>
-                            <div><span class="reveal-debug-label">inputSummary</span><span id="reveal-debug-input-summary" class="reveal-debug-value">无</span></div>
-                            <div><span class="reveal-debug-label">pixverseTask</span><span id="reveal-debug-pixverse-task" class="reveal-debug-value">未提交</span></div>
-                            <div><span class="reveal-debug-label">pixverseState</span><span id="reveal-debug-pixverse-status" class="reveal-debug-value">未开始</span></div>
-                            <div><span class="reveal-debug-label">pixverseUrl</span><span id="reveal-debug-pixverse-url" class="reveal-debug-value">无</span></div>
-                            <div><span class="reveal-debug-label">pixverseError</span><span id="reveal-debug-pixverse-error" class="reveal-debug-value">无</span></div>
-                            <div class="reveal-debug-actions">
-                                <button id="btn-reveal-pixverse-start" class="reveal-debug-btn" type="button">手动补起视频任务</button>
-                            </div>
+                            <button id="btn-reveal-pixverse-open" class="reveal-status-btn secondary" type="button" disabled>打开影像</button>
                         </div>
                     </div>
                 </div>

@@ -253,24 +253,31 @@ const Collection = (() => {
         };
     }
 
-    function describeVideoStatus(state) {
+    function describeVideoStatus(state, card) {
         const status = state?.status || 'not_generated';
-        const labels = {
-            not_generated: '未生成',
-            generating: '生成中',
-            completed: '已完成',
-            failed: '失败'
-        };
-        const provider = state?.providerStatus != null ? ` / provider=${state.providerStatus}` : '';
-        return `${labels[status] || status}${provider}`;
+        if (status === 'completed') return '法阵影像已经凝成，会直接显示在卡面中。';
+        if (status === 'generating') return '法阵影像仍在生成中，稍后回到这里就能看到。';
+        if (status === 'failed') return '法阵影像整理失败，可以重新发起一次生成。';
+        if (!card?.videoPrompt) return '这张法阵当前没有可提交的影像生成内容。';
+        return '这张法阵还没有生成影像。';
     }
 
     function updatePreviewVideoStatus(card, state) {
         if (!els.previewVideoStatusPanel) return;
+        const videoUrl = state?.resultUrl || GameStorage.getCardResultUrl(card) || GameStorage.getCardVideoUrl(card);
+        const status = state?.status || 'not_generated';
+        const isPlayerGenerated = (state?.sourceType || card?.assetSourceType) === 'player_generated' || Boolean(card?.taskId);
+        const hasPrompt = Boolean(card?.videoPrompt);
+        const hasPlayableVideo = Boolean(videoUrl);
+
+        if (!isPlayerGenerated || (status === 'completed' && hasPlayableVideo)) {
+            els.previewVideoStatusPanel.style.display = 'none';
+            return;
+        }
+
         els.previewVideoStatusPanel.style.display = 'block';
-        const videoUrl = state?.resultUrl || GameStorage.getCardResultUrl(card);
         if (els.previewVideoStatusText) {
-            els.previewVideoStatusText.textContent = describeVideoStatus(state);
+            els.previewVideoStatusText.textContent = describeVideoStatus(state, card);
         }
         if (els.previewVideoTask) {
             els.previewVideoTask.textContent = state?.videoTaskId || '无';
@@ -284,27 +291,21 @@ const Collection = (() => {
             els.previewVideoOpenBtn.disabled = !videoUrl;
         }
         if (els.previewVideoStartBtn) {
-            const status = state?.status || 'not_generated';
-            const isPlayerGenerated = (state?.sourceType || card?.assetSourceType) === 'player_generated' || Boolean(card?.taskId);
-            const hasPrompt = Boolean(card?.videoPrompt);
-            if (!isPlayerGenerated) {
+            if (!hasPrompt) {
                 els.previewVideoStartBtn.disabled = true;
-                els.previewVideoStartBtn.textContent = videoUrl ? '当前资产可直接使用' : '当前资产无需生成';
-            } else if (!hasPrompt) {
-                els.previewVideoStartBtn.disabled = true;
-                els.previewVideoStartBtn.textContent = '当前卡无可提交 videoPrompt';
+                els.previewVideoStartBtn.textContent = '暂无可生成影像';
             } else if (status === 'generating') {
                 els.previewVideoStartBtn.disabled = true;
-                els.previewVideoStartBtn.textContent = 'PixVerse 生成中...';
+                els.previewVideoStartBtn.textContent = '生成中';
             } else if (status === 'completed') {
                 els.previewVideoStartBtn.disabled = true;
-                els.previewVideoStartBtn.textContent = '当前 MP4 已就绪';
+                els.previewVideoStartBtn.textContent = '影像已完成';
             } else if (status === 'failed') {
                 els.previewVideoStartBtn.disabled = false;
-                els.previewVideoStartBtn.textContent = '重试视频生成';
+                els.previewVideoStartBtn.textContent = '重新生成影像';
             } else {
                 els.previewVideoStartBtn.disabled = false;
-                els.previewVideoStartBtn.textContent = '生成视频';
+                els.previewVideoStartBtn.textContent = '生成影像';
             }
 
             els.previewVideoStartBtn.onclick = async () => {
@@ -404,14 +405,22 @@ const Collection = (() => {
 
     function decorateCardItem(item, rawCard) {
         const card = normalizeDisplayCard(rawCard);
+        const meta = document.createElement('div');
+        meta.style.cssText = `
+            position: absolute;
+            top: 12%;
+            left: 18%;
+            right: 18%;
+            z-index: 4;
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            pointer-events: none;
+        `;
 
         const genBadge = document.createElement('div');
         genBadge.textContent = formatGeneration(card.generation);
         genBadge.style.cssText = `
-            position: absolute;
-            top: 9%;
-            left: 13%;
-            z-index: 4;
             padding: 2px 6px;
             border-radius: 999px;
             background: rgba(18, 14, 10, 0.82);
@@ -421,16 +430,13 @@ const Collection = (() => {
             letter-spacing: 0.5px;
             pointer-events: none;
         `;
-        item.appendChild(genBadge);
+        meta.appendChild(genBadge);
 
         const attrs = document.createElement('div');
         attrs.style.cssText = `
-            position: absolute;
-            top: 9%;
-            right: 13%;
-            z-index: 4;
             display: flex;
             gap: 4px;
+            justify-content: flex-end;
             pointer-events: none;
         `;
 
@@ -445,7 +451,8 @@ const Collection = (() => {
             attrs.appendChild(badge);
         });
 
-        if (attrs.childNodes.length > 0) item.appendChild(attrs);
+        if (attrs.childNodes.length > 0) meta.appendChild(attrs);
+        item.appendChild(meta);
     }
 
     return { init, open, close, createCardElement };

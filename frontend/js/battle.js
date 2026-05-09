@@ -652,7 +652,8 @@ const Battle = (() => {
 
     function resolveDevBattleConfig() {
         const params = new URLSearchParams(window.location.search);
-        const enabled = isLocalDevEnvironment() && params.get('devBattle') !== '0';
+        const devBattleParam = String(params.get('devBattle') || '').toLowerCase();
+        const enabled = isLocalDevEnvironment() && (devBattleParam === '1' || devBattleParam === 'true');
         const autoResolveRaw = Number(params.get('autoResolveAfter') || 0);
         const autoResolveAfter = Number.isFinite(autoResolveRaw) && autoResolveRaw > 0 ? autoResolveRaw : 0;
         return {

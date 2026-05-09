@@ -7,7 +7,7 @@ from typing import Optional
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 DB_PATH = Path(__file__).resolve().parents[2] / "data" / "quota.sqlite3"
-DEFAULT_DAILY_LIMIT = int(os.getenv("FORGE_DAILY_QUOTA", "5"))
+DEFAULT_DAILY_LIMIT = int(os.getenv("FORGE_DAILY_QUOTA", "20"))
 logger = logging.getLogger("forge.quota")
 
 
@@ -91,28 +91,43 @@ def _upsert_today_row(conn: sqlite3.Connection, player_id: str):
             "daily_limit": DEFAULT_DAILY_LIMIT,
         }
 
+    stored_limit = int(row["daily_limit"])
+    next_limit = DEFAULT_DAILY_LIMIT if stored_limit < DEFAULT_DAILY_LIMIT else stored_limit
+
     if row["quota_date"] != today:
         conn.execute(
             """
             UPDATE player_quota
-            SET quota_date = ?, used_count = 0, updated_at = ?
+            SET quota_date = ?, used_count = 0, daily_limit = ?, updated_at = ?
             WHERE player_id = ?
             """,
-            (today, now, player_id),
+            (today, next_limit, now, player_id),
         )
         conn.commit()
         return {
             "player_id": player_id,
             "quota_date": today,
             "used_count": 0,
-            "daily_limit": int(row["daily_limit"]),
+            "daily_limit": next_limit,
         }
+
+    if stored_limit < DEFAULT_DAILY_LIMIT:
+        conn.execute(
+            """
+            UPDATE player_quota
+            SET daily_limit = ?, updated_at = ?
+            WHERE player_id = ?
+            """,
+            (DEFAULT_DAILY_LIMIT, now, player_id),
+        )
+        conn.commit()
+        stored_limit = DEFAULT_DAILY_LIMIT
 
     return {
         "player_id": row["player_id"],
         "quota_date": row["quota_date"],
         "used_count": int(row["used_count"]),
-        "daily_limit": int(row["daily_limit"]),
+        "daily_limit": stored_limit,
     }
 
 

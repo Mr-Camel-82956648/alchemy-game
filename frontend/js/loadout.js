@@ -91,9 +91,9 @@ const Loadout = (() => {
         meta.className = 'loadout-slot-meta';
         meta.style.cssText = `
             position: absolute;
-            top: 7%;
-            left: 12%;
-            right: 12%;
+            top: 10%;
+            left: 16%;
+            right: 16%;
             z-index: 4;
             display: flex;
             align-items: flex-start;
@@ -133,14 +133,22 @@ const Loadout = (() => {
 
     function decorateGridItem(item, rawCard) {
         const card = normalizeDisplayCard(rawCard);
+        const meta = document.createElement('div');
+        meta.style.cssText = `
+            position: absolute;
+            top: 12%;
+            left: 18%;
+            right: 18%;
+            z-index: 4;
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            pointer-events: none;
+        `;
 
         const genBadge = document.createElement('div');
         genBadge.textContent = formatGeneration(card.generation);
         genBadge.style.cssText = `
-            position: absolute;
-            top: 9%;
-            left: 13%;
-            z-index: 4;
             padding: 2px 6px;
             border-radius: 999px;
             background: rgba(18, 14, 10, 0.82);
@@ -150,16 +158,13 @@ const Loadout = (() => {
             letter-spacing: 0.5px;
             pointer-events: none;
         `;
-        item.appendChild(genBadge);
+        meta.appendChild(genBadge);
 
         const attrs = document.createElement('div');
         attrs.style.cssText = `
-            position: absolute;
-            top: 9%;
-            right: 13%;
-            z-index: 4;
             display: flex;
             gap: 4px;
+            justify-content: flex-end;
             pointer-events: none;
         `;
         const attrSet = SpellDefs.getCardAttrSet ? SpellDefs.getCardAttrSet(card) : [card.mainAttr, card.subAttr].filter(Boolean);
@@ -172,7 +177,8 @@ const Loadout = (() => {
             }
             attrs.appendChild(badge);
         });
-        if (attrs.childNodes.length > 0) item.appendChild(attrs);
+        if (attrs.childNodes.length > 0) meta.appendChild(attrs);
+        item.appendChild(meta);
     }
 
     function renderSlots() {

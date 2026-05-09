@@ -238,7 +238,7 @@ const Alchemy = (() => {
             return '本次奖励已完成收尾，正在进入 reveal。';
         }
         if (status === 'failed') {
-            return '视频任务失败，将先展示本轮法阵并保留调试入口。';
+            return '影像整理暂未完成，将先展示本轮法阵。';
         }
         if (attempt >= MAX_REVEAL_VIDEO_WAIT_RETRIES) {
             return '视频收尾超出预期，先进入 reveal，并继续保留轻量状态提示。';
@@ -431,14 +431,14 @@ const Alchemy = (() => {
     }
 
     function describeRevealVideoSummary(task) {
-        if (!task) return '后台视频尚未启动';
+        if (!task) return '法阵影像仍在凝聚，收藏后可稍后回看。';
         const status = task.status || 'not_generated';
-        if (status === 'completed' || status === 'succeeded') return '视频已就绪，可直接查看';
-        if (status === 'failed') return '视频生成失败，可在调试面板重试';
+        if (status === 'completed' || status === 'succeeded') return '法阵影像已补齐到收藏，可稍后回看。';
+        if (status === 'failed') return '法阵已炼成，影像整理稍后会继续补齐。';
         if (status === 'generating' || status === 'queued' || status === 'submitting' || status === 'polling') {
-            return '后台视频生成中，预计很快完成';
+            return '法阵影像仍在凝聚，收藏后可稍后回看。';
         }
-        return '后台视频任务待启动';
+        return '法阵影像稍后会补齐到收藏中。';
     }
 
     function updatePixVerseDebug(task) {
@@ -470,7 +470,7 @@ const Alchemy = (() => {
             const url = resultUrl || '';
             els.revealPixVerseOpenBtn.dataset.url = url;
             els.revealPixVerseOpenBtn.disabled = !url;
-            els.revealPixVerseOpenBtn.textContent = url ? '打开 MP4' : 'MP4 未就绪';
+            els.revealPixVerseOpenBtn.textContent = url ? '打开影像' : '影像未就绪';
         }
     }
 
