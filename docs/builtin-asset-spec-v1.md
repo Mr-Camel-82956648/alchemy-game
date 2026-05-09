@@ -89,6 +89,7 @@ backend/assets/cards/<assetId>/
   "videoPrompt": "一段高质量、华丽危险、兼具冷焰奢美感的3D游戏技能特效视频……",
   "description": "默认火系大招池中的基础高表现法阵。",
   "videoPath": "video.mp4",
+  "sfxPath": "sfx.mp3",
   "thumbnailPath": "thumbnail.webp",
   "origin": "handcrafted",
   "originCardId": null,
@@ -110,6 +111,7 @@ backend/assets/cards/<assetId>/
 | `videoPrompt` | 最终视频提示词 | 可选但强烈建议填写；便于后续维护、复刻和质量对比。 |
 | `description` | 资产描述 | 可选；说明定位、用途、风格或维护备注。 |
 | `videoPath` | 本地视频相对路径 | 正式字段；相对当前资产目录，例如 `video.mp4`。 |
+| `sfxPath` | 本地音效相对路径 | 可选字段；相对当前资产目录，例如 `sfx.mp3`。如果当前资源直接复用视频内嵌音轨，也可以先写 `video.mp4`。 |
 | `thumbnailPath` | 本地缩略图相对路径 | 正式字段；相对当前资产目录，例如 `thumbnail.webp`。 |
 | `origin` | 原始来源 | 常用值：`handcrafted`、`player_generated`。 |
 | `originCardId` | 原始玩家卡片 ID | 若来自 `player_generated`，应填写原始 `cardId`；否则填 `null`。 |
@@ -117,8 +119,8 @@ backend/assets/cards/<assetId>/
 
 补充说明：
 
-- `/api/assets/cards` 对外仍会返回前端可直接使用的 `videoUrl` / `thumbnailUrl`。
-- 这些 URL 由后端基于 `videoPath` / `thumbnailPath` 解析生成。
+- `/api/assets/cards` 对外仍会返回前端可直接使用的 `videoUrl` / `thumbnailUrl` / `sfxUrl`。
+- 这些 URL 由后端基于 `videoPath` / `thumbnailPath` / `sfxPath` 解析生成。
 - 也就是说：metadata 内部写相对路径，对外 API 暴露可访问地址。
 - 若目录里已经有完整 metadata、但 `video.mp4` 或 `thumbnail.webp` 尚未补入，`/api/assets/cards` 仍会列出该资产，并返回 `mediaReady=false`；`missingMedia` 会列出缺失的 `video` / `thumbnail`，对应缺失媒体的 `videoUrl` / `thumbnailUrl` 为 `null`。
 

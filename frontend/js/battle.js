@@ -445,6 +445,7 @@ const Battle = (() => {
     const AMULET_SIZE = 480;
     const AMULET_DAMAGE = 0.3;
     const AMULET_TICK_MS = 500;
+    const DEFAULT_SPELL_SFX_SRC = 'assets/Audio/sfx/koiroylers-fireball-impact-351961.mp3';
     let amuletVideo = null;
     let lastAmuletDamageTick = 0;
 
@@ -479,10 +480,12 @@ const Battle = (() => {
 
     // VFX
     let spellVideoSrcs = [];
+    let spellSfxSrcs = [];
     let spellThumbImgs = [null, null, null, null];
     let spellCardData = [null, null, null, null];
     const EFFECT_SIZE = 480;
     let maskCanvas, maskCtx;
+    const activeSfxPlayers = new Set();
 
     let forgeCheckTimer = null;
     let pauseStartedAt = 0;
@@ -643,11 +646,13 @@ const Battle = (() => {
 
     function loadSpellVideos() {
         spellVideoSrcs = [];
+        spellSfxSrcs = [];
         spellThumbImgs = [null, null, null, null];
         spellCardData = [null, null, null, null];
         const loadout = GameStorage.getLoadout();
         loadout.forEach((card, i) => {
             spellVideoSrcs[i] = card?.videoUrl || null;
+            spellSfxSrcs[i] = card?.sfxUrl || card?.videoUrl || null;
             spellCardData[i] = card ? SpellDefs.normalizeCard(card) : null;
             const thumbUrl = card ? GameStorage.getCardThumb(card) : null;
             if (thumbUrl) {
@@ -657,16 +662,8 @@ const Battle = (() => {
             }
         });
 
-        // Fallback: if no loadout, use first 4 from video_list
         if (spellVideoSrcs.every(v => !v)) {
-            fetch('assets/data/video_list.json')
-                .then(r => r.json())
-                .then(videos => {
-                    for (let i = 0; i < 4 && i < videos.length; i++) {
-                        if (!spellVideoSrcs[i]) spellVideoSrcs[i] = `assets/videos/${videos[i]}`;
-                    }
-                })
-                .catch(() => {});
+            console.warn('[Battle] no spell videos found in current loadout; legacy video_list fallback disabled');
         }
     }
 
@@ -790,6 +787,7 @@ const Battle = (() => {
             startTime: now, travelTime,
             color: lightningColor
         });
+        playSpellSfx(index, { volume: 0.72 });
 
         // Delayed spell effect arrival
         const sizeJitter = 0.9 + Math.random() * 0.2;
@@ -841,6 +839,7 @@ const Battle = (() => {
         if (playerAnim.state === 'castUp') return;
         ultimateReadyAt = now + CONFIG.ultimateCooldownMs;
         updateBars();
+        playSpellSfx(activeSpellIndex, { volume: 0.9 });
 
         const selectedSpellIndex = activeSpellIndex;
         const selectedVideoSrc = spellVideoSrcs[selectedSpellIndex] || null;
@@ -1220,6 +1219,36 @@ const Battle = (() => {
         return video;
     }
 
+    function cleanupSfxPlayer(audio) {
+        if (!audio) return;
+        activeSfxPlayers.delete(audio);
+        audio.pause();
+        audio.removeAttribute('src');
+        audio.load();
+    }
+
+    function playBattleSfx(src, options = {}) {
+        if (!src) return null;
+        const audio = document.createElement('audio');
+        audio.src = src;
+        audio.preload = 'auto';
+        audio.volume = Math.max(0, Math.min(1, Number(options.volume) || 0.85));
+        activeSfxPlayers.add(audio);
+        audio.addEventListener('ended', () => cleanupSfxPlayer(audio), { once: true });
+        audio.addEventListener('error', () => cleanupSfxPlayer(audio), { once: true });
+        audio.play().catch(() => cleanupSfxPlayer(audio));
+        return audio;
+    }
+
+    function stopAllBattleSfx() {
+        [...activeSfxPlayers].forEach(cleanupSfxPlayer);
+    }
+
+    function playSpellSfx(index, options = {}) {
+        const src = spellSfxSrcs[index] || DEFAULT_SPELL_SFX_SRC;
+        return playBattleSfx(src, options);
+    }
+
     function retainBattleVideo(video) {
         if (!video) return null;
         video.__battleRefs = (video.__battleRefs || 0) + 1;
@@ -1274,6 +1303,7 @@ const Battle = (() => {
     function cleanupBattleMedia() {
         activeEffects.forEach(cleanupEffectMedia);
         activeEffects = [];
+        stopAllBattleSfx();
         if (amuletVideo) {
             amuletVideo.pause();
             amuletVideo.currentTime = 0;

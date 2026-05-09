@@ -3,9 +3,7 @@
  */
 const ForgeAPI = (() => {
     const USE_MOCK = false;
-    const API_BASE = 'http://localhost:18001';
-
-    console.log('[ForgeAPI] loaded, USE_MOCK=' + USE_MOCK + ', API_BASE=' + API_BASE);
+    console.log('[ForgeAPI] loaded, USE_MOCK=' + USE_MOCK + ', API_BASE=' + AlchemyRuntime.getApiBase());
 
     let pollTimer = null;
     let pollCount = 0;
@@ -13,6 +11,14 @@ const ForgeAPI = (() => {
     const PENDING_REWARD_POLL_MS = 3000;
     let pendingRewardPollTimer = null;
     let activePendingRewardTaskId = null;
+
+    function buildApiUrl(path) {
+        return AlchemyRuntime.buildApiUrl(path);
+    }
+
+    function normalizeMediaPayload(payload) {
+        return AlchemyRuntime.normalizeMediaPayload(payload);
+    }
 
     function clearPendingTask(taskId) {
         if (!taskId || activePendingRewardTaskId === taskId) {
@@ -502,7 +508,7 @@ const ForgeAPI = (() => {
             inputState: buildInputState(cardA, cardB),
             inputSummary: buildInputSummary(cardA, cardB)
         });
-        return fetch(`${API_BASE}/api/forge`, {
+        return fetch(buildApiUrl('/api/forge'), {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -551,25 +557,26 @@ const ForgeAPI = (() => {
                 clearPendingTask(taskId);
                 return;
             }
-            fetch(`${API_BASE}/api/forge/status/${taskId}`)
+            fetch(buildApiUrl(`/api/forge/status/${taskId}`))
                 .then(res => {
                     if (!res.ok) throw new Error(`HTTP ${res.status}`);
                     return res.json();
                 })
                 .then(data => {
-                    if (data.status === 'completed' && data.result) {
+                    const normalizedStatus = normalizeMediaPayload(data);
+                    if (normalizedStatus.status === 'completed' && normalizedStatus.result) {
                         stopPolling();
-                        const pending = GameStorage.writePendingResult(taskId, data.result);
+                        const pending = GameStorage.writePendingResult(taskId, normalizedStatus.result);
                         if (pending?.result) {
                             console.log('[ForgeAPI] forge completed:', pending.result.name, '(source=' + (pending.result.source || '?') + ')');
                             console.log('[ForgeAPI] forge result payload:', pending.result);
                             logPromptRoutingAudit(taskId, pending.result, 'poll');
                             void primePendingRewardRun(taskId);
                         }
-                    } else if (data.status === 'failed') {
+                    } else if (normalizedStatus.status === 'failed') {
                         stopPolling();
                         clearPendingTask(taskId);
-                        console.error('[ForgeAPI] forge task failed:', data.error);
+                        console.error('[ForgeAPI] forge task failed:', normalizedStatus.error);
                     }
                 })
                 .catch(err => {
@@ -588,9 +595,9 @@ const ForgeAPI = (() => {
     async function checkStatus(taskId) {
         if (USE_MOCK) return null;
         try {
-            const res = await fetch(`${API_BASE}/api/forge/status/${taskId}`);
+            const res = await fetch(buildApiUrl(`/api/forge/status/${taskId}`));
             if (!res.ok) return null;
-            return await res.json();
+            return normalizeMediaPayload(await res.json());
         } catch (e) {
             console.warn('[ForgeAPI] checkStatus failed:', e);
             return null;
@@ -616,7 +623,7 @@ const ForgeAPI = (() => {
         }
 
         try {
-            const res = await fetch(`${API_BASE}/api/video/pixverse/from-forge/${encodeURIComponent(forgeTaskId)}`, {
+            const res = await fetch(buildApiUrl(`/api/video/pixverse/from-forge/${encodeURIComponent(forgeTaskId)}`), {
                 method: 'POST'
             });
             const data = await res.json().catch(() => null);
@@ -624,8 +631,9 @@ const ForgeAPI = (() => {
                 const message = data?.detail || `HTTP ${res.status}`;
                 throw new Error(message);
             }
-            console.log('[ForgeAPI] PixVerse task started:', data);
-            return { ok: true, task: data };
+            const normalizedTask = normalizeMediaPayload(data);
+            console.log('[ForgeAPI] PixVerse task started:', normalizedTask);
+            return { ok: true, task: normalizedTask };
         } catch (err) {
             console.error('[ForgeAPI] startPixVerseFromForge failed:', err);
             return {
@@ -645,7 +653,7 @@ const ForgeAPI = (() => {
         }
 
         try {
-            const res = await fetch(`${API_BASE}/api/video/pixverse/cards/register`, {
+            const res = await fetch(buildApiUrl('/api/video/pixverse/cards/register'), {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ cards: items })
@@ -655,11 +663,12 @@ const ForgeAPI = (() => {
                 const message = data?.detail || `HTTP ${res.status}`;
                 throw new Error(message);
             }
-            GameStorage.applyCardVideoAssetStates(data?.cards || []);
-            (data?.cards || []).forEach(asset => {
+            const normalizedCards = normalizeMediaPayload(data?.cards || []);
+            GameStorage.applyCardVideoAssetStates(normalizedCards);
+            normalizedCards.forEach(asset => {
                 if (asset?.cardId) GameStorage.applyPendingVideoAssetState(asset.cardId, asset);
             });
-            return { ok: true, cards: data?.cards || [] };
+            return { ok: true, cards: normalizedCards };
         } catch (err) {
             console.warn('[ForgeAPI] registerGeneratedCards failed:', err);
             return { ok: false, error: err?.message || '卡牌视频状态注册失败', cards: [] };
@@ -675,9 +684,9 @@ const ForgeAPI = (() => {
 
     async function getCardVideoStatus(cardId) {
         try {
-            const res = await fetch(`${API_BASE}/api/video/pixverse/card/${encodeURIComponent(cardId)}`);
+            const res = await fetch(buildApiUrl(`/api/video/pixverse/card/${encodeURIComponent(cardId)}`));
             if (!res.ok) return null;
-            const data = await res.json();
+            const data = normalizeMediaPayload(await res.json());
             GameStorage.applyCardVideoAssetState(cardId, data);
             GameStorage.applyPendingVideoAssetState(cardId, data);
             return data;
@@ -709,7 +718,7 @@ const ForgeAPI = (() => {
         }
 
         try {
-            const res = await fetch(`${API_BASE}/api/video/pixverse/from-card/${encodeURIComponent(cardId)}`, {
+            const res = await fetch(buildApiUrl(`/api/video/pixverse/from-card/${encodeURIComponent(cardId)}`), {
                 method: 'POST'
             });
             const data = await res.json().catch(() => null);
@@ -717,9 +726,10 @@ const ForgeAPI = (() => {
                 const message = data?.detail || `HTTP ${res.status}`;
                 throw new Error(message);
             }
-            GameStorage.applyCardVideoAssetState(cardId, data);
-            GameStorage.applyPendingVideoAssetState(cardId, data);
-            return { ok: true, asset: data };
+            const normalizedAsset = normalizeMediaPayload(data);
+            GameStorage.applyCardVideoAssetState(cardId, normalizedAsset);
+            GameStorage.applyPendingVideoAssetState(cardId, normalizedAsset);
+            return { ok: true, asset: normalizedAsset };
         } catch (err) {
             console.error('[ForgeAPI] startPixVerseFromCard failed:', err);
             return {
@@ -743,9 +753,9 @@ const ForgeAPI = (() => {
         }
 
         try {
-            const res = await fetch(`${API_BASE}/api/video/pixverse/status/${encodeURIComponent(videoTaskId)}`);
+            const res = await fetch(buildApiUrl(`/api/video/pixverse/status/${encodeURIComponent(videoTaskId)}`));
             if (!res.ok) return null;
-            return await res.json();
+            return normalizeMediaPayload(await res.json());
         } catch (e) {
             console.warn('[ForgeAPI] checkPixVerseStatus failed:', e);
             return null;

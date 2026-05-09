@@ -170,7 +170,8 @@ def _resolve_static_asset_path(
         return normalized_rel, None
 
     static_rel = (asset_dir.resolve().relative_to(STATIC_ASSET_DIR.resolve()) / normalized_rel).as_posix()
-    return normalized_rel, f"{STATIC_ASSET_URL_BASE}/{quote(static_rel, safe='/')}"
+    cache_buster = int(resolved.stat().st_mtime * 1000)
+    return normalized_rel, f"{STATIC_ASSET_URL_BASE}/{quote(static_rel, safe='/')}?v={cache_buster}"
 
 
 def _collect_missing_media(
@@ -179,12 +180,16 @@ def _collect_missing_media(
     thumbnail_url: str | None,
     video_field_value: Any,
     video_url: str | None,
+    sfx_field_value: Any = None,
+    sfx_url: str | None = None,
 ) -> list[str]:
     missing: list[str] = []
     if _clean_text(thumbnail_field_value) and not thumbnail_url:
         missing.append("thumbnail")
     if _clean_text(video_field_value) and not video_url:
         missing.append("video")
+    if _clean_text(sfx_field_value) and not sfx_url:
+        missing.append("sfx")
     return missing
 
 
@@ -432,17 +437,28 @@ def _scan_static_assets() -> list[dict[str, Any]]:
             payload.get("videoPath"),
             field_name="videoPath",
         )
+        sfx_path, sfx_url = _resolve_static_asset_path(
+            metadata_path.parent,
+            metadata_path,
+            payload.get("sfxPath"),
+            field_name="sfxPath",
+        )
         legacy_thumbnail_url = _clean_url(payload.get("thumbnailUrl"))
         legacy_video_url = _clean_url(payload.get("videoUrl"))
+        legacy_sfx_url = _clean_url(payload.get("sfxUrl"))
         if not thumbnail_url and legacy_thumbnail_url:
             thumbnail_url = legacy_thumbnail_url
         if not video_url and legacy_video_url:
             video_url = legacy_video_url
+        if not sfx_url and legacy_sfx_url:
+            sfx_url = legacy_sfx_url
         missing_media = _collect_missing_media(
             thumbnail_field_value=payload.get("thumbnailPath"),
             thumbnail_url=thumbnail_url,
             video_field_value=payload.get("videoPath"),
             video_url=video_url,
+            sfx_field_value=payload.get("sfxPath"),
+            sfx_url=sfx_url,
         )
 
         attr_set = _normalize_attr_set(payload.get("attrSet"))
@@ -471,6 +487,8 @@ def _scan_static_assets() -> list[dict[str, Any]]:
             "thumbnailPath": thumbnail_path,
             "thumbnailUrl": thumbnail_url,
             "videoPath": video_path,
+            "sfxPath": sfx_path,
+            "sfxUrl": sfx_url,
             "mediaReady": not missing_media,
             "missingMedia": missing_media,
             "videoTaskId": None,

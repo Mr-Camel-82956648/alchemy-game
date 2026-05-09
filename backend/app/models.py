@@ -179,6 +179,8 @@ class CardVideoStatus(BaseModel):
     thumbnailPath: Optional[str] = None
     thumbnailUrl: Optional[str] = None
     videoPath: Optional[str] = None
+    sfxPath: Optional[str] = None
+    sfxUrl: Optional[str] = None
     mediaReady: Optional[bool] = None
     missingMedia: List[str] = Field(default_factory=list)
     videoTaskId: Optional[str] = None

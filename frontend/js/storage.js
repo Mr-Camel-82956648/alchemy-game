@@ -5,6 +5,22 @@ const GameStorage = (() => {
     const STORAGE_KEY = 'alchemy-forge-data';
     const SEED_VERSION = 4;
     const PLAYER_ID_PARAM = 'playerId';
+    const MANAGED_BUILTIN_ASSET_IDS = [
+        'fire-starter',
+        'ice-starter',
+        'thunder-starter',
+        'blight-starter',
+        'fire-basic-01',
+        'fire-basic-02',
+        'ice-basic-01',
+        'ice-basic-02',
+        'thunder-basic-01',
+        'thunder-basic-02',
+        'blight-basic-01',
+        'blight-basic-02'
+    ];
+    const MANAGED_BUILTIN_ASSET_ID_SET = new Set(MANAGED_BUILTIN_ASSET_IDS);
+    const DEFAULT_BUILTIN_LOADOUT = ['fire-starter', 'ice-starter', 'thunder-starter', 'blight-starter'];
 
     const DEFAULT_DATA = {
         playerId: null,
@@ -29,6 +45,160 @@ const GameStorage = (() => {
 
     function save(data) {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    }
+
+    function normalizeMediaPayload(payload) {
+        return typeof AlchemyRuntime !== 'undefined' && AlchemyRuntime.normalizeMediaPayload
+            ? AlchemyRuntime.normalizeMediaPayload(payload)
+            : payload;
+    }
+
+    function resolveMediaUrl(value) {
+        if (typeof AlchemyRuntime !== 'undefined' && AlchemyRuntime.resolveMediaUrl) {
+            return AlchemyRuntime.resolveMediaUrl(value);
+        }
+        return value || null;
+    }
+
+    function isManagedBuiltinAssetId(value) {
+        const assetId = String(value || '').trim();
+        return MANAGED_BUILTIN_ASSET_ID_SET.has(assetId);
+    }
+
+    function getManagedBuiltinSortIndex(value) {
+        const assetId = String(value || '').trim();
+        const index = MANAGED_BUILTIN_ASSET_IDS.indexOf(assetId);
+        return index >= 0 ? index : Number.MAX_SAFE_INTEGER;
+    }
+
+    function buildStoredBuiltinCard(asset, existingCard = null) {
+        const previous = existingCard || {};
+        const attrSet = normalizeStoredAttrSet(asset);
+        const generation = Math.max(1, Number(asset?.generation) || 1);
+        const fallbackBaseAtk = (typeof SpellDefs !== 'undefined' && SpellDefs.calcBaseAtk)
+            ? SpellDefs.calcBaseAtk(generation)
+            : null;
+        const completedVideoUrl = asset?.videoUrl || asset?.resultUrl || null;
+        return {
+            ...previous,
+            id: asset.assetId,
+            name: asset.name || asset.assetId,
+            type: 'spell',
+            status: asset.status || (completedVideoUrl ? 'partial' : 'legacy'),
+            videoUrl: completedVideoUrl,
+            spellImgUrl: null,
+            thumbnailUrl: asset.thumbnailUrl || null,
+            thumbnail: null,
+            thumbnailKind: null,
+            attrSet,
+            element: attrSet[0] || null,
+            mainAttr: attrSet[0] || null,
+            subAttr: attrSet[1] || null,
+            generation,
+            baseAtk: Number(asset?.baseAtk) || fallbackBaseAtk,
+            themeText: asset.themeText || asset.description || null,
+            videoPrompt: asset.videoPrompt || null,
+            promptRoute: previous.promptRoute || null,
+            promptRouteReason: previous.promptRouteReason || null,
+            promptFallbackApplied: Boolean(previous.promptFallbackApplied),
+            promptTemplate: previous.promptTemplate || null,
+            promptModel: previous.promptModel || null,
+            promptRouteElapsedMs: previous.promptRouteElapsedMs || null,
+            promptGenerationElapsedMs: previous.promptGenerationElapsedMs || null,
+            promptTotalElapsedMs: previous.promptTotalElapsedMs || null,
+            taskId: null,
+            inputState: null,
+            inputSummary: null,
+            source: asset.origin || 'built_in',
+            assetId: asset.assetId,
+            assetSourceType: asset.sourceType || 'built_in',
+            videoStatus: asset.status || (completedVideoUrl ? 'completed' : 'not_generated'),
+            videoTaskId: null,
+            pixverseVideoId: null,
+            videoProviderStatus: asset.providerStatus || (completedVideoUrl ? 1 : null),
+            videoError: asset.error || null,
+            videoResultUrl: asset.resultUrl || completedVideoUrl,
+            videoUpdatedAt: Number(asset.updatedAt) || Date.now(),
+            sfxPath: asset.sfxPath || null,
+            sfxUrl: asset.sfxUrl || null,
+            parentA: null,
+            parentB: null,
+            createdAt: previous.createdAt || Number(asset.createdAt) || Date.now()
+        };
+    }
+
+    function remapCardId(nextId, previousCardsById, validIds) {
+        if (nextId && validIds.has(nextId)) return nextId;
+        const previous = previousCardsById.get(nextId);
+        const assetId = previous?.assetId || null;
+        if (assetId && validIds.has(assetId)) return assetId;
+        return null;
+    }
+
+    function fillMissingLoadoutSlots(loadout, validIds) {
+        const nextLoadout = Array.isArray(loadout) ? loadout.slice(0, 4) : [null, null, null, null];
+        while (nextLoadout.length < 4) nextLoadout.push(null);
+        const used = new Set(nextLoadout.filter(Boolean));
+        DEFAULT_BUILTIN_LOADOUT.forEach(assetId => {
+            if (!validIds.has(assetId) || used.has(assetId)) return;
+            const emptyIndex = nextLoadout.findIndex(value => !value);
+            if (emptyIndex === -1) return;
+            nextLoadout[emptyIndex] = assetId;
+            used.add(assetId);
+        });
+        return nextLoadout;
+    }
+
+    async function syncBuiltinCardsFromBackend() {
+        try {
+            const res = await fetch(AlchemyRuntime.buildApiUrl('/api/assets/cards?sourceType=built_in'), { cache: 'no-store' });
+            const payload = await res.json().catch(() => null);
+            if (!res.ok) {
+                throw new Error(payload?.detail || `HTTP ${res.status}`);
+            }
+
+            const assets = (payload?.assets || [])
+                .filter(asset => isManagedBuiltinAssetId(asset?.assetId))
+                .sort((a, b) => getManagedBuiltinSortIndex(a?.assetId) - getManagedBuiltinSortIndex(b?.assetId));
+
+            if (assets.length === 0) {
+                console.warn('[Storage] backend returned no managed built-in assets, keeping current local built-ins');
+                return { ok: false, assets: [] };
+            }
+            if (assets.length !== MANAGED_BUILTIN_ASSET_IDS.length) {
+                console.warn('[Storage] managed built-in asset count mismatch:', assets.length, assets.map(asset => asset.assetId));
+            }
+
+            const data = load();
+            const previousCardsById = new Map((data.cards || []).map(card => [card.id, card]));
+            const managedBuiltinCards = assets.map(asset => {
+                const previousCard = previousCardsById.get(asset.assetId) || null;
+                return buildStoredBuiltinCard(asset, previousCard);
+            });
+            const preservedCards = (data.cards || []).filter(card => {
+                const normalizedSource = inferAssetSourceType(card);
+                if (normalizedSource === 'player_generated') return true;
+                if (card?.type === 'text') return true;
+                return !isManagedBuiltinAssetId(card?.assetId || card?.id);
+            }).filter(card => {
+                const normalizedSource = inferAssetSourceType(card);
+                return normalizedSource === 'player_generated' || card?.type === 'text';
+            });
+
+            data.cards = [...preservedCards, ...managedBuiltinCards];
+            const validIds = new Set(data.cards.map(card => card.id));
+            const currentLoadout = Array.isArray(data.loadout) ? data.loadout : [null, null, null, null];
+            const remappedLoadout = currentLoadout.map(id => remapCardId(id, previousCardsById, validIds));
+            data.loadout = fillMissingLoadoutSlots(remappedLoadout, validIds);
+            data.currentSlotA = remapCardId(data.currentSlotA, previousCardsById, validIds);
+            data.currentSlotB = remapCardId(data.currentSlotB, previousCardsById, validIds);
+            save(data);
+            console.log('[Storage] synced managed built-in assets from backend:', assets.map(asset => asset.assetId));
+            return { ok: true, assets };
+        } catch (err) {
+            console.warn('[Storage] built-in asset sync failed, keeping local fallback cards:', err);
+            return { ok: false, assets: [], error: err?.message || String(err) };
+        }
     }
 
     function generateId() {
@@ -147,7 +317,7 @@ const GameStorage = (() => {
         normalized.videoUpdatedAt = Number.isFinite(Number(normalized.videoUpdatedAt))
             ? Number(normalized.videoUpdatedAt)
             : null;
-        return normalized;
+        return normalizeMediaPayload(normalized);
     }
 
     function normalizePendingRewardDraft(card) {
@@ -157,75 +327,79 @@ const GameStorage = (() => {
 
     async function seedIfNeeded() {
         const data = load();
-        if (data.seedVersion >= SEED_VERSION) return;
+        if (data.seedVersion < SEED_VERSION) {
+            try {
+                const res = await fetch('assets/data/seed_cards.json');
+                const seeds = await res.json();
 
-        try {
-            const res = await fetch('assets/data/seed_cards.json');
-            const seeds = await res.json();
+                data.cards = data.cards.filter(c => c.type === 'text');
 
-            data.cards = data.cards.filter(c => c.type === 'text');
-
-            seeds.forEach(seed => {
-                const attrSet = normalizeStoredAttrSet(seed);
-                data.cards.push({
-                    id: generateId(),
-                    name: seed.name,
-                    type: seed.type,
-                    status: seed.status || null,
-                    videoUrl: seed.videoUrl || null,
-                    spellImgUrl: seed.spellImgUrl || null,
-                    thumbnailUrl: seed.thumbnailUrl || null,
-                    thumbnail: null,
-                    attrSet,
-                    element: attrSet[0] || seed.element || seed.mainAttr || null,
-                    mainAttr: attrSet[0] || seed.mainAttr || seed.element || null,
-                    subAttr: attrSet[1] || seed.subAttr || null,
-                    generation: seed.generation || null,
-                    baseAtk: seed.baseAtk || null,
-                    themeText: seed.themeText || seed.visualDesc || null,
-                    videoPrompt: seed.videoPrompt || seed.fusionPrompt || null,
-                    promptRoute: seed.promptRoute || null,
-                    promptRouteReason: seed.promptRouteReason || null,
-                    promptFallbackApplied: Boolean(seed.promptFallbackApplied),
-                    promptTemplate: seed.promptTemplate || null,
-                    promptModel: seed.promptModel || null,
-                    promptRouteElapsedMs: seed.promptRouteElapsedMs || null,
-                    promptGenerationElapsedMs: seed.promptGenerationElapsedMs || null,
-                    promptTotalElapsedMs: seed.promptTotalElapsedMs || null,
-                    taskId: seed.taskId || null,
-                    inputState: seed.inputState || null,
-                    inputSummary: seed.inputSummary || null,
-                    source: seed.source || null,
-                    assetId: seed.assetId || null,
-                    assetSourceType: seed.assetSourceType || (seed.type === 'spell' || seed.type === 'basic' ? 'built_in' : null),
-                    videoStatus: seed.videoStatus || (seed.videoUrl ? 'completed' : 'not_generated'),
-                    videoTaskId: seed.videoTaskId || null,
-                    pixverseVideoId: seed.pixverseVideoId || null,
-                    videoProviderStatus: seed.videoProviderStatus || (seed.videoUrl ? 1 : null),
-                    videoError: seed.videoError || null,
-                    videoResultUrl: seed.videoResultUrl || seed.videoUrl || null,
-                    videoUpdatedAt: Date.now(),
-                    parentA: null,
-                    parentB: null,
-                    createdAt: Date.now()
+                seeds.forEach(seed => {
+                    const attrSet = normalizeStoredAttrSet(seed);
+                    data.cards.push({
+                        id: generateId(),
+                        name: seed.name,
+                        type: seed.type,
+                        status: seed.status || null,
+                        videoUrl: seed.videoUrl || null,
+                        spellImgUrl: seed.spellImgUrl || null,
+                        thumbnailUrl: seed.thumbnailUrl || null,
+                        thumbnail: null,
+                        thumbnailKind: null,
+                        attrSet,
+                        element: attrSet[0] || seed.element || seed.mainAttr || null,
+                        mainAttr: attrSet[0] || seed.mainAttr || seed.element || null,
+                        subAttr: attrSet[1] || seed.subAttr || null,
+                        generation: seed.generation || null,
+                        baseAtk: seed.baseAtk || null,
+                        themeText: seed.themeText || seed.visualDesc || null,
+                        videoPrompt: seed.videoPrompt || seed.fusionPrompt || null,
+                        promptRoute: seed.promptRoute || null,
+                        promptRouteReason: seed.promptRouteReason || null,
+                        promptFallbackApplied: Boolean(seed.promptFallbackApplied),
+                        promptTemplate: seed.promptTemplate || null,
+                        promptModel: seed.promptModel || null,
+                        promptRouteElapsedMs: seed.promptRouteElapsedMs || null,
+                        promptGenerationElapsedMs: seed.promptGenerationElapsedMs || null,
+                        promptTotalElapsedMs: seed.promptTotalElapsedMs || null,
+                        taskId: seed.taskId || null,
+                        inputState: seed.inputState || null,
+                        inputSummary: seed.inputSummary || null,
+                        source: seed.source || null,
+                        assetId: seed.assetId || null,
+                        assetSourceType: seed.assetSourceType || (seed.type === 'spell' || seed.type === 'basic' ? 'built_in' : null),
+                        videoStatus: seed.videoStatus || (seed.videoUrl ? 'completed' : 'not_generated'),
+                        videoTaskId: seed.videoTaskId || null,
+                        pixverseVideoId: seed.pixverseVideoId || null,
+                        videoProviderStatus: seed.videoProviderStatus || (seed.videoUrl ? 1 : null),
+                        videoError: seed.videoError || null,
+                        videoResultUrl: seed.videoResultUrl || seed.videoUrl || null,
+                        videoUpdatedAt: Date.now(),
+                        sfxPath: seed.sfxPath || null,
+                        sfxUrl: seed.sfxUrl || null,
+                        parentA: null,
+                        parentB: null,
+                        createdAt: Date.now()
+                    });
                 });
-            });
 
-            const spells = data.cards.filter(c => c.type === 'spell');
-            data.loadout = [
-                spells[0]?.id || null,
-                spells[1]?.id || null,
-                spells[2]?.id || null,
-                spells[3]?.id || null
-            ];
+                const spells = data.cards.filter(c => c.type === 'spell');
+                data.loadout = [
+                    spells[0]?.id || null,
+                    spells[1]?.id || null,
+                    spells[2]?.id || null,
+                    spells[3]?.id || null
+                ];
 
-            if (!data.playerId) data.playerId = `player_${generateId()}`;
-            data.seedVersion = SEED_VERSION;
-            save(data);
-            console.log(`[Storage] Seeded ${seeds.length} cards`);
-        } catch (e) {
-            console.warn('[Storage] Seed failed:', e);
+                if (!data.playerId) data.playerId = `player_${generateId()}`;
+                data.seedVersion = SEED_VERSION;
+                save(data);
+                console.log(`[Storage] Seeded ${seeds.length} fallback cards`);
+            } catch (e) {
+                console.warn('[Storage] Seed failed:', e);
+            }
         }
+        await syncBuiltinCardsFromBackend();
     }
 
     function getCards() {
@@ -285,6 +459,8 @@ const GameStorage = (() => {
             videoError: card.videoError || null,
             videoResultUrl: card.videoResultUrl || card.resultUrl || card.videoUrl || null,
             videoUpdatedAt: card.videoUpdatedAt || Date.now(),
+            sfxPath: card.sfxPath || null,
+            sfxUrl: card.sfxUrl || null,
             parentA: card.parentA || null,
             parentB: card.parentB || null,
             createdAt: Date.now()
@@ -463,7 +639,7 @@ const GameStorage = (() => {
     }
 
     function getCardThumb(card) {
-        return card.thumbnailUrl || card.thumbnail || null;
+        return resolveMediaUrl(card?.thumbnailUrl) || card?.thumbnail || null;
     }
 
     function applyVideoAssetStateToCardRecord(card, asset) {
@@ -490,6 +666,8 @@ const GameStorage = (() => {
         card.videoResultUrl = completedUrl || card.videoResultUrl || null;
         card.videoUpdatedAt = asset.updatedAt || Date.now();
         card.videoUrl = nextPlayableUrl;
+        card.sfxPath = asset.sfxPath || card.sfxPath || null;
+        card.sfxUrl = asset.sfxUrl || card.sfxUrl || null;
         if (asset.forgeTaskId) card.taskId = asset.forgeTaskId;
         return card;
     }
