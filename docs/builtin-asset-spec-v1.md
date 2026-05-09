@@ -121,6 +121,7 @@ backend/assets/cards/<assetId>/
 
 - `/api/assets/cards` 对外仍会返回前端可直接使用的 `videoUrl` / `thumbnailUrl` / `sfxUrl`。
 - 这些 URL 由后端基于 `videoPath` / `thumbnailPath` / `sfxPath` 解析生成。
+- 前端统一通过 `frontend/js/runtimeConfig.js` 的 `AlchemyRuntime.resolveMediaUrl()` 按当前 `apiBase` 补全这些媒体地址；reveal / collection / battle / loadout 不再各自拼接基址。
 - 也就是说：metadata 内部写相对路径，对外 API 暴露可访问地址。
 - 若目录里已经有完整 metadata、但 `video.mp4` 或 `thumbnail.webp` 尚未补入，`/api/assets/cards` 仍会列出该资产，并返回 `mediaReady=false`；`missingMedia` 会列出缺失的 `video` / `thumbnail`，对应缺失媒体的 `videoUrl` / `thumbnailUrl` 为 `null`。
 
@@ -251,6 +252,7 @@ backend/assets/cards/<assetId>/
 
 - 后端静态扫描器优先读取 `videoPath / thumbnailPath`。
 - `/api/assets/cards` 会把相对路径解析成前端可直接访问的 URL。
+- 前端拿到这些 URL 后，会再统一走 `AlchemyRuntime.resolveMediaUrl()`，把 `/api/...` 形式的媒体路径补全为基于当前 `apiBase` 的完整地址。
 - 旧 `videoUrl / thumbnailUrl` 目前仍可读取，但仅用于迁移过渡。
 - 当 metadata 完整但媒体文件缺失时，扫描器不会因为单个资源缺失而中断整个列表；资产仍会被列出，并通过 `mediaReady` 与 `missingMedia` 标识待补素材状态。
 - 当前已迁移的样例目录：

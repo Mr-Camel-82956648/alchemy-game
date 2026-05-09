@@ -21,7 +21,7 @@ pip install -r requirements.txt
 uvicorn app.main:app --reload --port 18001
 ```
 
-接口文档位于 `http://localhost:18001/docs`。如果修改后端端口，需要同步修改 `frontend/index.html` 里 `window.__ALCHEMY_RUNTIME_CONFIG__.apiBase` 的默认配置。
+接口文档位于 `http://localhost:18001/docs`。当前本地默认端口口径是前端 `8000`、后端 `18001`；如果修改后端端口，需要同步调整前端注入的 `apiBase` 默认值，而前端 API 与媒体 URL 的补全逻辑统一由 `frontend/js/runtimeConfig.js` 负责。
 
 ## 本地调试快捷入口
 
@@ -56,7 +56,13 @@ uvicorn app.main:app --reload --port 18001
 - 当前除了 `from-forge / status / debug tasks` 这组调试入口外，还新增了面向产品链路的 `cards/register / from-card/{cardId} / card/{cardId}`。
 - 后端会把 player-generated 卡视频记录持久化到 `backend/data/card_asset_state.json`，刷新页面或重启后端后仍可按 `cardId` 回查视频状态。
 - 统一卡牌资产库已升级为自包含目录协议 `backend/assets/cards/<assetId>/`；静态 `built_in / curated` 资产至少包含 `metadata.json + video.mp4 + thumbnail.webp`，metadata 正式使用 `videoPath / thumbnailPath` 相对路径，对外 API 再解析成前端可直接访问的 URL。
+- 前端 reveal / collection / battle / loadout 读取到的 `thumbnailUrl / videoUrl / resultUrl / sfxUrl` 都统一经过 `AlchemyRuntime.resolveMediaUrl()` 基于 `apiBase` 补全；不再各处手写媒体基址拼接。
 - 前端 reveal 调试区与 collection 预览区都保留了 `状态 / task / MP4 / 打开 MP4` 入口。
+
+## 本地视觉调试工具
+
+- `frontend/tools/` 是本地调试目录，只在需要视觉调试、参数校准或专项核查时按需进入；平时正常业务开发不要主动阅读整个目录。
+- 当前新增 `frontend/tools/arena_glyph_tuner.html`，用于在 battle 外单独核查竞技场法阵视频的尺寸、位置、混合模式和近似后处理参数。
 
 ## 当前开发阶段
 
@@ -98,3 +104,4 @@ uvicorn app.main:app --reload --port 18001
 5. 再读 `docs/llm-env-alignment.md`，确认宿主 backend 与 glyph router 的 LLM 配置口径与排查方式。
 6. 需要后端接口或运行细节时，再补读 `backend/README.md`。
 7. 只有在排查历史决策或旧实现来源时，才进入 `docs/archive/`。
+8. `frontend/tools/` 不是常规上下文；只有在做视觉调试或参数校准时，才按需打开对应单个工具页。

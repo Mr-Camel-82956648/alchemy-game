@@ -267,6 +267,7 @@ backend/assets/cards/<assetId>/
 
 - metadata 内部正式使用 `videoPath / thumbnailPath`，路径相对于当前资产目录。
 - `/api/assets/cards` 对外仍返回前端可直接使用的 `videoUrl / thumbnailUrl`，由后端根据相对路径解析生成。
+- 前端 reveal / collection / battle / loadout 会统一通过 `AlchemyRuntime.resolveMediaUrl()` 按当前 `apiBase` 补全这些媒体 URL。
 - 旧 `videoUrl / thumbnailUrl` 目前仍兼容读取，但仅用于迁移过渡，不再作为新资产制作标准。
 - 详细制作规范见 `docs/builtin-asset-spec-v1.md`。
 
