@@ -30,23 +30,15 @@ const Alchemy = (() => {
         els.revealPixVerseStatus = document.getElementById('reveal-debug-pixverse-status');
         els.revealPixVerseUrl = document.getElementById('reveal-debug-pixverse-url');
         els.revealPixVerseError = document.getElementById('reveal-debug-pixverse-error');
-        els.revealVideoStatusText = document.getElementById('reveal-video-status-text');
         els.revealDebugPanel = document.getElementById('reveal-debug-panel');
         els.revealDebugToggleBtn = document.getElementById('btn-reveal-debug-toggle');
         els.revealPixVerseStartBtn = document.getElementById('btn-reveal-pixverse-start');
-        els.revealPixVerseOpenBtn = document.getElementById('btn-reveal-pixverse-open');
 
         els.slotA.addEventListener('click', () => Collection.open('A'));
         els.slotB.addEventListener('click', () => Collection.open('B'));
         els.startBtn.addEventListener('click', onStart);
         els.loadoutBtn.addEventListener('click', () => Loadout.open());
         if (els.forgeReturnBtn) els.forgeReturnBtn.addEventListener('click', onForgeReturn);
-        if (els.revealPixVerseOpenBtn) {
-            els.revealPixVerseOpenBtn.addEventListener('click', () => {
-                const url = els.revealPixVerseOpenBtn.dataset.url || '';
-                if (url) window.open(url, '_blank', 'noopener');
-            });
-        }
         if (els.revealDebugToggleBtn) {
             els.revealDebugToggleBtn.addEventListener('click', () => {
                 const isHidden = Boolean(els.revealDebugPanel?.hidden);
@@ -430,17 +422,6 @@ const Alchemy = (() => {
         ].filter(Boolean).join(' | ');
     }
 
-    function describeRevealVideoSummary(task) {
-        if (!task) return '法阵影像仍在凝聚，收藏后可稍后回看。';
-        const status = task.status || 'not_generated';
-        if (status === 'completed' || status === 'succeeded') return '法阵影像已补齐到收藏，可稍后回看。';
-        if (status === 'failed') return '法阵已炼成，影像整理稍后会继续补齐。';
-        if (status === 'generating' || status === 'queued' || status === 'submitting' || status === 'polling') {
-            return '法阵影像仍在凝聚，收藏后可稍后回看。';
-        }
-        return '法阵影像稍后会补齐到收藏中。';
-    }
-
     function updatePixVerseDebug(task) {
         const resultUrl = (typeof AlchemyRuntime !== 'undefined' && AlchemyRuntime.resolveMediaUrl)
             ? AlchemyRuntime.resolveMediaUrl(task?.resultUrl || task?.videoUrl || '')
@@ -449,15 +430,11 @@ const Alchemy = (() => {
         const errorText = task
             ? (task.error || (task.status === 'failed' ? (task.providerErrMsg || '未知失败') : '无'))
             : '无';
-        const summaryText = describeRevealVideoSummary(task);
         if (els.revealPixVerseTask) {
             els.revealPixVerseTask.textContent = task?.videoTaskId || '未提交';
         }
         if (els.revealPixVerseStatus) {
             els.revealPixVerseStatus.textContent = statusText;
-        }
-        if (els.revealVideoStatusText) {
-            els.revealVideoStatusText.textContent = summaryText;
         }
         if (els.revealPixVerseUrl) {
             els.revealPixVerseUrl.textContent = resultUrl || '无';
@@ -465,12 +442,6 @@ const Alchemy = (() => {
         }
         if (els.revealPixVerseError) {
             els.revealPixVerseError.textContent = errorText;
-        }
-        if (els.revealPixVerseOpenBtn) {
-            const url = resultUrl || '';
-            els.revealPixVerseOpenBtn.dataset.url = url;
-            els.revealPixVerseOpenBtn.disabled = !url;
-            els.revealPixVerseOpenBtn.textContent = url ? '打开影像' : '影像未就绪';
         }
     }
 
