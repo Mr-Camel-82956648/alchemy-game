@@ -254,6 +254,20 @@ const Battle = (() => {
     const MONSTER_SPEED_MULTIPLIER = 1.17;
     const SOUL_WISP_ALPHA_MULTIPLIER = 1.2;
     const SOUL_WISP_SIZE_MULTIPLIER = 1.5;
+    const GLYPH_SIZE_TUNING = typeof ArenaGlyphRenderer !== 'undefined' && ArenaGlyphRenderer.createGlyphSizeTuning
+        ? ArenaGlyphRenderer.createGlyphSizeTuning()
+        : {
+            baseSize: 746,
+            arenaViewSizeTweak: 1,
+            spellSizeJitter: 0,
+            ultimateCenterScale: 1,
+            ultimateSatelliteScale: 0.75,
+            ultimateSatelliteCount: 5,
+            ultimateRingDistanceScale: 0.55,
+            ultimateEllipseXScale: 1.3,
+            ultimateEllipseYScale: 0.65,
+            ultimateAngleJitter: 0.35
+        };
 
     const CONFIG = {
         playerSpeed: 9.36,
@@ -262,24 +276,35 @@ const Battle = (() => {
         dashDuration: 160,
         dashCooldown: 1500,
         ultimateCooldownMs: 15000,
-        ultimateSize: 1591,
         ultimateDamage: 10,
         wavePause: 1500,
         spellMaxCharges: 6,
         spellChargeTime: 4000,
         battleDuration: 120,
         soulGoal: 1800,
-        spellSizes: [796, 597, 696, 895],
+        // Shared size tuning entry: arena tuner now previews the same baseline.
+        glyphBaseSize: GLYPH_SIZE_TUNING.baseSize,
+        arenaViewSizeTweak: GLYPH_SIZE_TUNING.arenaViewSizeTweak,
+        spellSizeJitter: GLYPH_SIZE_TUNING.spellSizeJitter,
+        ultimateCenterSizeScale: GLYPH_SIZE_TUNING.ultimateCenterScale,
+        ultimateSatelliteSizeScale: GLYPH_SIZE_TUNING.ultimateSatelliteScale,
+        ultimateSatelliteCount: GLYPH_SIZE_TUNING.ultimateSatelliteCount,
+        ultimateRingDistanceScale: GLYPH_SIZE_TUNING.ultimateRingDistanceScale,
+        ultimateEllipseXScale: GLYPH_SIZE_TUNING.ultimateEllipseXScale,
+        ultimateEllipseYScale: GLYPH_SIZE_TUNING.ultimateEllipseYScale,
+        ultimateAngleJitter: GLYPH_SIZE_TUNING.ultimateAngleJitter,
         spellDamages: [3, 2, 4, 2],
         spellNames: ['火焰风暴', '冰霜之刃', '雷电裁决', '毒雾缠绕'],
         groundBrightness: 0.59,
-        groundSaturation: 0.62
+        groundSaturation: 0.62,
+        groundContrast: 1
     };
 
     const DEFAULT_SLOT_ELEMENTS = ['fire', 'ice', 'thunder', 'blight'];
     const DEV_BATTLE_LOCAL_HOSTS = new Set(['localhost', '127.0.0.1', '::1', '[::1]']);
 
     let canvas, ctx;
+    let arenaSceneRenderer = null;
     let running = false;
     let animFrameId = null;
 
@@ -483,7 +508,7 @@ const Battle = (() => {
     let spellSfxSrcs = [];
     let spellThumbImgs = [null, null, null, null];
     let spellCardData = [null, null, null, null];
-    const EFFECT_SIZE = 480;
+    const EFFECT_SIZE = ArenaGlyphRenderer.DEFAULT_EFFECT_SURFACE_SIZE;
     let maskCanvas, maskCtx;
     const activeSfxPlayers = new Set();
 
@@ -501,16 +526,72 @@ const Battle = (() => {
         return value || null;
     }
 
+    function getBattleGlyphSizeTuning(overrides = {}) {
+        return ArenaGlyphRenderer.createGlyphSizeTuning({
+            baseSize: CONFIG.glyphBaseSize,
+            arenaViewSizeTweak: CONFIG.arenaViewSizeTweak,
+            spellSizeJitter: CONFIG.spellSizeJitter,
+            ultimateCenterScale: CONFIG.ultimateCenterSizeScale,
+            ultimateSatelliteScale: CONFIG.ultimateSatelliteSizeScale,
+            ultimateSatelliteCount: CONFIG.ultimateSatelliteCount,
+            ultimateRingDistanceScale: CONFIG.ultimateRingDistanceScale,
+            ultimateEllipseXScale: CONFIG.ultimateEllipseXScale,
+            ultimateEllipseYScale: CONFIG.ultimateEllipseYScale,
+            ultimateAngleJitter: CONFIG.ultimateAngleJitter,
+            ...(overrides || {})
+        });
+    }
+
+    function getBattleSpellRenderSize(variant = 'spell', random = Math.random) {
+        return ArenaGlyphRenderer.getSpellRenderSize({
+            tuning: getBattleGlyphSizeTuning(),
+            variant,
+            random
+        });
+    }
+
+    function drawArenaBackdrop(now) {
+        if (!arenaSceneRenderer) return;
+        arenaSceneRenderer.drawBackground(ctx, {
+            camera,
+            background: {
+                brightness: CONFIG.groundBrightness,
+                saturation: CONFIG.groundSaturation,
+                contrast: CONFIG.groundContrast
+            },
+            now
+        });
+    }
+
+    function drawArenaEffectsBottom(now) {
+        if (!arenaSceneRenderer) return;
+        arenaSceneRenderer.drawEffectsBottom(ctx, { effects: activeEffects, camera, now });
+    }
+
+    function drawArenaEffectsTop(now) {
+        if (!arenaSceneRenderer) return;
+        arenaSceneRenderer.drawEffectsTop(ctx, { effects: activeEffects, camera, now });
+    }
+
+    function drawBattleVignette() {
+        if (!arenaSceneRenderer) return;
+        arenaSceneRenderer.drawVignette(ctx);
+    }
+
     function init() {
         canvas = document.getElementById('battle-canvas');
         ctx = canvas.getContext('2d');
         devBattlePanel = document.getElementById('battle-dev-panel');
         devBattleStatus = document.getElementById('battle-dev-status');
-
         maskCanvas = document.createElement('canvas');
         maskCanvas.width = EFFECT_SIZE;
         maskCanvas.height = EFFECT_SIZE;
         maskCtx = maskCanvas.getContext('2d');
+        arenaSceneRenderer = ArenaGlyphRenderer.createSceneRenderer({
+            width: CANVAS_W,
+            height: CANVAS_H,
+            assets: bgAssets
+        });
 
         // Preload animated monster sprites
         Object.entries(MOB_SPECIES).forEach(([species, def]) => {
@@ -524,22 +605,6 @@ const Battle = (() => {
 
         preloadPlayerSprites();
         preloadSoulWispFrames();
-
-        // Background textures
-        const bgFiles = {
-            ground: 'assets/aena/seamless_texture_01.jpg',
-            skull1: 'assets/aena/skull_01.png',
-            skull2: 'assets/aena/skull_02.png',
-            light1: 'assets/aena/linear_dodge_add_01.png',
-            light2: 'assets/aena/linear_dodge_add_02.png',
-            bloodScreen: 'assets/ui/blood_screen.webp',
-            crucibleUi: 'assets/icon/crucible_UI.png'
-        };
-        Object.entries(bgFiles).forEach(([key, src]) => {
-            const img = new Image();
-            img.src = src;
-            bgAssets[key] = img;
-        });
 
         // Load VFX videos from loadout
         loadSpellVideos();
@@ -797,7 +862,7 @@ const Battle = (() => {
         playSpellSfx(index, { volume: 0.72 });
 
         // Delayed spell effect arrival
-        const sizeJitter = 0.9 + Math.random() * 0.2;
+        const spellRenderSize = getBattleSpellRenderSize('spell', Math.random);
         scheduleBattleTimeout(() => {
             if (!running) return;
             const video = createBattleVideo(spellVideoSrcs[index]);
@@ -807,7 +872,7 @@ const Battle = (() => {
             const mainAttr = spellData.mainAttr;
             activeEffects.push({
                 x: wx, y: wy,
-                size: CONFIG.spellSizes[index] * sizeJitter,
+                size: spellRenderSize,
                 color: mainAttr ? SpellDefs.getElementColor(mainAttr) : getSpellUiColor(index),
                 glowColor: mainAttr ? SpellDefs.getElementGlow(mainAttr) : getSpellUiGlow(index),
                 damage: CONFIG.spellDamages[index],
@@ -857,77 +922,52 @@ const Battle = (() => {
         const effectColor = mainAttr ? SpellDefs.getElementColor(mainAttr) : getSpellUiColor(selectedSpellIndex);
         const effectGlow = mainAttr ? SpellDefs.getElementGlow(mainAttr) : getSpellUiGlow(selectedSpellIndex);
         const px = player.x, py = player.y;
-        const baseSpellSize = CONFIG.spellSizes[selectedSpellIndex] || Math.max(...CONFIG.spellSizes);
         const lightningColor = effectColor;
         const spriteScale = player.w / 960;
+        const burstLayout = ArenaGlyphRenderer.buildUltimateBurstLayout({
+            x: px,
+            y: py,
+            tuning: getBattleGlyphSizeTuning(),
+            random: Math.random
+        });
 
-        // Chain barrage: concentric rings within viewport
-        const subCount = 8 + Math.floor(Math.random() * 5); // 8-12
+        // Chain barrage: use the same shared size/layout baseline as the arena tuner.
         let delay = 0;
         let interval = 80;
-        const baseAngle = Math.random() * Math.PI * 2;
+        burstLayout.forEach((burst, index) => {
+            const d = delay;
+            const ex = burst.x;
+            const ey = burst.y;
 
-        // Ring layout: center(1) + inner ring
-        const innerCount = Math.min(subCount - 1, 4 + Math.floor(Math.random() * 3));
-        const rings = [
-            { dist: 0, count: 1 },
-            { dist: baseSpellSize * 0.55, count: innerCount },
-            // { dist: maxSubSize * 1.05, count: subCount - 1 - innerCount }
-        ];
-        const maxDist = CANVAS_W * 0.35;
-
-        let subIndex = 0;
-        for (let r = 0; r < rings.length; r++) {
-            const ring = rings[r];
-            const ringDist = Math.min(ring.dist, maxDist);
-            for (let j = 0; j < ring.count; j++) {
-                const i = subIndex++;
-                const size = baseSpellSize * (0.55 + Math.random() * 0.4);
-                let ox, oy;
-                if (ringDist === 0) {
-                    ox = px;
-                    oy = py;
-                } else {
-                    const angleStep = (Math.PI * 2) / ring.count;
-                    const angle = baseAngle + angleStep * j + (Math.random() - 0.5) * angleStep * 0.35;
-                    ox = px + Math.cos(angle) * ringDist * 1.3;
-                    oy = py + Math.sin(angle) * ringDist * 0.65;
+            scheduleBattleTimeout(() => {
+                if (!running) return;
+                if (!sharedVideo && selectedVideoSrc) {
+                    sharedVideo = createBattleVideo(selectedVideoSrc);
+                    sharedVideo.play().catch(() => {});
                 }
+                activeEffects.push({
+                    x: ex, y: ey, size: burst.size,
+                    color: effectColor, glowColor: effectGlow,
+                    damage: CONFIG.ultimateDamage * (burst.isCenter ? 1 : 0.5),
+                    mainAttr: mainAttr,
+                    spellData: spellData,
+                    video: retainBattleVideo(sharedVideo),
+                    startTime: Date.now(),
+                    damageApplied: false, isUltimate: true
+                });
+                lightningBolts.push({
+                    fromX: px + (406 - 480) * spriteScale,
+                    fromY: py + (98 - 960) * spriteScale,
+                    toX: ex, toY: ey,
+                    startTime: Date.now(), travelTime: 80,
+                    color: lightningColor
+                });
+                triggerShake(index === 0 ? 8 : 5, 150);
+            }, d);
 
-                const d = delay;
-                const s = size;
-                const ex = ox, ey = oy;
-
-                scheduleBattleTimeout(() => {
-                    if (!running) return;
-                    if (!sharedVideo && selectedVideoSrc) {
-                        sharedVideo = createBattleVideo(selectedVideoSrc);
-                        sharedVideo.play().catch(() => {});
-                    }
-                    activeEffects.push({
-                        x: ex, y: ey, size: s,
-                        color: effectColor, glowColor: effectGlow,
-                        damage: CONFIG.ultimateDamage * (i === 0 ? 1 : 0.5),
-                        mainAttr: mainAttr,
-                        spellData: spellData,
-                        video: retainBattleVideo(sharedVideo),
-                        startTime: Date.now(),
-                        damageApplied: false, isUltimate: true
-                    });
-                    lightningBolts.push({
-                        fromX: px + (406 - 480) * spriteScale,
-                        fromY: py + (98 - 960) * spriteScale,
-                        toX: ex, toY: ey,
-                        startTime: Date.now(), travelTime: 80,
-                        color: lightningColor
-                    });
-                    triggerShake(i === 0 ? 8 : 4 + Math.random() * 3, 150);
-                }, d);
-
-                delay += interval;
-                interval = Math.max(20, interval * 0.85);
-            }
-        }
+            delay += interval;
+            interval = Math.max(20, interval * 0.85);
+        });
 
         triggerHitstop(15);
     }
@@ -2763,53 +2803,9 @@ const Battle = (() => {
         ctx.save();
         ctx.translate(shakeX, shakeY);
 
-        // Layer 1: Ground tile (seamless, 1:1 camera scroll) with brightness/saturation
-        if (bgAssets.ground && bgAssets.ground.complete && bgAssets.ground.naturalWidth) {
-            if (CONFIG.groundSaturation !== 1) {
-                ctx.save();
-                ctx.filter = `saturate(${CONFIG.groundSaturation})`;
-                drawTiledLayer(bgAssets.ground, camera.x, camera.y);
-                ctx.restore();
-            } else {
-                drawTiledLayer(bgAssets.ground, camera.x, camera.y);
-            }
-            if (CONFIG.groundBrightness < 1) {
-                ctx.save();
-                ctx.globalAlpha = 1 - CONFIG.groundBrightness;
-                ctx.fillStyle = '#000';
-                ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
-                ctx.restore();
-            }
-        } else {
-            ctx.fillStyle = '#1a1510';
-            ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
-        }
-
-        // Layer 2: Skull decorations (chunk-based, seeded)
-        drawSkullChunks();
-
-        // Layer 3: Light orbs (parallax + breathing)
-        drawLightOrbs(now);
-
-        // Layer 4a: Effect bottom layer (direct video blend)
-        activeEffects.forEach(eff => {
-            if (eff.video) {
-                const alpha = effectAlpha(eff, now);
-                if (alpha <= 0) return;
-                const frameSurface = getEffectFrameSurface(eff);
-                if (!frameSurface) return;
-                const ex = w2sx(eff.x), ey = w2sy(eff.y);
-                const half = eff.size / 2;
-
-                ctx.save();
-                ctx.globalCompositeOperation = 'lighten';
-                ctx.globalAlpha = alpha;
-                ctx.drawImage(frameSurface, ex - half, ey - half, eff.size, eff.size);
-                ctx.restore();
-            } else if (!eff.video) {
-                drawFallbackEffect(eff, now);
-            }
-        });
+        // Layer 1-4a: shared arena backdrop + bottom glyph layer
+        drawArenaBackdrop(now);
+        drawArenaEffectsBottom(now);
 
         // Layer 4a2: Amulet aura (always under player feet)
         drawAmuletAura();
@@ -2826,8 +2822,10 @@ const Battle = (() => {
             else drawPlayer(playerImg, now);
         });
 
-        // Layer 4c: Effect top layer (gradient mask + lighten for 2.5D occlusion)
+        // Layer 4c: shared arena glyph top layer for 2.5D occlusion
+        drawArenaEffectsTop(now);
         activeEffects.forEach(eff => {
+            return;
             if (eff.video) {
                 if (eff.renderTop === false) return;
                 const alpha = effectAlpha(eff, now);
@@ -2894,7 +2892,7 @@ const Battle = (() => {
         ctx.restore(); // End screen shake transform
 
         // Layer 5: Vignette (fixed on screen, after shake restore)
-        drawVignette();
+        drawBattleVignette();
 
         // Layer 6: Damage flash screen
         if (damageFlash.alpha > 0) drawDamageFlash(now);

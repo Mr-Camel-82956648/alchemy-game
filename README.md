@@ -62,7 +62,7 @@ uvicorn app.main:app --reload --port 18001
 ## 本地视觉调试工具
 
 - `frontend/tools/` 是本地调试目录，只在需要视觉调试、参数校准或专项核查时按需进入；平时正常业务开发不要主动阅读整个目录。
-- 当前新增 `frontend/tools/arena_glyph_tuner.html`，用于在 battle 外单独核查竞技场法阵视频的尺寸、位置、混合模式和近似后处理参数。
+- 当前新增 `frontend/tools/arena_glyph_tuner.html`，用于在 battle 外用共享 canvas 渲染链核查竞技场法阵视频的尺寸、位置、混合模式与近似后处理参数；它仍然只属于本地调试目录，不是正式业务上下文。
 
 ## 当前开发阶段
 

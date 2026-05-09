@@ -3,19 +3,18 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>竞技场法阵视觉调试页</title>
+<title>竞技场法阵真实预览调试器</title>
 <style>
 * { box-sizing: border-box; }
 :root {
     color-scheme: dark;
-    --bg: #0f1116;
-    --panel: #171a20;
-    --panel-2: #1e232b;
+    --bg: #0e1015;
+    --panel: #161a21;
+    --panel-2: #1d232c;
     --line: rgba(255, 236, 201, 0.14);
     --text: #efe4d2;
     --muted: #aa9f90;
     --accent: #d9aa54;
-    --accent-soft: rgba(217, 170, 84, 0.14);
 }
 body {
     margin: 0;
@@ -43,7 +42,7 @@ body {
 }
 .title p {
     margin: 8px 0 0;
-    max-width: 860px;
+    max-width: 900px;
     color: var(--muted);
 }
 .pill {
@@ -58,7 +57,7 @@ body {
 }
 .layout {
     display: grid;
-    grid-template-columns: 420px minmax(0, 1fr);
+    grid-template-columns: 430px minmax(0, 1fr);
     gap: 18px;
 }
 .panel {
@@ -132,12 +131,11 @@ input[type="range"] {
     accent-color: var(--accent);
 }
 .slider-value {
-    min-width: 58px;
+    min-width: 72px;
     text-align: right;
     color: #ffe7bc;
 }
-.button-row,
-.preset-row {
+.button-row {
     display: flex;
     flex-wrap: wrap;
     gap: 8px;
@@ -193,7 +191,7 @@ button.secondary {
 }
 .preview-meta {
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 10px;
 }
 .preview-meta .stat {
@@ -217,138 +215,27 @@ button.secondary {
     border: 1px solid rgba(255, 255, 255, 0.05);
     background: #090b10;
 }
-.arena-stage {
-    position: relative;
-    width: 100%;
-    aspect-ratio: 16 / 9;
-    overflow: hidden;
-    isolation: isolate;
-}
-.arena-floor,
-.arena-skulls,
-.arena-light,
-.arena-vignette,
-.arena-guides,
-.glyph-stack,
-.placeholder {
+.stage-placeholder {
     position: absolute;
     inset: 0;
-}
-.arena-floor {
-    background-image: url('../assets/aena/seamless_texture_01.jpg');
-    background-size: 320px auto;
-    background-repeat: repeat;
-    filter: brightness(var(--arena-brightness, 0.59)) saturate(var(--arena-saturation, 0.62)) contrast(var(--arena-contrast, 1));
-}
-.arena-skulls {
-    background-image: url('../assets/aena/skull_01.png'), url('../assets/aena/skull_02.png');
-    background-size: 220px auto, 240px auto;
-    background-repeat: repeat;
-    background-position: 40px 50px, 180px 180px;
-    opacity: 0.16;
-    filter: brightness(0.76) saturate(0.45);
-}
-.arena-light {
-    background-repeat: repeat;
-    mix-blend-mode: screen;
-    opacity: 0.34;
-}
-.arena-light.light-a {
-    background-image: url('../assets/aena/linear_dodge_add_01.png');
-    background-size: 760px auto;
-    animation: drift-a 18s linear infinite;
-}
-.arena-light.light-b {
-    background-image: url('../assets/aena/linear_dodge_add_02.png');
-    background-size: 620px auto;
-    opacity: 0.22;
-    animation: drift-b 22s linear infinite reverse;
-}
-.arena-vignette {
-    background:
-        radial-gradient(circle at center, rgba(0, 0, 0, 0) 34%, rgba(0, 0, 0, var(--vignette, 0.28)) 100%),
-        linear-gradient(180deg, rgba(10, 12, 18, 0.05), rgba(0, 0, 0, 0.1));
-    pointer-events: none;
-}
-.arena-guides {
-    pointer-events: none;
-}
-.arena-guides::before,
-.arena-guides::after {
-    content: '';
-    position: absolute;
-    left: 50%;
-    top: 50%;
-    transform: translate(-50%, -50%);
-}
-.arena-guides::before {
-    width: 50%;
-    height: 20%;
-    border: 1px dashed rgba(255, 244, 206, 0.16);
-    border-radius: 50%;
-}
-.arena-guides::after {
-    width: 2px;
-    height: 66%;
-    background: linear-gradient(180deg, transparent, rgba(255, 244, 206, 0.16), transparent);
-}
-.glyph-stack {
-    --glyph-size: 796px;
-    --glyph-x: 0px;
-    --glyph-y: 0px;
-    opacity: var(--glyph-opacity, 1);
-    pointer-events: none;
-}
-.glyph-video {
-    position: absolute;
-    left: calc(50% + var(--glyph-x));
-    top: calc(50% + var(--glyph-y));
-    width: var(--glyph-size);
-    height: var(--glyph-size);
-    transform: translate(-50%, -50%);
-    object-fit: cover;
-}
-.glyph-video.base {
-    mix-blend-mode: var(--glyph-blend, lighten);
-    filter: saturate(var(--glyph-saturation, 1)) contrast(var(--glyph-contrast, 1)) brightness(var(--glyph-brightness, 1));
-}
-.glyph-video.highlights {
-    mix-blend-mode: screen;
-    opacity: var(--glyph-highlights, 0);
-    filter: brightness(calc(1 + var(--glyph-highlights, 0) * 0.9)) contrast(calc(1 + var(--glyph-highlights, 0) * 0.3));
-}
-.glyph-video.shadows {
-    mix-blend-mode: multiply;
-    opacity: calc(var(--glyph-shadows, 0) * 0.7);
-    filter: brightness(calc(1 - var(--glyph-shadows, 0) * 0.65)) contrast(calc(1 + var(--glyph-shadows, 0) * 0.25));
-}
-.glyph-video.whites {
-    mix-blend-mode: screen;
-    opacity: calc(var(--glyph-whites, 0) * 0.72);
-    filter: grayscale(1) brightness(calc(1 + var(--glyph-whites, 0) * 1.4)) contrast(calc(1 + var(--glyph-whites, 0) * 0.6));
-}
-.glyph-video.blacks {
-    mix-blend-mode: multiply;
-    opacity: calc(var(--glyph-blacks, 0) * 0.82);
-    filter: grayscale(1) brightness(calc(1 - var(--glyph-blacks, 0) * 0.82)) contrast(calc(1 + var(--glyph-blacks, 0) * 0.35));
-}
-.glyph-video.glow {
-    mix-blend-mode: screen;
-    opacity: calc(var(--glyph-glow, 0) * 0.72);
-    filter: blur(calc(var(--glyph-glow, 0) * 24px)) brightness(calc(1 + var(--glyph-glow, 0) * 1.2)) saturate(calc(1 + var(--glyph-glow, 0) * 0.7));
-}
-.placeholder {
     display: grid;
     place-items: center;
     padding: 24px;
     text-align: center;
     color: #cabda8;
-    background: radial-gradient(circle at center, rgba(217, 170, 84, 0.06), transparent 36%);
+    background: radial-gradient(circle at center, rgba(217, 170, 84, 0.08), transparent 36%);
 }
-.placeholder strong {
+.stage-placeholder strong {
     display: block;
     margin-bottom: 8px;
     font-size: 18px;
+}
+.preview-canvas {
+    display: block;
+    width: 100%;
+    height: auto;
+    aspect-ratio: 16 / 9;
+    background: #050608;
 }
 .note-list {
     display: grid;
@@ -360,14 +247,6 @@ button.secondary {
     margin-top: 8px;
     color: #9e9486;
     font-size: 12px;
-}
-@keyframes drift-a {
-    from { transform: translate3d(0, 0, 0); }
-    to { transform: translate3d(-140px, -40px, 0); }
-}
-@keyframes drift-b {
-    from { transform: translate3d(0, 0, 0); }
-    to { transform: translate3d(110px, 55px, 0); }
 }
 @media (max-width: 1360px) {
     .layout {
@@ -383,6 +262,11 @@ button.secondary {
         flex-direction: column;
     }
     .preview-meta {
+        grid-template-columns: 1fr 1fr;
+    }
+}
+@media (max-width: 640px) {
+    .preview-meta {
         grid-template-columns: 1fr;
     }
 }
@@ -392,17 +276,17 @@ button.secondary {
 <div class="page">
     <div class="topbar">
         <div class="title">
-            <h1>竞技场法阵视觉调试页</h1>
-            <p>本页只用于视觉核查、混合模式观察和参数试调，不接入正式 battle 逻辑，也不是常规业务开发的默认阅读上下文；只有在做视觉调试或参数校准时才进入 `frontend/tools/`。</p>
+            <h1>竞技场法阵真实预览调试器</h1>
+            <p>本页只用于视觉调试与参数校准，不接正式玩家流程；平时正常业务开发不要主动把整个 `frontend/tools/` 带入上下文。当前预览已改为复用 battle 的 canvas 竞技场背景与法阵上下层渲染口径，而不是 CSS 示意贴图。</p>
         </div>
-        <div class="pill">battle 当前默认基线：`lighten` + 地面 `brightness=0.59` / `saturation=0.62`</div>
+        <div class="pill">shared battle renderer · `lighten` 底层 + 顶层遮罩叠加</div>
     </div>
 
     <div class="layout">
         <aside class="panel control-panel">
             <section class="section">
                 <h2>视频来源</h2>
-                <p>优先从当前本地卡牌 / loadout 里选，也支持手动 URL 或本地文件替换。</p>
+                <p>优先读取当前本地卡牌 / loadout，也支持手动 URL 或本地文件。</p>
                 <div class="field">
                     <label for="video-source-select">当前卡牌视频</label>
                     <select id="video-source-select"></select>
@@ -423,17 +307,31 @@ button.secondary {
             </section>
 
             <section class="section">
-                <h2>位置与尺寸</h2>
-                <p>这里先给你一个 battle 外的可调近似场，不直接改正式战斗参数。</p>
+                <h2>预览模式</h2>
+                <p>单发与大招都会走同一套 battle 共享尺寸公式；大招布局也会复用共享生成逻辑。</p>
                 <div class="field">
-                    <div class="slider-head"><span>尺寸</span><span id="size-value" class="slider-value"></span></div>
-                    <input id="size-range" type="range" min="240" max="1400" step="1">
+                    <label for="preview-mode-select">模式</label>
+                    <select id="preview-mode-select">
+                        <option value="spell">普通施法</option>
+                        <option value="ultimate">大招齐射</option>
+                    </select>
                 </div>
-                <div class="preset-row">
-                    <button class="size-preset" type="button" data-size="796">槽位1 · 796</button>
-                    <button class="size-preset" type="button" data-size="597">槽位2 · 597</button>
-                    <button class="size-preset" type="button" data-size="696">槽位3 · 696</button>
-                    <button class="size-preset" type="button" data-size="895">槽位4 · 895</button>
+                <div class="status-box">
+                    <div><strong>battle 图层</strong>: 背景层 → 法阵底层 → 占位遮挡参考 → 法阵顶层</div>
+                    <div><strong>锐化 / 清晰</strong>: 暂未实现，避免做失真伪实现</div>
+                </div>
+            </section>
+
+            <section class="section">
+                <h2>位置与尺寸</h2>
+                <p>先调公共尺寸基线，再用竞技场视角微调统一放大或缩小。</p>
+                <div class="field">
+                    <div class="slider-head"><span>统一尺寸基准</span><span id="glyph-base-size-value" class="slider-value"></span></div>
+                    <input id="glyph-base-size-range" type="range" min="320" max="1200" step="1">
+                </div>
+                <div class="field">
+                    <div class="slider-head"><span>竞技场视角尺寸微调</span><span id="arena-view-size-tweak-value" class="slider-value"></span></div>
+                    <input id="arena-view-size-tweak-range" type="range" min="0.60" max="1.40" step="0.01">
                 </div>
                 <div class="field">
                     <div class="slider-head"><span>X</span><span id="offset-x-value" class="slider-value"></span></div>
@@ -441,7 +339,7 @@ button.secondary {
                 </div>
                 <div class="field">
                     <div class="slider-head"><span>Y</span><span id="offset-y-value" class="slider-value"></span></div>
-                    <input id="offset-y-range" type="range" min="-300" max="300" step="1">
+                    <input id="offset-y-range" type="range" min="-320" max="320" step="1">
                 </div>
                 <div class="field">
                     <div class="slider-head"><span>透明度</span><span id="opacity-value" class="slider-value"></span></div>
@@ -460,7 +358,7 @@ button.secondary {
 
             <section class="section">
                 <h2>法阵后处理</h2>
-                <p>以下都是前端近似实现，不是剪映 1:1 等价。</p>
+                <p>这些参数是前端近似实现，但会建立在真实 canvas 图层顺序之上。</p>
                 <div class="field">
                     <div class="slider-head"><span>饱和度</span><span id="glyph-saturation-value" class="slider-value"></span></div>
                     <input id="glyph-saturation-range" type="range" min="0" max="2.4" step="0.01">
@@ -517,7 +415,7 @@ button.secondary {
 
             <section class="section">
                 <h2>参数保存</h2>
-                <p>本页会自动把最近一次调试值写入 localStorage，同时可复制 JSON 回填 battle。</p>
+                <p>当前值会自动写入 localStorage，同时可复制 JSON 回填 battle 统一参数。</p>
                 <div class="button-row">
                     <button id="copy-json" type="button">复制 JSON</button>
                     <button id="reset-defaults" class="secondary" type="button">恢复 battle 基线</button>
@@ -533,12 +431,11 @@ button.secondary {
             <div class="preview-head">
                 <div>
                     <h2>实时预览</h2>
-                    <p>舞台使用现有 battle arena 资源的近似拼装：地面纹理、光层、暗角与当前默认混合口径。</p>
+                    <p>当前画面使用 battle 共用 canvas 竞技场背景、底层法阵、顶层遮罩与同一套尺寸公式；这里调出的参数，才有资格回填到正式 battle。</p>
                 </div>
-                <div class="status-box">
-                    <div><strong>当前 battle 图层:</strong> 底层法阵 → 怪物/角色 → 上层渐变补层</div>
-                    <div><strong>当前默认混合:</strong> 法阵层 `lighten`，护符光圈 `screen`</div>
-                    <div><strong>锐化 / 清晰:</strong> 暂未实现，避免硬凑假等价</div>
+                <div id="render-status" class="status-box">
+                    <div><strong>renderer</strong>: shared battle canvas renderer</div>
+                    <div><strong>post fx</strong>: same base pass, optional debug overlays</div>
                 </div>
             </div>
 
@@ -548,46 +445,35 @@ button.secondary {
                     <div id="current-source-name" class="value">未选择</div>
                 </div>
                 <div class="stat">
+                    <div class="label">预览模式</div>
+                    <div id="current-preview-mode" class="value">普通施法</div>
+                </div>
+                <div class="stat">
                     <div class="label">当前混合模式</div>
                     <div id="current-blend-mode" class="value">lighten</div>
                 </div>
                 <div class="stat">
-                    <div class="label">保存状态</div>
-                    <div id="persist-status" class="value">等待修改</div>
+                    <div class="label">有效渲染尺寸</div>
+                    <div id="effective-render-size" class="value">746px</div>
                 </div>
             </div>
 
             <div class="stage-shell">
-                <div id="arena-stage" class="arena-stage">
-                    <div class="arena-floor"></div>
-                    <div class="arena-skulls"></div>
-                    <div class="arena-light light-a"></div>
-                    <div class="arena-light light-b"></div>
-                    <div class="arena-guides"></div>
-                    <div id="glyph-stack" class="glyph-stack">
-                        <video id="glyph-base" class="glyph-video base" loop muted playsinline></video>
-                        <video id="glyph-highlights" class="glyph-video highlights" loop muted playsinline></video>
-                        <video id="glyph-shadows" class="glyph-video shadows" loop muted playsinline></video>
-                        <video id="glyph-whites" class="glyph-video whites" loop muted playsinline></video>
-                        <video id="glyph-blacks" class="glyph-video blacks" loop muted playsinline></video>
-                        <video id="glyph-glow" class="glyph-video glow" loop muted playsinline></video>
+                <canvas id="arena-preview-canvas" class="preview-canvas" width="2560" height="1440"></canvas>
+                <div id="stage-placeholder" class="stage-placeholder">
+                    <div>
+                        <strong>还没有选择视频</strong>
+                        从当前卡牌、手动 URL 或本地文件中选择一个法阵视频后，这里会用 battle 共用渲染链开始预览。
                     </div>
-                    <div id="placeholder" class="placeholder">
-                        <div>
-                            <strong>还没选视频</strong>
-                            从当前卡牌、手动 URL 或本地文件中选一个法阵视频后，这里会立即开始预览。
-                        </div>
-                    </div>
-                    <div class="arena-vignette"></div>
                 </div>
             </div>
 
             <div class="note-list">
-                <div>1. 高光 / 阴影 / 白色 / 黑色 / 光感 使用的是多层视频叠加与 CSS filter 近似，不是剪映参数直译。</div>
-                <div>2. 目前不引入 monster 真正逻辑；这里只保留 arena 底图与法阵层，方便你先看尺寸、位置和叠加感。</div>
-                <div>3. 如果后面调到满意效果，直接复制左侧 JSON，再回填正式 battle 即可。</div>
+                <div>1. 竞技场背景、底层法阵、顶层遮罩与暗角来自共享 battle 渲染器，不再是 CSS 示意图。</div>
+                <div>2. 预览里保留了一个低透明度遮挡参考层，用来维持 battle 的 2.5D 构图依据，但不会真正渲染 monster。</div>
+                <div>3. 高光 / 阴影 / 白色 / 黑色 / 光感 是前端近似增强层；`sharpen / clarity` 仍明确保持未实现。</div>
             </div>
-            <div class="footer-note">按需阅读提醒：`frontend/tools/` 是调试目录，平时正常业务开发不要主动把它当默认上下文加载。</div>
+            <div class="footer-note">按需阅读提醒：`frontend/tools/` 仍然只是调试目录，平时正常业务开发不要主动把它当默认上下文。</div>
         </section>
     </div>
 </div>
@@ -601,6 +487,7 @@ window.__ALCHEMY_RUNTIME_CONFIG__ = Object.assign(
 <script src="../js/runtimeConfig.js?v=media-url-base2"></script>
 <script src="../js/spellDefs.js?v=forge-settlement-sync1"></script>
 <script src="../js/storage.js?v=media-url-base2"></script>
-<script src="./arena_glyph_tuner.js?v=arena-glyph-tuner1"></script>
+<script src="../js/arenaGlyphRenderer.js?v=arena-renderer1"></script>
+<script src="./arena_glyph_tuner.js?v=arena-glyph-tuner2"></script>
 </body>
 </html>
