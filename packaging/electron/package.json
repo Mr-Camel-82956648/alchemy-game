@@ -1,0 +1,53 @@
+{
+  "name": "alchemy-game-desktop",
+  "version": "0.1.0",
+  "private": true,
+  "author": "Alchemy Game Team",
+  "description": "Electron desktop packaging for Alchemy Game.",
+  "main": "main.js",
+  "scripts": {
+    "dev": "electron .",
+    "prepare:runtime": "node scripts/prepare-runtime.js",
+    "pack:win": "npm run prepare:runtime && electron-builder --dir --win",
+    "dist:win": "npm run prepare:runtime && electron-builder --win zip"
+  },
+  "devDependencies": {
+    "electron": "^31.7.7",
+    "electron-builder": "^24.13.3"
+  },
+  "build": {
+    "appId": "com.alchemygame.desktop",
+    "productName": "Alchemy Game",
+    "electronDist": "node_modules/electron/dist",
+    "asar": true,
+    "directories": {
+      "buildResources": "assets",
+      "output": "../release"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "scripts/**/*",
+      "assets/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "../runtime/app",
+        "to": "runtime/app"
+      }
+    ],
+    "win": {
+      "icon": "assets/icon.ico",
+      "signAndEditExecutable": false,
+      "target": [
+        {
+          "target": "zip",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    }
+  }
+}
