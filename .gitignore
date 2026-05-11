@@ -49,3 +49,24 @@ backend/data/
 # ===== Keep all frontend runtime assets =====
 # Intentionally DO NOT ignore frontend/assets/**
 # because the project must be runnable after pull on another machine.
+
+# ===== Packaging / exe prototype outputs =====
+# Keep packaging source files tracked, ignore only build artifacts.
+dist/
+out/
+release/
+packaging/dist/
+packaging/release/
+packaging/out/
+packaging/runtime/
+packaging/.cache/
+packaging/electron/builder-debug.yml
+packaging/electron/builder-effective-config.yaml
+packaging/electron/node_modules/
+backend/build/
+backend/dist/
+backend/*.spec
+*.exe
+*.msi
+*.blockmap
+node_modules/
