@@ -1,5 +1,5 @@
 # bgm
-1. frontend\assets\Audio\bgm\Shattered_Crown_Run.mp3
+1. frontend\assets\Audio\bgm\Catacomb_Veil.mp3
 用在：除了竞技场以外的炼金室、武器库、收藏夹等
 关键词：Instrumental, Dark ambient, gothic dungeon, slow cello, mysterious magical atmosphere, no drums, no percussion, background music, seamless loop.
 
