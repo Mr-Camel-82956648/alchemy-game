@@ -113,7 +113,7 @@ $env:ELECTRON_BUILDER_BINARIES_MIRROR='https://npmmirror.com/mirrors/electron-bu
 4. Confirm `GET /api/debug/llm-config` shows:
    - `forge.provider=openai_compat`
    - `glyphRouter.provider=openai_compat`
-   - `forgeFallback.provider=gemini_rest`
+   - `forgeFallback.provider=disabled`
    - `envFilesLoaded=["backend/.env"]`
 5. Send one minimal `POST /api/forge` request and wait for `completed`
 

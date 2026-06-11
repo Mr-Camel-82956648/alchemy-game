@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import os
+from contextlib import contextmanager
+from contextvars import ContextVar
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -15,6 +17,7 @@ DEPRECATED_ENV_PATHS = {
     "repo/.env": REPO_ROOT / ".env",
     "backend/alchemy_glyph_router/.env": ROUTER_ROOT / ".env",
 }
+_REQUEST_LLM_CONFIG: ContextVar[dict[str, str] | None] = ContextVar("request_llm_config", default=None)
 
 
 @dataclass(frozen=True)
@@ -69,75 +72,69 @@ def ensure_repo_env_loaded() -> tuple[str, ...]:
     return tuple(loaded)
 
 
+@contextmanager
+def request_llm_config(config: dict[str, str] | None):
+    token = _REQUEST_LLM_CONFIG.set(config or None)
+    try:
+        yield
+    finally:
+        _REQUEST_LLM_CONFIG.reset(token)
+
+
 def resolve_forge_llm_config() -> ResolvedLLMConfig:
     env_files = ensure_repo_env_loaded()
     timeout_seconds = _parse_float(os.getenv("LLM_TIMEOUT_SECONDS"), 30.0)
     max_retries = _parse_int(os.getenv("LLM_MAX_RETRIES"), 1)
     raw_provider = _clean(os.getenv("LLM_PROVIDER"))
-    provider_source = "LLM_PROVIDER" if raw_provider else "default:gemini_rest"
+    provider_source = "LLM_PROVIDER" if raw_provider else "default:openai_compat"
     provider = _normalize_provider(raw_provider)
-
-    if provider == "openai_compat":
-        shared = _resolve_openai_compat_config(
-            kind="forge",
-            source_family="primary_openai_compat",
-            timeout_seconds=timeout_seconds,
-            max_retries=max_retries,
-            provider_hint=provider,
-            provider_source=provider_source,
-        )
-        field_sources = {"provider": provider_source, **shared.field_sources}
-        return ResolvedLLMConfig(
-            kind="forge",
-            provider="openai_compat",
-            base_url=shared.base_url,
-            api_key=shared.api_key,
-            model=shared.model,
-            timeout_seconds=timeout_seconds,
-            max_retries=max_retries,
-            log_level=shared.log_level,
-            source_family=shared.source_family,
-            field_sources=field_sources,
-            env_files_loaded=env_files,
-            missing=shared.missing,
-            warnings=shared.warnings,
-        )
-
     warnings: list[str] = []
-    if raw_provider and provider not in {"gemini_rest", "openai_compat"}:
-        warnings.append(f"unknown_provider_fallback:{raw_provider}")
-    return _resolve_gemini_config(
+    if provider != "openai_compat":
+        warnings.append(f"unsupported_provider_ignored:{raw_provider or provider}")
+
+    shared = _resolve_openai_compat_config(
         kind="forge",
-        source_family="primary_gemini_rest",
+        source_family="primary_openai_compat",
         timeout_seconds=timeout_seconds,
         max_retries=max_retries,
+        provider_hint="openai_compat",
         provider_source=provider_source,
         extra_warnings=warnings,
+    )
+    field_sources = {"provider": provider_source, **shared.field_sources}
+    return ResolvedLLMConfig(
+        kind="forge",
+        provider="openai_compat",
+        base_url=shared.base_url,
+        api_key=shared.api_key,
+        model=shared.model,
+        timeout_seconds=timeout_seconds,
+        max_retries=max_retries,
+        log_level=shared.log_level,
+        source_family=shared.source_family,
+        field_sources=field_sources,
+        env_files_loaded=env_files,
+        missing=shared.missing,
+        warnings=shared.warnings,
     )
 
 
 def resolve_forge_fallback_llm_config() -> ResolvedLLMConfig:
-    ensure_repo_env_loaded()
+    env_files = ensure_repo_env_loaded()
     timeout_seconds = _parse_float(os.getenv("LLM_TIMEOUT_SECONDS"), 30.0)
-    max_retries = _parse_int(os.getenv("LLM_MAX_RETRIES"), 1)
-    provider = _normalize_provider(os.getenv("LLM_PROVIDER"))
-
-    if provider == "openai_compat":
-        return _resolve_gemini_config(
-            kind="forge_fallback",
-            source_family="fallback_gemini_rest",
-            timeout_seconds=timeout_seconds,
-            max_retries=max_retries,
-            provider_source="GEMINI_API_KEY / LLM_MODEL",
-        )
-
-    return _resolve_openai_compat_config(
+    return ResolvedLLMConfig(
         kind="forge_fallback",
-        source_family="fallback_openai_compat",
+        provider="disabled",
+        base_url=None,
+        api_key=None,
+        model=None,
         timeout_seconds=timeout_seconds,
-        max_retries=max_retries,
-        provider_hint="openai_compat",
-        provider_source="LLM_BASE_URL / LLM_API_KEY / OPENAI_COMPAT_MODEL",
+        max_retries=None,
+        log_level=os.getenv("LOG_LEVEL", "INFO").upper(),
+        source_family="disabled",
+        field_sources={"provider": "disabled"},
+        env_files_loaded=env_files,
+        warnings=("fallback LLM disabled; only GPT openai-compatible primary config is used",),
     )
 
 
@@ -145,8 +142,8 @@ def resolve_glyph_router_llm_config() -> ResolvedLLMConfig:
     timeout_seconds = _parse_float(os.getenv("LLM_TIMEOUT_SECONDS"), 60.0)
     provider_hint = _normalize_provider(os.getenv("LLM_PROVIDER"))
     warnings: list[str] = []
-    if provider_hint == "gemini_rest":
-        warnings.append("LLM_PROVIDER=gemini_rest: glyph router still requires the primary openai-compatible config")
+    if provider_hint != "openai_compat":
+        warnings.append("Only openai-compatible GPT models are enabled")
     return _resolve_openai_compat_config(
         kind="glyph_router",
         source_family="primary_openai_compat",
@@ -189,24 +186,37 @@ def _resolve_openai_compat_config(
 ) -> ResolvedLLMConfig:
     env_files = ensure_repo_env_loaded()
     log_level = os.getenv("LOG_LEVEL", "INFO").upper()
-    base_url, base_url_source = _pick_first("LLM_BASE_URL")
-    api_key, api_key_source = _pick_first("LLM_API_KEY")
-    model, model_source = _pick_router_model(provider_hint, base_url, api_key)
+    request_config = _REQUEST_LLM_CONFIG.get()
+    if request_config:
+        base_url = _clean(request_config.get("base_url"))
+        api_key = _clean(request_config.get("api_key"))
+        model = _clean(request_config.get("model")) or "gpt-5.4"
+        base_url_source = "request.aiConfig.baseUrl"
+        api_key_source = "request.aiConfig.apiKey"
+        model_source = "request.aiConfig.model" if _clean(request_config.get("model")) else "default:gpt-5.4"
+    else:
+        base_url, base_url_source = _pick_first("LLM_BASE_URL")
+        api_key, api_key_source = _pick_first("LLM_API_KEY")
+        model, model_source = _pick_router_model(provider_hint, base_url, api_key)
 
     warnings = list(extra_warnings or [])
     resolved_family = source_family
-    if model_source == "LLM_MODEL":
-        resolved_family = f"{source_family}_legacy_model_alias"
-        warnings.append("OPENAI_COMPAT_MODEL missing: fell back to LLM_MODEL")
+    model_is_gpt = bool(model and model.lower().startswith("gpt-"))
+    if model and not model_is_gpt:
+        warnings.append(f"unsupported_model_requires_gpt:{model}")
 
-    missing = tuple(
-        name for name, value in (
+    missing_items = [
+        name
+        for name, value in (
             ("LLM_BASE_URL", base_url),
             ("LLM_API_KEY", api_key),
             ("OPENAI_COMPAT_MODEL", model),
         )
         if not value
-    )
+    ]
+    if model and not model_is_gpt:
+        missing_items.append("OPENAI_COMPAT_MODEL(gpt-*)")
+    missing = tuple(missing_items)
 
     field_sources = {
         "provider": provider_source,
@@ -232,42 +242,6 @@ def _resolve_openai_compat_config(
     )
 
 
-def _resolve_gemini_config(
-    *,
-    kind: str,
-    source_family: str,
-    timeout_seconds: float,
-    max_retries: int | None,
-    provider_source: str,
-    extra_warnings: list[str] | None = None,
-) -> ResolvedLLMConfig:
-    env_files = ensure_repo_env_loaded()
-    api_key = _clean(os.getenv("GEMINI_API_KEY"))
-    model = _clean(os.getenv("LLM_MODEL")) or "gemini-2.0-flash"
-    missing = tuple(name for name, value in (("GEMINI_API_KEY", api_key),) if not value)
-    field_sources = {
-        "provider": provider_source,
-        "api_key": "GEMINI_API_KEY",
-        "model": "LLM_MODEL" if _has_text(os.getenv("LLM_MODEL")) else "default:gemini-2.0-flash",
-    }
-
-    return ResolvedLLMConfig(
-        kind=kind,
-        provider="gemini_rest",
-        base_url=None,
-        api_key=api_key,
-        model=model,
-        timeout_seconds=timeout_seconds,
-        max_retries=max_retries,
-        log_level=os.getenv("LOG_LEVEL", "INFO").upper(),
-        source_family=source_family,
-        field_sources=field_sources,
-        env_files_loaded=env_files,
-        missing=missing,
-        warnings=tuple(extra_warnings or ()),
-    )
-
-
 def _pick_router_model(
     provider_hint: str,
     base_url: str | None,
@@ -277,39 +251,26 @@ def _pick_router_model(
     if direct:
         return direct, "OPENAI_COMPAT_MODEL"
 
-    alias = _clean(os.getenv("LLM_MODEL"))
-    if not alias:
-        return None, "OPENAI_COMPAT_MODEL"
-
-    if provider_hint == "openai_compat":
-        return alias, "LLM_MODEL"
-
-    if provider_hint == "gemini_rest":
-        return None, "OPENAI_COMPAT_MODEL"
-
-    if base_url and api_key:
-        return alias, "LLM_MODEL"
-
-    return None, "OPENAI_COMPAT_MODEL"
+    return "gpt-5.4", "default:gpt-5.4"
 
 
 def _describe_alignment(forge: ResolvedLLMConfig, glyph_router: ResolvedLLMConfig) -> tuple[bool, str]:
     if forge.provider != "openai_compat":
-        return False, "forge 当前走 gemini_rest；glyph router 当前固定走 openai_compat"
+        return False, f"forge provider is {forge.provider}; expected openai_compat"
 
     if forge.missing:
-        return False, f"forge 缺少配置: {', '.join(forge.missing)}"
+        return False, f"forge missing config: {', '.join(forge.missing)}"
 
     if glyph_router.missing:
-        return False, f"glyph router 缺少配置: {', '.join(glyph_router.missing)}"
+        return False, f"glyph router missing config: {', '.join(glyph_router.missing)}"
 
     same_key = forge.api_key == glyph_router.api_key
     same_base = forge.base_url == glyph_router.base_url
     same_model = forge.model == glyph_router.model
     if same_key and same_base and same_model:
-        return True, "forge 与 glyph router 当前共用同一套 openai-compatible 配置"
+        return True, "forge and glyph router share one openai-compatible GPT config"
 
-    return False, "forge 与 glyph router 当前 provider 同为 openai_compat，但 base_url / api_key / model 仍未完全一致"
+    return False, "forge and glyph router both use openai_compat, but base_url / api_key / model differ"
 
 
 def _detect_ignored_env_files() -> list[str]:
@@ -318,11 +279,11 @@ def _detect_ignored_env_files() -> list[str]:
 
 def _normalize_provider(raw: str | None) -> str:
     text = _clean(raw).lower()
-    if text in {"", "gemini", "gemini_rest"}:
-        return "gemini_rest"
+    if text in {""}:
+        return "openai_compat"
     if text in {"openai_compat", "openai-compatible", "openai"}:
         return "openai_compat"
-    return text or "gemini_rest"
+    return text or "openai_compat"
 
 
 def _pick_first(name: str) -> tuple[str | None, str]:

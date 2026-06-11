@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>炼金法阵</title>
-    <link rel="stylesheet" href="css/style.css?v=forge-settlement-sync1">
+    <link rel="stylesheet" href="css/style.css?v=ai-config2">
 </head>
 <body>
     <div id="app">
@@ -47,6 +47,10 @@
                 <!-- 武器库 按钮（左下角） -->
                 <button id="btn-loadout" class="alchemy-icon-btn loadout-btn">
                     <img src="assets/icon/wuqiku.png" alt="武器库">
+                </button>
+
+                <button id="btn-ai-config" class="ai-config-status" type="button">
+                    <span id="ai-config-status">AI 未连接</span>
                 </button>
 
                 <!-- 合成 按钮（右下角） -->
@@ -295,6 +299,51 @@
             </div>
         </div>
 
+        <div id="ai-config-overlay" class="ai-config-overlay" hidden>
+            <div class="ai-config-panel">
+                <div class="ai-config-header">
+                    <div>
+                        <div class="ai-config-title">连接 AI 引擎</div>
+                        <div class="ai-config-subtitle">炼金炉只使用 gpt-* 模型</div>
+                    </div>
+                    <button id="btn-ai-config-close" class="ai-config-close" type="button">×</button>
+                </div>
+                <div class="ai-config-modes">
+                    <button class="ai-config-mode-btn active" type="button" data-mode="personal">个人 API</button>
+                    <button class="ai-config-mode-btn" type="button" data-mode="internal">内部通道</button>
+                </div>
+                <div id="ai-config-personal" class="ai-config-form">
+                    <label class="ai-config-field">
+                        <span>API Key</span>
+                        <input id="ai-config-api-key" type="password" autocomplete="off" placeholder="sk-...">
+                    </label>
+                    <label class="ai-config-field">
+                        <span>Base URL</span>
+                        <input id="ai-config-base-url" type="text" autocomplete="off" placeholder="https://api.openai.com/v1">
+                    </label>
+                    <label class="ai-config-field">
+                        <span>Model</span>
+                        <input id="ai-config-model" type="text" autocomplete="off" value="gpt-5.4" readonly>
+                    </label>
+                    <label class="ai-config-check">
+                        <input id="ai-config-remember" type="checkbox">
+                        <span>记住到本机</span>
+                    </label>
+                </div>
+                <div id="ai-config-internal" class="ai-config-form" hidden>
+                    <label class="ai-config-field">
+                        <span>访问密码</span>
+                        <input id="ai-config-password" type="password" autocomplete="off" placeholder="请输入访问密码">
+                    </label>
+                </div>
+                <div id="ai-config-message" class="ai-config-message"></div>
+                <div class="ai-config-actions">
+                    <button id="btn-ai-config-test" class="ai-config-action secondary" type="button">测试连接</button>
+                    <button id="btn-ai-config-save" class="ai-config-action" type="button">进入炼金炉</button>
+                </div>
+            </div>
+        </div>
+
         <div id="fade-mask" class="fade-mask"></div>
     </div>
 
@@ -310,6 +359,7 @@
     <script src="js/audioManager.js?v=audio-demo1"></script>
     <script src="js/runtimeConfig.js?v=media-url-base2"></script>
     <script src="js/storage.js?v=media-url-base2"></script>
+    <script src="js/aiConfig.js?v=ai-config3"></script>
     <script src="js/spellDefs.js?v=forge-settlement-sync1"></script>
     <script src="js/monsterDefs.js?v=phase5-final-pack2"></script>
     <script src="js/combat.js?v=phase3"></script>
@@ -320,6 +370,6 @@
     <script src="js/arenaGlyphRenderer.js?v=arena-renderer1"></script>
     <script src="js/battle.js?v=media-url-base2"></script>
     <script src="js/uiTuner.js?v=phase6-dev-foundation1"></script>
-    <script src="js/main.js?v=media-url-base1"></script>
+    <script src="js/main.js?v=media-url-base3"></script>
 </body>
 </html>

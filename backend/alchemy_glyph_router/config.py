@@ -4,9 +4,12 @@ from dataclasses import dataclass
 from pathlib import Path
 
 try:
-    from .env_config import resolve_glyph_router_llm_config
+    from alchemy_glyph_router.env_config import resolve_glyph_router_llm_config
 except ImportError:
-    from env_config import resolve_glyph_router_llm_config
+    try:
+        from .env_config import resolve_glyph_router_llm_config
+    except ImportError:
+        from env_config import resolve_glyph_router_llm_config
 
 
 @dataclass(frozen=True)

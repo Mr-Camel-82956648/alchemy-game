@@ -4,11 +4,7 @@ from pathlib import Path
 from typing import Any, Iterable, Optional
 
 import httpx
-from alchemy_glyph_router.env_config import (
-    resolve_forge_fallback_llm_config,
-    resolve_forge_llm_config,
-    resolve_glyph_router_llm_config,
-)
+from alchemy_glyph_router.env_config import resolve_forge_llm_config
 
 logger = logging.getLogger("forge.llm")
 
@@ -49,7 +45,6 @@ def call_forge_semantic_llm(
     spell_b: Optional[dict],
 ) -> Optional[dict]:
     primary_config = resolve_forge_llm_config()
-    backup_config = resolve_forge_fallback_llm_config()
     timeout = int(primary_config.timeout_seconds)
     max_retries = int(primary_config.max_retries or 1)
     primary_provider = primary_config.provider
@@ -65,52 +60,17 @@ def call_forge_semantic_llm(
         f"sources={primary_config.field_sources}, "
         f"env_files={list(primary_config.env_files_loaded) or ['process_env_only']}"
     )
-    print(
-        "  [LLM] Fallback config: "
-        f"provider={backup_config.provider}, "
-        f"family={backup_config.source_family}, "
-        f"model={backup_config.model}, "
-        f"base_url={backup_config.base_url or '-'}, "
-        f"api_key={backup_config.api_key_hint() or '-'}"
-    )
 
-    if primary_provider == "openai_compat":
-        result = _call_openai_compat(user_prompt, timeout, max_retries, primary_config)
-        if result:
-            print("  [LLM] Primary provider success: openai_compat")
-            return result
-
-        print("  [LLM] Primary provider failed: openai_compat")
-        print("  [LLM] Switching to backup provider: gemini_rest")
-        backup_result = _call_gemini_rest(user_prompt, timeout, max_retries, backup_config)
-        if backup_result:
-            print("  [LLM] Backup provider success: gemini_rest")
-            return backup_result
-        print("  [LLM] Backup provider failed: gemini_rest")
+    if primary_provider != "openai_compat":
+        print(f"  [LLM] Unsupported provider '{primary_provider}'; only openai_compat GPT models are enabled")
         return None
 
-    if primary_provider != "gemini_rest":
-        print(f"  [LLM] Unknown primary provider '{primary_provider}', falling back to gemini_rest as primary")
-
-    result = _call_gemini_rest(user_prompt, timeout, max_retries, primary_config)
+    result = _call_openai_compat(user_prompt, timeout, max_retries, primary_config)
     if result:
-        print("  [LLM] Primary provider success: gemini_rest")
+        print("  [LLM] Primary provider success: openai_compat")
         return result
 
-    print("  [LLM] Primary provider failed: gemini_rest")
-    print("  [LLM] Switching to backup provider: openai_compat")
-
-    backup_result = _call_openai_compat(
-        user_prompt,
-        timeout,
-        max_retries,
-        backup_config,
-    )
-    if backup_result:
-        print("  [LLM] Backup provider success: openai_compat")
-        return backup_result
-
-    print("  [LLM] Backup provider failed: openai_compat")
+    print("  [LLM] Primary provider failed: openai_compat; no backup LLM is configured")
     return None
 
 
@@ -228,71 +188,18 @@ def _log_location_restriction(provider_name: str, error_text: str):
         print(f"  [LLM] {provider_name} availability issue: request appears blocked by network/region restrictions")
 
 
-def _call_gemini_rest(user_prompt: str, timeout: int, max_retries: int, config):
-    api_key = config.api_key or ""
-    model = config.model or "gemini-2.0-flash"
-
-    if not api_key:
-        print("  [LLM] Gemini skipped: GEMINI_API_KEY not set")
-        return None
-
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
-
-    payload = {
-        "systemInstruction": {
-            "parts": [{"text": SYSTEM_PROMPT}]
-        },
-        "contents": [{
-            "role": "user",
-            "parts": [{"text": user_prompt}]
-        }],
-        "generationConfig": {
-            "temperature": 0.4,
-            "responseMimeType": "application/json",
-        },
-    }
-
-    total_attempts = 1 + max_retries
-    for attempt in range(total_attempts):
-        try:
-            print(f"  [LLM] Gemini request attempt {attempt + 1}/{total_attempts}  model={model}")
-            resp = httpx.post(url, json=payload, timeout=timeout)
-            resp.raise_for_status()
-
-            body = resp.json()
-            text = body["candidates"][0]["content"]["parts"][0]["text"]
-            print(f"  [LLM] Gemini raw response: {text[:300]}")
-
-            raw = json.loads(_extract_json_text(text))
-            validated = _validate(raw)
-            if validated:
-                print(f"  [LLM] Gemini validation OK: name={validated['name']}")
-                return validated
-
-            print("  [LLM] Gemini validation FAILED for parsed JSON")
-        except httpx.HTTPStatusError as exc:
-            error_text = exc.response.text[:200]
-            print(f"  [LLM] Gemini HTTP error (attempt {attempt + 1}): {exc.response.status_code} - {error_text}")
-            _log_location_restriction("Gemini", error_text)
-        except (json.JSONDecodeError, KeyError, IndexError) as exc:
-            print(f"  [LLM] Gemini parse error (attempt {attempt + 1}): {exc}")
-        except Exception as exc:
-            print(f"  [LLM] Gemini call error (attempt {attempt + 1}): {exc}")
-
-    return None
-
-
 def _call_openai_compat(user_prompt: str, timeout: int, max_retries: int, config):
     if config.provider != "openai_compat":
-        config = resolve_glyph_router_llm_config()
+        print(f"  [LLM] OpenAI-compatible call skipped: unsupported provider={config.provider}")
+        return None
 
     base_url = (config.base_url or "").rstrip("/")
     api_key = config.api_key or ""
     model = config.model or ""
 
-    if not base_url or not api_key or not model:
+    if config.missing or not base_url or not api_key or not model:
         print(
-            "  [LLM] OpenAI-compatible backup skipped: "
+            "  [LLM] OpenAI-compatible skipped: "
             f"missing {', '.join(config.missing or ('LLM_BASE_URL', 'LLM_API_KEY', 'OPENAI_COMPAT_MODEL'))}"
         )
         return None

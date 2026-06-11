@@ -36,8 +36,14 @@ const App = (() => {
         Loadout.init();
         Alchemy.init();
         Battle.init();
+        if (typeof AIConfig !== 'undefined' && AIConfig.init) {
+            AIConfig.init();
+        }
 
         showPage('alchemy', false);
+        if (typeof AIConfig !== 'undefined' && AIConfig.showStartupIfNeeded) {
+            AIConfig.showStartupIfNeeded();
+        }
         console.log('[炼金法阵] 初始化完成');
     }
 

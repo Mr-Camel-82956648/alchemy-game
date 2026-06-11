@@ -7,7 +7,7 @@ import time
 import uuid
 from typing import Dict, Iterable, List, Optional
 
-from alchemy_glyph_router.env_config import resolve_forge_fallback_llm_config, resolve_forge_llm_config
+from alchemy_glyph_router.env_config import request_llm_config, resolve_forge_llm_config
 
 from ..models import ForgeResult
 from .llm_client import call_forge_semantic_llm
@@ -196,6 +196,7 @@ def create_forge_task(
     *,
     spell_a: Optional[dict],
     spell_b: Optional[dict],
+    llm_config: Optional[dict] = None,
 ) -> str:
     task_id = f"task_{uuid.uuid4().hex[:12]}"
 
@@ -215,7 +216,7 @@ def create_forge_task(
 
     thread = threading.Thread(
         target=_process_forge,
-        args=(task_id, spell_a, spell_b),
+        args=(task_id, spell_a, spell_b, llm_config),
         daemon=True,
     )
     thread.start()
@@ -227,54 +228,56 @@ def get_task_status(task_id: str) -> Optional[dict]:
         return _tasks.get(task_id)
 
 
-def _process_forge(task_id: str, spell_a: Optional[dict], spell_b: Optional[dict]):
+def _process_forge(task_id: str, spell_a: Optional[dict], spell_b: Optional[dict], llm_config: Optional[dict] = None):
     try:
-        inputs = [item for item in (spell_a, spell_b) if item]
-        input_state = _resolve_input_state(spell_a, spell_b)
-        logger.info(
-            "forge.task_started %s",
-            _json_log(
-                {
-                    "taskId": task_id,
-                    "inputState": input_state,
-                    "inputCount": len(inputs),
-                }
-            ),
-        )
-
-        if input_state == "empty":
-            result = _build_opening_pool_result(task_id=task_id, input_state=input_state)
-        else:
-            result = _build_semantic_result(
-                task_id=task_id,
-                input_state=input_state,
-                spell_a=spell_a,
-                spell_b=spell_b,
-                inputs=inputs,
+        with request_llm_config(llm_config):
+            inputs = [item for item in (spell_a, spell_b) if item]
+            input_state = _resolve_input_state(spell_a, spell_b)
+            logger.info(
+                "forge.task_started %s",
+                _json_log(
+                    {
+                        "taskId": task_id,
+                        "inputState": input_state,
+                        "inputCount": len(inputs),
+                        "llmConfigSource": "request" if llm_config else "env",
+                    }
+                ),
             )
 
-        with _lock:
-            if task_id in _tasks:
-                _tasks[task_id]["status"] = "completed"
-                _tasks[task_id]["result"] = result
+            if input_state == "empty":
+                result = _build_opening_pool_result(task_id=task_id, input_state=input_state)
+            else:
+                result = _build_semantic_result(
+                    task_id=task_id,
+                    input_state=input_state,
+                    spell_a=spell_a,
+                    spell_b=spell_b,
+                    inputs=inputs,
+                )
 
-        logger.info(
-            "forge.task_completed %s",
-            _json_log(
-                {
-                    "taskId": task_id,
-                    "name": result.name,
-                    "attrSet": result.attrSet,
-                    "source": result.source,
-                    "inputState": result.inputState,
-                    "promptRoute": result.promptRoute,
-                    "promptRouteReason": result.promptRouteReason,
-                    "promptFallbackApplied": result.promptFallbackApplied,
-                    "promptTemplate": result.promptTemplate,
-                    "promptModel": result.promptModel,
-                }
-            ),
-        )
+            with _lock:
+                if task_id in _tasks:
+                    _tasks[task_id]["status"] = "completed"
+                    _tasks[task_id]["result"] = result
+
+            logger.info(
+                "forge.task_completed %s",
+                _json_log(
+                    {
+                        "taskId": task_id,
+                        "name": result.name,
+                        "attrSet": result.attrSet,
+                        "source": result.source,
+                        "inputState": result.inputState,
+                        "promptRoute": result.promptRoute,
+                        "promptRouteReason": result.promptRouteReason,
+                        "promptFallbackApplied": result.promptFallbackApplied,
+                        "promptTemplate": result.promptTemplate,
+                        "promptModel": result.promptModel,
+                    }
+                ),
+            )
     except Exception as exc:
         with _lock:
             if task_id in _tasks:
@@ -332,7 +335,6 @@ def _build_semantic_result(
     llm_result = None
     if use_real_llm:
         config = resolve_forge_llm_config()
-        fallback_config = resolve_forge_fallback_llm_config()
         print(
             "[FORGE] LLM enabled - "
             f"provider={config.provider}, "
@@ -340,9 +342,6 @@ def _build_semantic_result(
             f"model={config.model}, "
             f"base_url={config.base_url or '-'}, "
             f"api_key={config.api_key_hint() or '-'}, "
-            f"fallback_provider={fallback_config.provider}, "
-            f"fallback_model={fallback_config.model}, "
-            f"fallback_api_key={fallback_config.api_key_hint() or '-'}, "
             f"inputState={input_state}"
         )
         llm_result = call_forge_semantic_llm(input_state=input_state, spell_a=spell_a, spell_b=spell_b)
