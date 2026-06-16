@@ -2,12 +2,12 @@ FROM node:22-alpine
 
 WORKDIR /app
 
-COPY backend-node ./backend-node
+COPY backend ./backend
 COPY frontend ./frontend
 COPY alchemy_intro_book ./alchemy_intro_book
 COPY index.html ./index.html
 
-WORKDIR /app/backend-node
+WORKDIR /app/backend
 
 ENV HOST=0.0.0.0
 ENV PORT=18001

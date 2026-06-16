@@ -8,7 +8,7 @@ assets.
 Each static asset is a self-contained directory:
 
 ```text
-backend-node/resources/assets/cards/<assetId>/
+backend/resources/assets/cards/<assetId>/
   metadata.json
   video.mp4
   thumbnail.webp
@@ -62,7 +62,7 @@ Optional fields:
 
 ## Runtime API
 
-`GET /api/assets/cards` scans `backend-node/resources/assets/cards/` and returns
+`GET /api/assets/cards` scans `backend/resources/assets/cards/` and returns
 frontend-ready URLs:
 
 - `thumbnailUrl`
@@ -81,7 +81,7 @@ listed with `mediaReady=false`, `missingMedia`, and `null` for the missing URL.
 
 To promote a player-generated result into a static pool:
 
-1. Create `backend-node/resources/assets/cards/<assetId>/`.
+1. Create `backend/resources/assets/cards/<assetId>/`.
 2. Copy or download the final video as `video.mp4`.
 3. Add a local `thumbnail.webp`.
 4. Create `metadata.json`.

@@ -75,8 +75,8 @@ const server = http.createServer(async (req, res) => {
 });
 
 server.listen(port, host, () => {
-  console.log(`[backend-node] listening at http://${host}:${port}`);
-  console.log('[backend-node] runtime snapshot', JSON.stringify(buildRuntimeSnapshot()));
+  console.log(`[backend] listening at http://${host}:${port}`);
+  console.log('[backend] runtime snapshot', JSON.stringify(buildRuntimeSnapshot()));
 });
 
 async function handleApi(req, res, url, pathname) {

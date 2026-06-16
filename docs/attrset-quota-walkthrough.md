@@ -95,6 +95,6 @@
 
 1. `README.md`
 2. 鏈枃妗?3. `docs/forge-schema.md`
-4. `backend-node/README.md`
+4. `backend/README.md`
 
 `docs/archive/` 涓殑 handover銆乸hase銆乺oadmap銆佹棫鍒嗘瀽绋块兘鍙綔涓哄巻鍙插弬鑰冿紝涓嶅啀浠ｈ〃褰撳墠鍗忚涓庡綋鍓嶆満鍒躲€?

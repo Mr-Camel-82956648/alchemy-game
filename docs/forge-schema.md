@@ -201,7 +201,7 @@ GET /api/player/quota?playerId=player_xxx
 闈欐€佽祫浜х洰褰曞崗璁細
 
 ```text
-backend-node/resources/assets/cards/<assetId>/
+backend/resources/assets/cards/<assetId>/
   metadata.json
   video.mp4
   thumbnail.webp

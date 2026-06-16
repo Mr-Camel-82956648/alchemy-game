@@ -1,13 +1,13 @@
 # Alchemy Game
 
-一个前端游戏加 Node 后端的炼金法阵原型。玩家通过合成已有法阵生成新法阵，并在 4-wave 战斗中使用属性命中机制对抗怪物。当前后端已经迁移到 `backend-node/`，不再需要 Python/FastAPI 运行时。
+一个前端游戏加 Node 后端的炼金法阵原型。玩家通过合成已有法阵生成新法阵，并在 4-wave 战斗中使用属性命中机制对抗怪物。当前后端已经迁移到 `backend/`，不再需要 Python/FastAPI 运行时。
 
 ## 启动
 
 推荐直接让 Node 后端同时托管 API 和静态文件：
 
 ```powershell
-cd backend-node
+cd backend
 $env:ALCHEMY_SERVE_STATIC='1'
 npm start
 ```
@@ -28,7 +28,7 @@ python -m http.server 8000
 
 ## 配置
 
-真实敏感配置文件放在 `backend-node/.env`，模板是 `backend-node/.env.example`。真实 `.env` 已被 `.gitignore` 和 `.dockerignore` 排除，不要提交。
+真实敏感配置文件放在 `backend/.env`，模板是 `backend/.env.example`。真实 `.env` 已被 `.gitignore` 和 `.dockerignore` 排除，不要提交。
 
 关键配置包括：
 
@@ -40,15 +40,15 @@ python -m http.server 8000
 
 ## 资源
 
-- 内置卡牌素材：`backend-node/resources/assets/cards/`
-- forge 语义提示词：`backend-node/resources/prompts/`
-- glyph router 模板：`backend-node/resources/glyph-router-templates/`
-- 运行态数据：`backend-node/data/`
+- 内置卡牌素材：`backend/resources/assets/cards/`
+- forge 语义提示词：`backend/resources/prompts/`
+- glyph router 模板：`backend/resources/glyph-router-templates/`
+- 运行态数据：`backend/data/`
 
 ## 测试
 
 ```powershell
-cd backend-node
+cd backend
 npm run smoke
 ```
 
@@ -57,11 +57,11 @@ smoke test 会禁用真实 LLM key，只验证本地服务、资产、quota、fo
 ## Docker
 
 ```powershell
-cd backend-node
+cd backend
 docker compose up --build
 ```
 
-Docker compose 默认读取 `backend-node/.env`，并把运行态数据持久化到 `backend-node/data/`。
+Docker compose 默认读取 `backend/.env`，并把运行态数据持久化到 `backend/data/`。
 
 ## 常用入口
 

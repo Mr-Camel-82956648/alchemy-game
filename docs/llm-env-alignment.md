@@ -1,16 +1,16 @@
 # LLM Runtime Configuration
 
-The current backend is the Node implementation under `backend-node/`. The single
+The current backend is the Node implementation under `backend/`. The single
 official local runtime config file is:
 
 ```text
-backend-node/.env
+backend/.env
 ```
 
 The committed template is:
 
 ```text
-backend-node/.env.example
+backend/.env.example
 ```
 
 Do not commit a real `.env` file. It is ignored by both `.gitignore` and
@@ -77,7 +77,7 @@ Expected shape:
 - `glyphRouter.model = gpt-5.4`
 - `forgeFallback.provider = disabled`
 - `aligned = true`
-- `envFilesLoaded` includes `backend-node/.env`
+- `envFilesLoaded` includes `backend/.env`
 
 If the route falls back locally, first check `missing`, `baseUrl`, `model`, and
 the masked `apiKeyHint` in this debug response.

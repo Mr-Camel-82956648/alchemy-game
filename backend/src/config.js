@@ -191,7 +191,7 @@ export function resolvePixVerseConfig() {
   const missing = apiKey ? [] : ['PIXVERSE_API_KEY'];
 
   return {
-    configSource: 'backend-node/.env',
+    configSource: 'backend/.env',
     baseUrl: baseUrl.replace(/\/+$/, ''),
     submitUrl: `${baseUrl.replace(/\/+$/, '')}/video/text/generate`,
     resultUrlTemplate: `${baseUrl.replace(/\/+$/, '')}/video/result/{id}`,

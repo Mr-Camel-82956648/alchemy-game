@@ -8,7 +8,7 @@ the current frontend and listens on port `18001` by default.
 Split local frontend/backend mode:
 
 ```powershell
-cd backend-node
+cd backend
 npm start
 ```
 
@@ -32,18 +32,18 @@ Then open:
 ## Docker
 
 ```powershell
-cd backend-node
+cd backend
 docker compose up --build
 ```
 
-The compose file reads `backend-node/.env` at runtime and persists backend state
-to `backend-node/data/`. The `.env` file is excluded from the image build context
+The compose file reads `backend/.env` at runtime and persists backend state
+to `backend/data/`. The `.env` file is excluded from the image build context
 by the repository root `.dockerignore`.
 
 ## Smoke Test
 
 ```powershell
-cd backend-node
+cd backend
 npm run smoke
 ```
 
@@ -54,16 +54,16 @@ APIs.
 ## Runtime Scope
 
 - Compatible API routes for the frontend game loop.
-- JSON-backed quota and card/video state under `backend-node/data/`.
-- Static built-in card assets are read from `backend-node/resources/assets/cards/`.
+- JSON-backed quota and card/video state under `backend/data/`.
+- Static built-in card assets are read from `backend/resources/assets/cards/`.
 - Forge semantic prompts and glyph router templates are bundled under
-  `backend-node/resources/`.
+  `backend/resources/`.
 - Optional real OpenAI-compatible forge calls and PixVerse calls use
-  `backend-node/.env`.
+  `backend/.env`.
 
 ## Desktop Packaging Direction
 
-Electron can start `backend-node/src/desktop-entry.js` instead of invoking
+Electron can start `backend/src/desktop-entry.js` instead of invoking
 another runtime. The desktop entry serves both API routes and static files, so
 the packaged app no longer needs a separate static server or a system Python
 installation.
