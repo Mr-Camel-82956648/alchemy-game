@@ -1,0 +1,15 @@
+services:
+  alchemy-game:
+    build:
+      context: ..
+      dockerfile: backend/Dockerfile
+    ports:
+      - "18001:18001"
+    env_file:
+      - ./.env
+    environment:
+      HOST: 0.0.0.0
+      PORT: 18001
+      ALCHEMY_SERVE_STATIC: "1"
+    volumes:
+      - ./data:/app/backend/data

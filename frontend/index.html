@@ -351,10 +351,18 @@
     <img id="img-player" src="assets/ui/player.webp" style="display:none">
 
     <script>
-        window.__ALCHEMY_RUNTIME_CONFIG__ = Object.assign(
-            { apiBase: 'http://localhost:18001' },
-            window.__ALCHEMY_RUNTIME_CONFIG__ || {}
-        );
+        (function () {
+            const isHttp = window.location.protocol === 'http:' || window.location.protocol === 'https:';
+            const isLocalHost = ['localhost', '127.0.0.1', '::1'].includes(window.location.hostname);
+            const isSplitLocalStatic = isLocalHost && ['8000', '8080'].includes(window.location.port || '');
+            const apiBase = isHttp && !isSplitLocalStatic
+                ? window.location.origin
+                : 'http://localhost:18001';
+            window.__ALCHEMY_RUNTIME_CONFIG__ = Object.assign(
+                { apiBase },
+                window.__ALCHEMY_RUNTIME_CONFIG__ || {}
+            );
+        })();
     </script>
     <script src="js/audioManager.js?v=audio-demo1"></script>
     <script src="js/runtimeConfig.js?v=media-url-base2"></script>
