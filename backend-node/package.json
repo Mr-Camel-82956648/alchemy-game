@@ -1,0 +1,16 @@
+{
+  "name": "alchemy-game-node-backend",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Node-compatible backend for Alchemy Game.",
+  "scripts": {
+    "start": "node src/server.js",
+    "desktop": "node src/desktop-entry.js",
+    "dev": "node --watch src/server.js",
+    "smoke": "node scripts/smoke-test.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

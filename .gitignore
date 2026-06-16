@@ -38,10 +38,11 @@ _archive_claude/
 # ===== Environment variables =====
 .env
 .env.*
-!backend/.env.example
+!backend-node/.env.example
 
 # ===== Runtime state =====
 backend/data/
+backend-node/data/
 
 # ===== Ripgrep / search ignore (not needed in repo) =====
 # .ignore is kept for local ripgrep use, not excluded
