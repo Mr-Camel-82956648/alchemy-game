@@ -13,10 +13,32 @@ class SpellInput(BaseModel):
     generation: Optional[int] = 1
 
 
+class ForgeAIConfig(BaseModel):
+    mode: str = "internal"
+    apiKey: Optional[str] = None
+    baseUrl: Optional[str] = None
+    model: Optional[str] = "gpt-5.4"
+    internalPassword: Optional[str] = None
+
+
 class ForgeRequest(BaseModel):
     playerId: str
     spellA: Optional[SpellInput] = None
     spellB: Optional[SpellInput] = None
+    aiConfig: Optional[ForgeAIConfig] = None
+
+
+class AIConfigTestRequest(BaseModel):
+    aiConfig: ForgeAIConfig
+
+
+class AIConfigTestResponse(BaseModel):
+    ok: bool
+    mode: str
+    model: Optional[str] = None
+    baseUrl: Optional[str] = None
+    apiKeyHint: Optional[str] = None
+    message: str = ""
 
 
 class ForgeResult(BaseModel):

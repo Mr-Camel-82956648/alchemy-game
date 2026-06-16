@@ -286,6 +286,184 @@ body {
     filter: brightness(1.25);
 }
 
+.ai-config-status {
+    position: absolute;
+    top: 28px;
+    right: 34px;
+    z-index: 20;
+    min-width: 154px;
+    min-height: 42px;
+    padding: 0 18px;
+    border: 1px solid rgba(214, 196, 160, 0.32);
+    border-radius: 999px;
+    background: rgba(13, 11, 9, 0.72);
+    color: rgba(238, 222, 190, 0.86);
+    font: 700 14px/1 "Noto Serif SC", serif;
+    cursor: pointer;
+    box-shadow: 0 10px 28px rgba(0,0,0,0.28);
+}
+.ai-config-status:hover {
+    filter: brightness(1.12);
+}
+.ai-config-status .ready {
+    color: #ffd88e;
+}
+
+.ai-config-overlay[hidden] {
+    display: none !important;
+}
+.ai-config-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 20000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.72);
+    backdrop-filter: blur(7px);
+}
+.ai-config-panel {
+    width: 560px;
+    padding: 28px;
+    border: 1px solid rgba(221, 198, 150, 0.28);
+    border-radius: 8px;
+    background: rgba(18, 14, 11, 0.96);
+    box-shadow: 0 22px 60px rgba(0, 0, 0, 0.56);
+    color: #eadcbd;
+}
+.ai-config-header {
+    display: flex;
+    justify-content: space-between;
+    gap: 24px;
+    align-items: flex-start;
+}
+.ai-config-title {
+    font-family: 'Noto Serif SC', serif;
+    font-size: 30px;
+    font-weight: 900;
+    color: #e0bd78;
+    letter-spacing: 2px;
+}
+.ai-config-subtitle {
+    margin-top: 8px;
+    color: rgba(234, 220, 190, 0.7);
+    font-size: 14px;
+}
+.ai-config-close {
+    width: 36px;
+    height: 36px;
+    border: 1px solid rgba(221, 198, 150, 0.26);
+    border-radius: 50%;
+    background: rgba(255,255,255,0.04);
+    color: #eadcbd;
+    font-size: 24px;
+    cursor: pointer;
+}
+.ai-config-close:disabled {
+    opacity: 0.35;
+    cursor: default;
+}
+.ai-config-modes {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-top: 24px;
+}
+.ai-config-mode-btn,
+.ai-config-action {
+    min-height: 42px;
+    border: 1px solid rgba(221, 198, 150, 0.3);
+    border-radius: 6px;
+    background: rgba(45, 34, 22, 0.82);
+    color: #f2e2bf;
+    font: 800 15px/1 "Noto Serif SC", serif;
+    cursor: pointer;
+}
+.ai-config-mode-btn.active {
+    border-color: rgba(255, 204, 109, 0.72);
+    background: rgba(96, 63, 22, 0.82);
+    color: #ffe4a4;
+}
+.ai-config-form {
+    margin-top: 20px;
+}
+.ai-config-field {
+    display: block;
+}
+.ai-config-field + .ai-config-field {
+    margin-top: 14px;
+}
+.ai-config-field span,
+.ai-config-check span {
+    display: block;
+    margin-bottom: 7px;
+    color: rgba(234, 220, 190, 0.78);
+    font-size: 13px;
+}
+.ai-config-field input {
+    width: 100%;
+    height: 44px;
+    padding: 0 12px;
+    border: 1px solid rgba(221, 198, 150, 0.24);
+    border-radius: 6px;
+    background: rgba(6, 5, 4, 0.72);
+    color: #f6e7c7;
+    font: 14px/1.2 "Consolas", monospace;
+    outline: none;
+}
+.ai-config-field input:focus {
+    border-color: rgba(255, 204, 109, 0.7);
+}
+.ai-config-field input::placeholder {
+    color: rgba(246, 231, 199, 0.42);
+}
+.ai-config-field input[readonly] {
+    color: rgba(255, 222, 160, 0.92);
+    background: rgba(25, 20, 15, 0.82);
+    cursor: default;
+}
+.ai-config-check {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    margin-top: 14px;
+    color: rgba(234, 220, 190, 0.78);
+    font-size: 13px;
+}
+.ai-config-check span {
+    margin: 0;
+}
+.ai-config-message {
+    min-height: 24px;
+    margin-top: 14px;
+    color: rgba(234, 220, 190, 0.72);
+    font-size: 13px;
+    line-height: 1.5;
+}
+.ai-config-message[data-tone="success"] {
+    color: #b9e8a8;
+}
+.ai-config-message[data-tone="error"] {
+    color: #ffb0a0;
+}
+.ai-config-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+    margin-top: 18px;
+}
+.ai-config-action {
+    min-width: 132px;
+    padding: 0 18px;
+}
+.ai-config-action.secondary {
+    background: rgba(24, 21, 18, 0.9);
+}
+.ai-config-action:disabled {
+    opacity: 0.5;
+    cursor: default;
+}
+
 /* 坩埚结果卡 */
 .cauldron-result {
     position: absolute;

@@ -109,6 +109,9 @@ const Alchemy = (() => {
     }
 
     async function onStart() {
+        if (typeof AIConfig !== 'undefined' && AIConfig.ensureReadyForAction && !AIConfig.ensureReadyForAction()) {
+            return;
+        }
         stopPendingResultRetry();
         hideSettlementWaiting();
         const cardA = GameStorage.getSlot('A');

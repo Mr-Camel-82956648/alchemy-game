@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException
 
-from ..models import ForgeCreateResponse, ForgeRequest, ForgeStatusResponse
+from ..models import AIConfigTestRequest, AIConfigTestResponse, ForgeCreateResponse, ForgeRequest, ForgeStatusResponse
+from ..services.ai_config_service import AIConfigError, resolve_request_llm_override, test_ai_config
 from ..services.forge_service import create_forge_task, get_task_status
 from ..services.quota_service import QuotaExceededError, consume_quota_or_raise, get_quota_snapshot
 
@@ -40,6 +41,14 @@ def start_forge(req: ForgeRequest):
     has_any_input = bool(spell_a or spell_b)
 
     try:
+        llm_config = resolve_request_llm_override(req.aiConfig)
+    except AIConfigError as exc:
+        raise HTTPException(
+            status_code=401,
+            detail={"code": "ai_config_invalid", "message": str(exc)},
+        ) from exc
+
+    try:
         if has_any_input:
             consume_quota_or_raise(req.playerId)
     except QuotaExceededError as exc:
@@ -53,8 +62,19 @@ def start_forge(req: ForgeRequest):
             },
         ) from exc
 
-    task_id = create_forge_task(spell_a=spell_a, spell_b=spell_b)
+    task_id = create_forge_task(spell_a=spell_a, spell_b=spell_b, llm_config=llm_config)
     return ForgeCreateResponse(taskId=task_id, status="pending")
+
+
+@router.post("/ai-config/test", response_model=AIConfigTestResponse)
+async def test_ai_engine(req: AIConfigTestRequest):
+    try:
+        return await test_ai_config(req.aiConfig)
+    except AIConfigError as exc:
+        raise HTTPException(
+            status_code=400,
+            detail={"code": "ai_config_invalid", "message": str(exc)},
+        ) from exc
 
 
 @router.get("/forge/status/{task_id}", response_model=ForgeStatusResponse)

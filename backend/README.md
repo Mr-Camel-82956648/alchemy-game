@@ -30,16 +30,12 @@ uvicorn app.main:app --reload --port 18001
 `backend/.env.example`。本地日常维护时，只需要维护 `backend/.env`。
 
 ```env
-# Primary LLM
+# LLM
 FORGE_USE_REAL_LLM=true
 LLM_PROVIDER=openai_compat
 LLM_BASE_URL=https://relay.tuyoo.com/v1
 LLM_API_KEY=
 OPENAI_COMPAT_MODEL=gpt-5.4
-
-# Fallback LLM
-GEMINI_API_KEY=
-LLM_MODEL=gemini-3-flash-preview
 
 # Forge / Debug
 LLM_TIMEOUT_SECONDS=30
@@ -68,9 +64,6 @@ PIXVERSE_TIMEOUT_SECONDS=120
 - forge 宿主 backend 与 glyph router 现在都以 `backend/.env` 为唯一文件级配置来源
 - 项目根目录 `./.env` 与 `backend/alchemy_glyph_router/.env*` 不再是正式文件入口
 - 推荐主用：`LLM_PROVIDER=openai_compat` + `OPENAI_COMPAT_MODEL=gpt-5.4`
-- 当前 forge 语义阶段会把 `GEMINI_API_KEY + LLM_MODEL` 作为 fallback LLM
-- glyph router 当前仍只使用 Primary LLM 区块，但也只读 `backend/.env`
-- 当 `LLM_PROVIDER=openai_compat` 且未设置 `OPENAI_COMPAT_MODEL` 时，仍兼容回退到 `LLM_MODEL`
 - `FORGE_USE_REAL_LLM=false` 时，forge 语义阶段直接走本地 fallback
 - PixVerse 当前已接入第一版最小闭环：`POST /openapi/v2/video/text/generate` + `GET /openapi/v2/video/result/{id}`
 - `PIXVERSE_BASE_URL` 当前默认按国际版 OpenAPI v2，推荐直接填 `https://app-api.pixverse.ai/openapi/v2`

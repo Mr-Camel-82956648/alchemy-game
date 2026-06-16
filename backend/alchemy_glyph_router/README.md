@@ -129,10 +129,6 @@ LLM_BASE_URL=https://relay.tuyoo.com/v1
 LLM_API_KEY=
 OPENAI_COMPAT_MODEL=gpt-5.4
 
-# Forge fallback / shared repo config
-GEMINI_API_KEY=
-LLM_MODEL=gemini-3-flash-preview
-
 LLM_TIMEOUT_SECONDS=30
 LLM_MAX_RETRIES=1
 LOG_LEVEL=
@@ -140,8 +136,8 @@ LOG_LEVEL=
 
 兼容说明：
 
-- 若 `LLM_PROVIDER=openai_compat` 且 `OPENAI_COMPAT_MODEL` 缺失，会兼容回退到 `LLM_MODEL`
-- `GEMINI_API_KEY` 只影响宿主 forge 语义阶段的 fallback，不会被 glyph router 直接使用
+- `OPENAI_COMPAT_MODEL` 缺失时默认使用 `gpt-5.4`
+- forge backend 与 glyph router 共用同一套 OpenAI-compatible GPT 配置，不再使用 Gemini fallback
 - 即使机器上存在项目根目录 `./.env`，当前仓库运行时也不会把它当成 glyph router 的正式文件来源
 
 ## 使用方式

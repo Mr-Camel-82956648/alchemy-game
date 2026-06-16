@@ -67,8 +67,8 @@ def root():
         "forge_use_real_llm": use_llm,
         "llm_provider": snapshot["forge"]["provider"],
         "llm_model": snapshot["forge"]["model"],
-        "llm_fallback_provider": snapshot["forgeFallback"]["provider"],
-        "llm_fallback_model": snapshot["forgeFallback"]["model"],
+        "llm_fallback_provider": "disabled",
+        "llm_fallback_model": None,
         "glyph_router_model": snapshot["glyphRouter"]["model"],
         "llm_config_aligned": snapshot["aligned"],
     }

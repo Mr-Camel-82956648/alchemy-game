@@ -514,7 +514,10 @@ const ForgeAPI = (() => {
             body: JSON.stringify({
                 playerId,
                 spellA: buildRequestSpell(cardA),
-                spellB: buildRequestSpell(cardB)
+                spellB: buildRequestSpell(cardB),
+                aiConfig: typeof AIConfig !== 'undefined' && AIConfig.getRequestPayload
+                    ? AIConfig.getRequestPayload()
+                    : null
             })
         })
             .then(async res => {
